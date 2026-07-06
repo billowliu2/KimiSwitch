@@ -28,7 +28,7 @@ impl ProviderType {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Provider {
     pub name: String,
     pub provider_type: ProviderType,
@@ -37,6 +37,19 @@ pub struct Provider {
     pub env: IndexMap<String, String>,
     #[serde(skip)]
     pub raw_other: Table,
+}
+
+impl std::fmt::Debug for Provider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Provider")
+            .field("name", &self.name)
+            .field("provider_type", &self.provider_type)
+            .field("base_url", &self.base_url)
+            .field("api_key", &"<redacted>")
+            .field("env", &"<redacted>")
+            .field("raw_other", &"<table>")
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,13 +63,24 @@ pub struct Model {
     pub raw_other: Table,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Config {
     pub default_model: Option<String>,
     pub providers: IndexMap<String, Provider>,
     pub models: IndexMap<String, Model>,
     #[serde(skip)]
     pub raw_other: Table,
+}
+
+impl std::fmt::Debug for Config {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Config")
+            .field("default_model", &self.default_model)
+            .field("providers", &format!("{} providers", self.providers.len()))
+            .field("models", &self.models)
+            .field("raw_other", &"<table>")
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
