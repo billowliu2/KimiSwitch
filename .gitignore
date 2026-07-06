@@ -6,3 +6,4 @@ src-tauri/target/
 .env*
 .DS_Store
 Thumbs.db
+.worktrees/
