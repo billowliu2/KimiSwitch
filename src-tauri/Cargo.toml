@@ -20,6 +20,10 @@ thiserror = "1.0"
 chrono = "0.4"
 anyhow = "1.0"
 
+[lib]
+name = "kimiswitch_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
