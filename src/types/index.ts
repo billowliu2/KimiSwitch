@@ -57,3 +57,41 @@ export interface DiscoveredModel {
   display_name: string | null;
   max_context_size: number | null;
 }
+
+export interface ThinkingConfig {
+  enabled?: boolean;
+  effort?: "low" | "medium" | "high" | "max";
+  keep?: "all" | false | 0 | "no" | "off" | "none" | null;
+}
+
+export interface LoopControlConfig {
+  max_retries_per_step?: number;
+  reserved_context_size?: number;
+}
+
+export interface BackgroundConfig {
+  max_running_tasks?: number;
+  keep_alive_on_exit?: boolean;
+}
+
+export interface PermissionRule {
+  decision?: "allow" | "deny" | "ask";
+  scope?: string;
+  pattern?: string;
+  reason?: string;
+}
+
+export interface Hook {
+  event?: string;
+  matcher?: string;
+  command?: string;
+  timeout?: number;
+}
+
+export interface AgentSettings {
+  thinking?: ThinkingConfig;
+  loop_control?: LoopControlConfig;
+  background?: BackgroundConfig;
+  permission?: { rules?: PermissionRule[] };
+  hooks?: Hook[];
+}
