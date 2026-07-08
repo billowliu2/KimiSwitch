@@ -348,6 +348,10 @@ export default function App() {
               (m) => m.provider === currentProvider.name
             )}
             defaultModel={config.default_model}
+            rawOther={config.raw_other}
+            onRawOtherChange={(nextRawOther) =>
+              updateConfig((cfg) => ({ ...cfg, raw_other: nextRawOther }))
+            }
             onBack={() => setView("list")}
             onChange={handleUpdateProvider}
             onDelete={() => handleDeleteProvider(currentProvider.name)}
