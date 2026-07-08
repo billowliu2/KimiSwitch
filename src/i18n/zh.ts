@@ -85,6 +85,7 @@ export const zhTranslations = {
   disabled: "已停用",
   switchTo: "切换使用",
   inUse: "使用中",
+  switchReloadHint: "切换供应商后，请在 Kimi Code 中执行 /reload 以生效。",
   unsavedChanges: "未保存修改",
   qwenActivateNotImplemented: "Qwen Code 启用功能将在后续实现。",
   importConfig: "导入当前配置",

@@ -87,6 +87,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   disabled: "Disabled",
   switchTo: "Switch to",
   inUse: "In use",
+  switchReloadHint: "After switching providers, run /reload in Kimi Code to apply the change.",
   unsavedChanges: "Unsaved changes",
   qwenActivateNotImplemented: "Qwen Code activation will be implemented in a follow-up.",
   importConfig: "Import current config",
