@@ -75,7 +75,7 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
             }))}
             value={settings.thinking?.effort ?? "medium"}
             onChange={(effort) =>
-              updateThinking({ effort: effort as AgentSettings["thinking"]["effort"] })
+              updateThinking({ effort: effort as NonNullable<AgentSettings["thinking"]>["effort"] })
             }
             disabled={!thinkingEnabled}
           />
