@@ -1,11 +1,27 @@
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-pub use toml_edit::Table;
+use serde_json::Value;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Target agent whose provider/model config is being edited.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Agent {
+    KimiCode,
+    Pi,
+}
+
+impl Agent {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Agent::KimiCode => "kimi_code",
+            Agent::Pi => "pi",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderType {
-    Kimi,
     Anthropic,
     Openai,
     #[serde(rename = "openai_responses")]
@@ -13,18 +29,41 @@ pub enum ProviderType {
     #[serde(rename = "google-genai")]
     GoogleGenai,
     Vertexai,
+    /// Kept for compatibility; mapped to OpenAI-compatible in Pi.
+    Kimi,
+}
+
+const fn default_true() -> bool {
+    true
 }
 
 impl ProviderType {
     pub fn as_str(&self) -> &'static str {
         match self {
-            ProviderType::Kimi => "kimi",
             ProviderType::Anthropic => "anthropic",
             ProviderType::Openai => "openai",
             ProviderType::OpenaiResponses => "openai_responses",
             ProviderType::GoogleGenai => "google-genai",
             ProviderType::Vertexai => "vertexai",
+            ProviderType::Kimi => "kimi",
         }
+    }
+
+    pub fn default_base_url(&self) -> Option<&'static str> {
+        match self {
+            ProviderType::Openai | ProviderType::OpenaiResponses | ProviderType::Kimi => {
+                Some("https://api.openai.com/v1")
+            }
+            ProviderType::GoogleGenai => Some("https://generativelanguage.googleapis.com"),
+            ProviderType::Anthropic | ProviderType::Vertexai => None,
+        }
+    }
+
+    pub fn is_openai_compatible(&self) -> bool {
+        matches!(
+            self,
+            ProviderType::Kimi | ProviderType::Openai | ProviderType::OpenaiResponses
+        )
     }
 }
 
@@ -34,10 +73,36 @@ pub struct Provider {
     pub provider_type: ProviderType,
     pub base_url: Option<String>,
     pub api_key: Option<String>,
+    #[serde(default)]
     pub env: IndexMap<String, String>,
-    #[serde(skip)]
-    pub raw_other: Table,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub official_url: Option<String>,
+    #[serde(default)]
+    pub managed: bool,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default, skip_serializing_if = "Value::is_null")]
+    pub raw_other: Value,
 }
+
+impl PartialEq for Provider {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.provider_type == other.provider_type
+            && self.base_url == other.base_url
+            && self.api_key == other.api_key
+            && self.env == other.env
+            && self.note == other.note
+            && self.official_url == other.official_url
+            && self.managed == other.managed
+            && self.enabled == other.enabled
+            && self.raw_other == other.raw_other
+    }
+}
+
+impl Eq for Provider {}
 
 impl std::fmt::Debug for Provider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -47,53 +112,107 @@ impl std::fmt::Debug for Provider {
             .field("base_url", &self.base_url)
             .field("api_key", &"<redacted>")
             .field("env", &"<redacted>")
-            .field("raw_other", &"<table>")
+            .field("managed", &self.managed)
+            .field("enabled", &self.enabled)
+            .field("raw_other", &"<json>")
             .finish()
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Model {
     pub alias: String,
     pub provider: String,
     pub model: String,
     pub max_context_size: u64,
     pub display_name: Option<String>,
-    #[serde(skip)]
-    pub raw_other: Table,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub supports_1m: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub capabilities: Vec<String>,
+    #[serde(default, skip_serializing_if = "Value::is_null")]
+    pub raw_other: Value,
 }
+
+impl std::fmt::Debug for Model {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Model")
+            .field("alias", &self.alias)
+            .field("provider", &self.provider)
+            .field("model", &self.model)
+            .field("max_context_size", &self.max_context_size)
+            .field("display_name", &self.display_name)
+            .field("role", &self.role)
+            .field("supports_1m", &self.supports_1m)
+            .field("capabilities", &self.capabilities)
+            .field("raw_other", &"<json>")
+            .finish()
+    }
+}
+
+impl PartialEq for Model {
+    fn eq(&self, other: &Self) -> bool {
+        self.alias == other.alias
+            && self.provider == other.provider
+            && self.model == other.model
+            && self.max_context_size == other.max_context_size
+            && self.display_name == other.display_name
+            && self.role == other.role
+            && self.supports_1m == other.supports_1m
+            && self.capabilities == other.capabilities
+            && self.raw_other == other.raw_other
+    }
+}
+
+impl Eq for Model {}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Config {
     pub default_model: Option<String>,
+    #[serde(default)]
     pub providers: IndexMap<String, Provider>,
+    #[serde(default)]
     pub models: IndexMap<String, Model>,
-    #[serde(skip)]
-    pub raw_other: Table,
+    #[serde(default, skip_serializing_if = "Value::is_null")]
+    pub raw_other: Value,
 }
+
+impl PartialEq for Config {
+    fn eq(&self, other: &Self) -> bool {
+        self.default_model == other.default_model
+            && self.providers == other.providers
+            && self.models == other.models
+            && self.raw_other == other.raw_other
+    }
+}
+
+impl Eq for Config {}
 
 impl std::fmt::Debug for Config {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Config")
             .field("default_model", &self.default_model)
-            .field("providers", &format!("{} providers", self.providers.len()))
+            .field(
+                "providers",
+                &format!(
+                    "{:?} ({} providers)",
+                    self.providers.keys().collect::<Vec<_>>(),
+                    self.providers.len()
+                ),
+            )
             .field("models", &self.models)
-            .field("raw_other", &"<table>")
+            .field("raw_other", &"<json>")
             .finish()
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProfileSummary {
-    pub name: String,
-    pub filename: String,
-    pub is_active: bool,
-}
-
-#[derive(Debug, Clone)]
-pub struct Profile {
-    pub name: String,
-    pub filename: String,
-    pub config: Config,
-    pub is_active: bool,
+/// A model discovered from a provider's API endpoint.
+/// The frontend uses this to populate a `Model` form entry.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiscoveredModel {
+    pub id: String,
+    pub display_name: Option<String>,
+    pub max_context_size: Option<u64>,
 }
