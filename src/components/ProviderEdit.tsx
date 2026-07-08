@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "../i18n";
+import { getDefaultMaxContextSize } from "../lib/model-defaults";
 import { AgentSettingsPanel } from "./AgentSettingsPanel";
 import type { Agent, DiscoveredModel, Model, Provider, ProviderType } from "../types";
 
@@ -378,14 +379,15 @@ function ModelMapping({
     for (const dm of discovered) {
       if (!selected.has(dm.id)) continue;
       const alias = dm.id.replace(/[^a-zA-Z0-9_-]/g, "-");
+      const max_context_size = dm.max_context_size ?? getDefaultMaxContextSize(dm.id);
       toAdd.push({
         alias,
         provider: provider.name,
         model: dm.id,
-        max_context_size: dm.max_context_size ?? 128000,
+        max_context_size,
         display_name: dm.display_name,
         role: null,
-        supports_1m: (dm.max_context_size ?? 0) >= 1_000_000,
+        supports_1m: max_context_size >= 1_000_000,
         capabilities: [],
       });
     }

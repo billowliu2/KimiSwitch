@@ -5,6 +5,7 @@ import { useConfig } from "./hooks/useConfig";
 import { ProviderList } from "./components/ProviderList";
 import { ProviderEdit } from "./components/ProviderEdit";
 import { useTranslation } from "./i18n";
+import { getDefaultMaxContextSize } from "./lib/model-defaults";
 import type { Agent, Model, Provider } from "./types";
 
 const AGENT_STORAGE_KEY = "pi-switch-agent";
@@ -246,7 +247,12 @@ export default function App() {
           alias = `${m.alias}-${n}`;
           n++;
         }
-        updatedModels[alias] = { ...m, alias, provider: provider.name };
+        updatedModels[alias] = {
+          ...m,
+          alias,
+          provider: provider.name,
+          max_context_size: m.max_context_size ?? getDefaultMaxContextSize(m.model),
+        };
       }
 
       let default_model = cfg.default_model;
@@ -398,7 +404,7 @@ export default function App() {
                     alias,
                     provider: currentProvider.name,
                     model: "",
-                    max_context_size: 128000,
+                    max_context_size: getDefaultMaxContextSize(alias),
                     display_name: null,
                     role: null,
                     supports_1m: false,
