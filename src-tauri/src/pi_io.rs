@@ -155,6 +155,70 @@ pub fn save_pi_models(file: &PiModelsFile) -> PiResult<()> {
     Ok(())
 }
 
+/// Returns the path to Pi's `settings.json` file.
+pub fn pi_settings_path() -> PathBuf {
+    pi_agent_dir().join("settings.json")
+}
+
+/// Pi's `settings.json` file (only the fields Pi Switch manipulates).
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PiSettingsFile {
+    #[serde(rename = "defaultProvider", default, skip_serializing_if = "Option::is_none")]
+    pub default_provider: Option<String>,
+    #[serde(rename = "defaultModel", default, skip_serializing_if = "Option::is_none")]
+    pub default_model: Option<String>,
+    #[serde(flatten)]
+    pub extra: Value,
+}
+
+/// Read the existing Pi `settings.json` file, or return a default empty struct
+/// if the file does not exist yet.
+pub fn load_pi_settings() -> PiResult<PiSettingsFile> {
+    let path = pi_settings_path();
+    if !path.exists() {
+        return Ok(PiSettingsFile::default());
+    }
+    let content = std::fs::read_to_string(&path)
+        .with_context(|| format!("failed to read {}", path.display()))?;
+    let file: PiSettingsFile = serde_json::from_str(&content)
+        .with_context(|| format!("failed to parse {}", path.display()))?;
+    Ok(file)
+}
+
+/// Write the given Pi settings file, creating the parent directory if needed.
+/// A backup of the previous file is created when it already exists.
+pub fn save_pi_settings(file: &PiSettingsFile) -> PiResult<()> {
+    let path = pi_settings_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create directory {}", parent.display()))?;
+    }
+
+    if path.exists() {
+        let timestamp = chrono::Local::now()
+            .format("%Y%m%d_%H%M%S_%.3f")
+            .to_string();
+        let mut backup_path = path.with_extension(format!("json.bak.{}", timestamp));
+        if backup_path.exists() {
+            for n in 1..1000 {
+                let candidate = path.with_extension(format!("json.bak.{}.{:03}", timestamp, n));
+                if !candidate.exists() {
+                    backup_path = candidate;
+                    break;
+                }
+            }
+        }
+        std::fs::copy(&path, &backup_path)
+            .with_context(|| format!("failed to back up {} to {}", path.display(), backup_path.display()))?;
+    }
+
+    let content = serde_json::to_string_pretty(file)
+        .with_context(|| "failed to serialize Pi settings.json")?;
+    std::fs::write(&path, content)
+        .with_context(|| format!("failed to write {}", path.display()))?;
+    Ok(())
+}
+
 /// Convert a Pi Switch provider type to the Pi `api` field value.
 pub fn pi_api_for_provider(provider_type: &ProviderType) -> &'static str {
     match provider_type {
@@ -179,6 +243,95 @@ pub fn provider_type_for_pi_api(api: &str) -> ProviderType {
     }
 }
 
+/// Merge provider-level fields that have dedicated `PiProvider` fields into the
+/// `raw_other` blob so they survive the round-trip through Pi Switch's internal
+/// `Config`.
+fn merge_provider_known_into_raw(pi_provider: &PiProvider, raw: &mut Value) {
+    let has_known = pi_provider.headers.is_some()
+        || pi_provider.compat.is_some()
+        || pi_provider.api.is_some();
+    if !has_known {
+        return;
+    }
+
+    if raw.is_null() {
+        *raw = Value::Object(serde_json::Map::new());
+    }
+    if let Some(obj) = raw.as_object_mut() {
+        if let Some(headers) = &pi_provider.headers {
+            obj.insert("headers".to_string(), headers.clone());
+        }
+        if let Some(compat) = &pi_provider.compat {
+            obj.insert("compat".to_string(), compat.clone());
+        }
+        if let Some(api) = &pi_provider.api {
+            obj.insert("api".to_string(), Value::String(api.clone()));
+        }
+    }
+}
+
+/// Merge model-level fields that have dedicated `PiModel` fields into the
+/// `raw_other` blob so they survive the round-trip through Pi Switch's internal
+/// `Config`.
+fn merge_model_known_into_raw(pi_model: &PiModel, raw: &mut Value) {
+    let has_known = pi_model.cost.is_some()
+        || pi_model.compat.is_some()
+        || pi_model.max_tokens.is_some();
+    if !has_known {
+        return;
+    }
+
+    if raw.is_null() {
+        *raw = Value::Object(serde_json::Map::new());
+    }
+    if let Some(obj) = raw.as_object_mut() {
+        if let Some(cost) = &pi_model.cost {
+            if let Ok(value) = serde_json::to_value(cost) {
+                obj.insert("cost".to_string(), value);
+            }
+        }
+        if let Some(compat) = &pi_model.compat {
+            obj.insert("compat".to_string(), compat.clone());
+        }
+        if let Some(max_tokens) = pi_model.max_tokens {
+            obj.insert(
+                "maxTokens".to_string(),
+                Value::Number(serde_json::Number::from(max_tokens)),
+            );
+        }
+    }
+}
+
+/// Extract provider-level fields that PiProvider serializes explicitly from the
+/// `raw_other` blob. Any extracted keys are removed from the returned extra so
+/// they are not duplicated by `#[serde(flatten)]`.
+fn extract_provider_fields(raw: &Value) -> (Option<String>, Option<Value>, Option<Value>, Value) {
+    let mut extra = raw.clone();
+    let api = extra
+        .as_object_mut()
+        .and_then(|o| o.remove("api"))
+        .and_then(|v| v.as_str().map(String::from));
+    let headers = extra.as_object_mut().and_then(|o| o.remove("headers"));
+    let compat = extra.as_object_mut().and_then(|o| o.remove("compat"));
+    (api, headers, compat, extra)
+}
+
+/// Extract model-level fields that PiModel serializes explicitly from the
+/// `raw_other` blob. Any extracted keys are removed from the returned extra.
+fn extract_model_fields(raw: &Value) -> (Option<PiCost>, Option<Value>, Option<u64>, Value) {
+    let mut extra = raw.clone();
+    let cost = extra
+        .as_object_mut()
+        .and_then(|o| o.remove("cost"))
+        .and_then(|v| serde_json::from_value(v).ok());
+    let compat = extra.as_object_mut().and_then(|o| o.remove("compat"));
+    let max_tokens = extra
+        .as_object_mut()
+        .and_then(|o| o.remove("maxTokens"))
+        .and_then(|v| v.as_u64());
+    (cost, compat, max_tokens, extra)
+}
+
 /// Import a Pi `models.json` into a Pi Switch `Config`.
 pub fn pi_file_to_config(file: &PiModelsFile) -> Config {
     let mut providers = IndexMap::new();
@@ -191,6 +344,9 @@ pub fn pi_file_to_config(file: &PiModelsFile) -> Config {
             .map(provider_type_for_pi_api)
             .unwrap_or(ProviderType::Openai);
 
+        let mut provider_raw = pi_provider.extra.clone();
+        merge_provider_known_into_raw(pi_provider, &mut provider_raw);
+
         let provider = Provider {
             name: name.clone(),
             provider_type,
@@ -202,7 +358,7 @@ pub fn pi_file_to_config(file: &PiModelsFile) -> Config {
             managed: false,
             enabled: pi_provider.enabled,
             active: true,
-            raw_other: pi_provider.extra.clone(),
+            raw_other: provider_raw,
         };
 
         for (idx, pi_model) in pi_provider.models.iter().enumerate() {
@@ -219,6 +375,9 @@ pub fn pi_file_to_config(file: &PiModelsFile) -> Config {
                 });
             let display_name = pi_model.name.clone().filter(|s| !s.is_empty());
 
+            let mut model_raw = pi_model.extra.clone();
+            merge_model_known_into_raw(pi_model, &mut model_raw);
+
             models.insert(
                 alias.clone(),
                 Model {
@@ -230,7 +389,7 @@ pub fn pi_file_to_config(file: &PiModelsFile) -> Config {
                     role: None,
                     supports_1m: pi_model.reasoning || pi_model.context_window >= 1_000_000,
                     capabilities: vec![],
-                    raw_other: pi_model.extra.clone(),
+                    raw_other: model_raw,
                 },
             );
         }
@@ -251,25 +410,30 @@ pub fn config_to_pi_file(config: &Config) -> PiModelsFile {
     let mut providers = IndexMap::new();
 
     for (name, provider) in &config.providers {
+        let (provider_api, provider_headers, provider_compat, provider_extra) =
+            extract_provider_fields(&provider.raw_other);
+        let api = provider_api.unwrap_or_else(|| pi_api_for_provider(&provider.provider_type).to_string());
+
         let mut pi_models = Vec::new();
         for model in config.models.values() {
             if model.provider != *name {
                 continue;
             }
             let display_name = model.display_name.clone().filter(|s| !s.is_empty());
-            let name_field = display_name
-                .clone()
-                .filter(|s| s != &model.model);
+            let name_field = display_name.clone().filter(|s| s != &model.model);
+            let (model_cost, model_compat, model_max_tokens, model_extra) =
+                extract_model_fields(&model.raw_other);
+
             pi_models.push(PiModel {
                 id: model.model.clone(),
                 name: name_field,
                 reasoning: model.supports_1m,
                 input: default_input(),
                 context_window: model.max_context_size,
-                max_tokens: None,
-                cost: None,
-                compat: None,
-                extra: model.raw_other.clone(),
+                max_tokens: model_max_tokens,
+                cost: model_cost,
+                compat: model_compat,
+                extra: model_extra,
             });
         }
 
@@ -277,19 +441,21 @@ pub fn config_to_pi_file(config: &Config) -> PiModelsFile {
             name.clone(),
             PiProvider {
                 base_url: provider.base_url.clone().filter(|s| !s.is_empty()),
-                api: Some(pi_api_for_provider(&provider.provider_type).to_string()),
+                api: Some(api),
                 api_key: provider.api_key.clone().filter(|s| !s.is_empty()),
-                headers: None,
-                compat: None,
+                headers: provider_headers,
+                compat: provider_compat,
                 enabled: provider.enabled,
                 models: pi_models,
-                extra: provider.raw_other.clone(),
+                extra: provider_extra,
             },
         );
     }
 
     PiModelsFile {
-        default_model: config.default_model.clone(),
+        // Pi does not use a top-level default_model field; defaults live in
+        // ~/.pi/agent/settings.json (defaultProvider / defaultModel).
+        default_model: None,
         providers,
         extra: config.raw_other.clone(),
     }
@@ -355,5 +521,126 @@ mod tests {
         assert_eq!(exported_provider.api.as_deref(), Some("openai-completions"));
         assert_eq!(exported_provider.models[0].id, "gpt-test");
         assert!(exported_provider.models[0].reasoning);
+    }
+
+    #[test]
+    fn pi_roundtrip_preserves_advanced_fields() {
+        let mut providers = IndexMap::new();
+        providers.insert(
+            "my-proxy".to_string(),
+            PiProvider {
+                base_url: Some("https://proxy.example.com/v1".to_string()),
+                api: Some("anthropic-messages".to_string()),
+                api_key: Some("sk-test".to_string()),
+                headers: Some(serde_json::json!({"X-Custom": "value"})),
+                compat: Some(serde_json::json!({"supportsDeveloperRole": false})),
+                enabled: true,
+                models: vec![PiModel {
+                    id: "custom-claude".to_string(),
+                    name: Some("Custom Claude".to_string()),
+                    reasoning: true,
+                    input: vec!["text".to_string(), "image".to_string()],
+                    context_window: 200_000,
+                    max_tokens: Some(4096),
+                    cost: Some(PiCost {
+                        input: 1.0,
+                        output: 2.0,
+                        cache_read: 0.5,
+                        cache_write: 0.75,
+                    }),
+                    compat: Some(serde_json::json!({"forceAdaptiveThinking": true})),
+                    extra: serde_json::json!({
+                        "thinkingLevelMap": {
+                            "off": null,
+                            "minimal": null,
+                            "low": "low",
+                            "medium": "medium",
+                            "high": "high",
+                            "xhigh": "max"
+                        },
+                        "headers": {"X-Model-Header": "model-value"},
+                        "api": "anthropic-messages"
+                    }),
+                }],
+                extra: serde_json::json!({
+                    "name": "My Proxy",
+                    "authHeader": true,
+                    "modelOverrides": {
+                        "claude-sonnet-4": {"name": "Overridden"}
+                    }
+                }),
+            },
+        );
+        let file = PiModelsFile {
+            default_model: None,
+            providers,
+            extra: Value::Null,
+        };
+
+        let config = pi_file_to_config(&file);
+        let exported = config_to_pi_file(&config);
+        let provider = exported.providers.get("my-proxy").unwrap();
+
+        // Provider-level fields
+        assert_eq!(
+            provider.extra.get("name").and_then(|v| v.as_str()),
+            Some("My Proxy")
+        );
+        assert_eq!(
+            provider.extra.get("authHeader").and_then(|v| v.as_bool()),
+            Some(true)
+        );
+        assert_eq!(
+            provider
+                .extra
+                .get("modelOverrides")
+                .and_then(|v| v.as_object())
+                .and_then(|o| o.get("claude-sonnet-4"))
+                .and_then(|v| v.get("name")),
+            Some(&serde_json::json!("Overridden"))
+        );
+        assert_eq!(
+            provider.headers.as_ref().and_then(|h| h.get("X-Custom")),
+            Some(&serde_json::json!("value"))
+        );
+        assert_eq!(
+            provider.compat.as_ref().and_then(|c| c.get("supportsDeveloperRole")),
+            Some(&serde_json::json!(false))
+        );
+
+        // Model-level fields
+        let model = &provider.models[0];
+        assert_eq!(model.id, "custom-claude");
+        assert_eq!(model.max_tokens, Some(4096));
+        assert_eq!(model.cost.as_ref().map(|c| c.output), Some(2.0));
+        assert_eq!(
+            model.compat.as_ref().and_then(|c| c.get("forceAdaptiveThinking")),
+            Some(&serde_json::json!(true))
+        );
+        assert_eq!(
+            model.extra.get("thinkingLevelMap").and_then(|v| v.get("xhigh")),
+            Some(&serde_json::json!("max"))
+        );
+        assert_eq!(
+            model.extra.get("headers").and_then(|v| v.get("X-Model-Header")),
+            Some(&serde_json::json!("model-value"))
+        );
+    }
+
+    #[test]
+    fn pi_settings_roundtrip() {
+        let file = PiSettingsFile {
+            default_provider: Some("my-proxy".to_string()),
+            default_model: Some("glm-5.2".to_string()),
+            extra: serde_json::json!({"theme": "dark"}),
+        };
+        let serialized = serde_json::to_string_pretty(&file).unwrap();
+        assert!(serialized.contains("defaultProvider"));
+        assert!(serialized.contains("defaultModel"));
+
+        let deserialized: PiSettingsFile = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.default_provider, file.default_provider);
+        assert_eq!(deserialized.default_model, file.default_model);
+        assert_eq!(deserialized.extra.get("theme"), Some(&serde_json::json!("dark")));
     }
 }

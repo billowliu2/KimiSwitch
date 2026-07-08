@@ -476,6 +476,7 @@ api_key = ""
                 official_url: None,
                 managed: false,
                 enabled: true,
+                active: true,
                 raw_other: Value::Null,
             },
         );

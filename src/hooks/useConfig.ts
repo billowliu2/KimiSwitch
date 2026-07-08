@@ -48,7 +48,11 @@ export function useConfig(agent: Agent): UseConfigReturn {
   }, [refresh]);
 
   const updateConfig = useCallback((updater: (config: Config) => Config) => {
-    setConfig((prev) => (prev ? updater(prev) : prev));
+    setConfig((prev) => {
+      const next = prev ? updater(prev) : prev;
+      configRef.current = next;
+      return next;
+    });
     setDirty(true);
   }, []);
 

@@ -28,7 +28,21 @@ pub fn load_agent_config_command(agent: Agent) -> Result<Config, String> {
                     .map_err(fmt_anyhow),
                 Agent::Pi => {
                     let file = pi_io::load_pi_models().map_err(fmt_anyhow)?;
-                    Ok(pi_io::pi_file_to_config(&file))
+                    let mut config = pi_io::pi_file_to_config(&file);
+                    if config.default_model.is_none() {
+                        if let Ok(settings) = pi_io::load_pi_settings() {
+                            if let (Some(provider), Some(model_id)) =
+                                (settings.default_provider, settings.default_model)
+                            {
+                                if let Some(alias) = config.models.values().find(|m| {
+                                    m.provider == provider && m.model == model_id
+                                }) {
+                                    config.default_model = Some(alias.alias.clone());
+                                }
+                            }
+                        }
+                    }
+                    Ok(config)
                 }
             }
         }
@@ -52,9 +66,24 @@ pub fn activate_agent_config_command(agent: Agent) -> Result<(), String> {
             .map_err(fmt_anyhow),
         Agent::Pi => {
             let file = pi_io::config_to_pi_file(&active_config);
-            pi_io::save_pi_models(&file).map_err(fmt_anyhow)
+            pi_io::save_pi_models(&file).map_err(fmt_anyhow)?;
+
+            // Keep Pi's own default provider / model in sync so the switch is
+            // actually picked up on the next `pi` run.
+            let mut settings = pi_io::load_pi_settings().map_err(fmt_anyhow)?;
+            if let Some((provider_name, model_id)) = active_provider_and_model(&active_config) {
+                settings.default_provider = Some(provider_name);
+                settings.default_model = Some(model_id);
+            }
+            pi_io::save_pi_settings(&settings).map_err(fmt_anyhow)
         }
     }
+}
+
+fn active_provider_and_model(config: &Config) -> Option<(String, String)> {
+    let alias = config.default_model.as_ref()?;
+    let model = config.models.get(alias)?;
+    Some((model.provider.clone(), model.model.clone()))
 }
 
 fn build_active_config(config: &Config) -> Config {
