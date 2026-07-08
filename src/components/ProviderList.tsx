@@ -8,7 +8,7 @@ interface ProviderListProps {
   onEdit: (name: string) => void;
   onDelete: (name: string) => void;
   onAdd: () => void;
-  onToggleEnabled: (name: string) => void;
+  onSwitchProvider: (name: string) => void;
 }
 
 const PROVIDER_ICONS: Record<string, string> = {
@@ -53,7 +53,7 @@ export function ProviderList({
   onEdit,
   onDelete,
   onAdd,
-  onToggleEnabled,
+  onSwitchProvider,
 }: ProviderListProps) {
   const { t } = useTranslation();
   return (
@@ -92,15 +92,19 @@ export function ProviderList({
               const defaultModelName = defaultModel
                 ? models[defaultModel]?.display_name || defaultModel
                 : null;
-              const enabled = provider.enabled !== false;
+              const isKimiNative = provider.managed === true;
+              const isActive =
+                !isKimiNative &&
+                defaultModel !== null &&
+                models[defaultModel]?.provider === provider.name;
 
               return (
                 <div
                   key={provider.name}
                   className={`group relative flex items-center gap-4 p-4 rounded-xl border transition-colors cursor-pointer w-full ${
-                    enabled
-                      ? "bg-[#16161a] border-[#2a2a2e] hover:border-[#3a3a42] hover:bg-[#1c1c20]"
-                      : "bg-[#16161a]/50 border-[#2a2a2e]/50 opacity-60"
+                    isActive
+                      ? "bg-green-900/10 border-green-500/30 hover:border-green-500/50 hover:bg-green-900/20"
+                      : "bg-[#16161a] border-[#2a2a2e] hover:border-[#3a3a42] hover:bg-[#1c1c20]"
                   }`}
                   onClick={() => onEdit(provider.name)}
                 >
@@ -117,9 +121,9 @@ export function ProviderList({
                       <h3 className="font-semibold text-[#e5e5e7] truncate">
                         {provider.name}
                       </h3>
-                      {!enabled && (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-800 text-gray-400 border border-gray-700">
-                          {t("disabled")}
+                      {isActive && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-green-900/30 text-green-400 border border-green-500/30">
+                          {t("inUse")}
                         </span>
                       )}
                       {provider.note && (
@@ -152,15 +156,15 @@ export function ProviderList({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onToggleEnabled(provider.name);
+                        onSwitchProvider(provider.name);
                       }}
                       className={`px-3 py-1.5 text-sm rounded focus:ring-2 focus:outline-none ${
-                        enabled
-                          ? "bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500"
-                          : "border border-[#2a2a2e] hover:bg-[#252529] text-gray-400 focus:ring-blue-500"
+                        isActive
+                          ? "bg-green-600 hover:bg-green-700 text-white focus:ring-green-500"
+                          : "bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500"
                       }`}
                     >
-                      {enabled ? `▶ ${t("activated")}` : t("activate")}
+                      {isActive ? t("inUse") : t("switchTo")}
                     </button>
                     <button
                       type="button"

@@ -191,17 +191,40 @@ export default function App() {
     updateConfig((cfg) => ({ ...cfg, default_model: alias }));
   };
 
-  const handleToggleProviderEnabled = (name: string) => {
+  const handleSwitchProvider = (name: string) => {
     updateConfig((cfg) => {
-      const provider = cfg.providers[name];
-      if (!provider) return cfg;
-      return {
-        ...cfg,
-        providers: {
-          ...cfg.providers,
-          [name]: { ...provider, enabled: !provider.enabled },
-        },
-      };
+      const target = cfg.providers[name];
+      if (!target) return cfg;
+
+      const isKimiNative = (p: Provider) => p.managed === true;
+
+      // Keep Kimi native (managed) providers and the selected provider only.
+      const providers: Record<string, Provider> = {};
+      for (const [key, p] of Object.entries(cfg.providers)) {
+        if (isKimiNative(p)) {
+          providers[key] = p;
+        }
+      }
+      providers[name] = { ...target, enabled: true };
+
+      // Drop models whose provider was removed.
+      const models: Record<string, Model> = {};
+      for (const [key, m] of Object.entries(cfg.models)) {
+        if (providers[m.provider]) {
+          models[key] = m;
+        }
+      }
+
+      // Set default model to the first model of the selected provider.
+      let default_model: string | null = null;
+      for (const [key, m] of Object.entries(models)) {
+        if (m.provider === name) {
+          default_model = key;
+          break;
+        }
+      }
+
+      return { ...cfg, providers, models, default_model };
     });
   };
 
@@ -320,7 +343,7 @@ export default function App() {
             }}
             onDelete={handleDeleteProvider}
             onAdd={handleAddProvider}
-            onToggleEnabled={handleToggleProviderEnabled}
+            onSwitchProvider={handleSwitchProvider}
           />
         ) : currentProvider ? (
           <ProviderEdit

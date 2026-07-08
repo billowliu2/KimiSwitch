@@ -85,6 +85,8 @@ export const enTranslations: Record<TranslationKey, string> = {
   activate: "Activate",
   activated: "Activated",
   disabled: "Disabled",
+  switchTo: "Switch to",
+  inUse: "In use",
   unsavedChanges: "Unsaved changes",
   qwenActivateNotImplemented: "Qwen Code activation will be implemented in a follow-up.",
   importConfig: "Import current config",

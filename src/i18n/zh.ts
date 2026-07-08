@@ -83,6 +83,8 @@ export const zhTranslations = {
   activate: "启用",
   activated: "已启用",
   disabled: "已停用",
+  switchTo: "切换使用",
+  inUse: "使用中",
   unsavedChanges: "未保存修改",
   qwenActivateNotImplemented: "Qwen Code 启用功能将在后续实现。",
   importConfig: "导入当前配置",
