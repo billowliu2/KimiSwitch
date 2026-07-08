@@ -1,5 +1,5 @@
 import { useTranslation } from "../i18n";
-import type { Model, Provider } from "../types";
+import type { Agent, Model, Provider } from "../types";
 
 interface ProviderListProps {
   providers: Provider[];
@@ -9,6 +9,7 @@ interface ProviderListProps {
   onDelete: (name: string) => void;
   onAdd: () => void;
   onSwitchProvider: (name: string) => void;
+  agent: Agent;
 }
 
 const PROVIDER_ICONS: Record<string, string> = {
@@ -54,6 +55,7 @@ export function ProviderList({
   onDelete,
   onAdd,
   onSwitchProvider,
+  agent,
 }: ProviderListProps) {
   const { t } = useTranslation();
   return (
@@ -163,6 +165,15 @@ export function ProviderList({
                     >
                       {isActive ? t("inUse") : t("switchTo")}
                     </button>
+                    {agent === "kimi_code" && (
+                      <span
+                        className="text-sm text-gray-500 hover:text-gray-300 cursor-help select-none"
+                        title={t("switchReloadHint")}
+                        aria-label={t("switchReloadHint")}
+                      >
+                        ⓘ
+                      </span>
+                    )}
                     <button
                       type="button"
                       onClick={(e) => {
