@@ -8,4 +8,5 @@ src-tauri/wix314-binaries/
 .env*
 .DS_Store
 Thumbs.db
+Snipaste_*.png
 .worktrees/
