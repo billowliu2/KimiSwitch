@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "../i18n";
+import { AgentSettingsPanel } from "./AgentSettingsPanel";
 import type { Agent, DiscoveredModel, Model, Provider, ProviderType } from "../types";
 
 const PROVIDER_TYPES: ProviderType[] = [
@@ -47,6 +48,8 @@ interface ProviderEditProps {
   provider: Provider;
   models: Model[];
   defaultModel: string | null;
+  rawOther: unknown;
+  onRawOtherChange: (nextRawOther: unknown) => void;
   onBack: () => void;
   onChange: (provider: Provider) => void;
   onDelete: () => void;
@@ -64,6 +67,8 @@ export function ProviderEdit({
   provider,
   models,
   defaultModel,
+  rawOther,
+  onRawOtherChange,
   onBack,
   onChange,
   onDelete,
@@ -281,17 +286,25 @@ export function ProviderEdit({
         )}
 
         {activeTab === "models" && (
-          <ModelMapping
-            agent={agent}
-            provider={provider}
-            models={models}
-            defaultModel={defaultModel}
-            onModelChange={onModelChange}
-            onModelDelete={onModelDelete}
-            onModelAdd={onModelAdd}
-            onBulkAdd={onBulkAdd}
-            onSetDefault={onSetDefault}
-          />
+          <>
+            <ModelMapping
+              agent={agent}
+              provider={provider}
+              models={models}
+              defaultModel={defaultModel}
+              onModelChange={onModelChange}
+              onModelDelete={onModelDelete}
+              onModelAdd={onModelAdd}
+              onBulkAdd={onBulkAdd}
+              onSetDefault={onSetDefault}
+            />
+            {agent === "kimi_code" && (
+              <AgentSettingsPanel
+                rawOther={rawOther}
+                onChange={onRawOtherChange}
+              />
+            )}
+          </>
         )}
 
         {activeTab === "json" && (
