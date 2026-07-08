@@ -194,37 +194,27 @@ export default function App() {
   const handleSwitchProvider = (name: string) => {
     updateConfig((cfg) => {
       const target = cfg.providers[name];
-      if (!target) return cfg;
+      if (!target || target.managed) return cfg;
 
       const isKimiNative = (p: Provider) => p.managed === true;
 
-      // Keep Kimi native (managed) providers and the selected provider only.
+      // Mark the selected provider as active and deactivate other custom providers.
+      // Kimi native providers are left untouched. No provider/model records are deleted.
       const providers: Record<string, Provider> = {};
       for (const [key, p] of Object.entries(cfg.providers)) {
-        if (isKimiNative(p)) {
-          providers[key] = p;
-        }
-      }
-      providers[name] = { ...target, enabled: true };
-
-      // Drop models whose provider was removed.
-      const models: Record<string, Model> = {};
-      for (const [key, m] of Object.entries(cfg.models)) {
-        if (providers[m.provider]) {
-          models[key] = m;
-        }
+        providers[key] = { ...p, active: isKimiNative(p) ? undefined : key === name };
       }
 
       // Set default model to the first model of the selected provider.
       let default_model: string | null = null;
-      for (const [key, m] of Object.entries(models)) {
+      for (const [key, m] of Object.entries(cfg.models)) {
         if (m.provider === name) {
           default_model = key;
           break;
         }
       }
 
-      return { ...cfg, providers, models, default_model };
+      return { ...cfg, providers, default_model };
     });
   };
 

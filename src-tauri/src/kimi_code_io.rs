@@ -124,6 +124,7 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
                     official_url: None,
                     managed,
                     enabled,
+                    active: true,
                     raw_other,
                 },
             );
@@ -225,8 +226,15 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
             .unwrap_or(TomlValue::String("".to_string())),
     );
 
+    let is_kimi_native = |p: &Provider| p.managed;
+
     let mut providers_table = Table::new();
     for (name, provider) in &config.providers {
+        // Skip inactive custom providers when writing to Kimi Code config.
+        // Kimi native (managed) providers are always preserved.
+        if !is_kimi_native(provider) && !provider.active {
+            continue;
+        }
         let mut pt = Table::new();
         pt.insert("type".to_string(), TomlValue::String(provider.provider_type.as_str().to_string()));
         if let Some(base_url) = provider.base_url.clone().filter(|s| !s.is_empty()) {
@@ -261,8 +269,19 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
     }
     root.insert("providers".to_string(), TomlValue::Table(providers_table));
 
+    // Collect provider names that survived the filter above.
+    let active_provider_names: std::collections::HashSet<&str> = config
+        .providers
+        .values()
+        .filter(|p| is_kimi_native(p) || p.active)
+        .map(|p| p.name.as_str())
+        .collect();
+
     let mut models_table = Table::new();
     for (alias, model) in &config.models {
+        if !active_provider_names.contains(model.provider.as_str()) {
+            continue;
+        }
         let mut mt = Table::new();
         mt.insert("provider".to_string(), TomlValue::String(model.provider.clone()));
         mt.insert("model".to_string(), TomlValue::String(model.model.clone()));

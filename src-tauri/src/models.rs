@@ -83,6 +83,8 @@ pub struct Provider {
     pub managed: bool,
     #[serde(default = "default_true")]
     pub enabled: bool,
+    #[serde(default)]
+    pub active: bool,
     #[serde(default, skip_serializing_if = "Value::is_null")]
     pub raw_other: Value,
 }
@@ -98,6 +100,7 @@ impl PartialEq for Provider {
             && self.official_url == other.official_url
             && self.managed == other.managed
             && self.enabled == other.enabled
+            && self.active == other.active
             && self.raw_other == other.raw_other
     }
 }

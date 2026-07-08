@@ -201,6 +201,7 @@ pub fn pi_file_to_config(file: &PiModelsFile) -> Config {
             official_url: None,
             managed: false,
             enabled: pi_provider.enabled,
+            active: true,
             raw_other: pi_provider.extra.clone(),
         };
 

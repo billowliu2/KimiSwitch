@@ -22,6 +22,8 @@ export interface Provider {
   managed?: boolean;
   /** Whether the provider is enabled/activated. */
   enabled?: boolean;
+  /** Whether this provider is the currently active one for Kimi Code. */
+  active?: boolean;
   /** Extra agent-specific provider fields preserved across edits. */
   raw_other?: unknown;
 }
