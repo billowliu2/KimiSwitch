@@ -191,7 +191,7 @@ export default function App() {
     updateConfig((cfg) => ({ ...cfg, default_model: alias }));
   };
 
-  const handleSwitchProvider = (name: string) => {
+  const handleSwitchProvider = async (name: string) => {
     updateConfig((cfg) => {
       const target = cfg.providers[name];
       if (!target || target.managed) return cfg;
@@ -216,6 +216,10 @@ export default function App() {
 
       return { ...cfg, providers, default_model };
     });
+
+    // Persist the full config to Pi Switch's SQLite and activate the selected provider.
+    await save();
+    await invoke("activate_agent_config_command", { agent });
   };
 
   const handleApplyProviderJson = (provider: Provider, models: Model[]) => {

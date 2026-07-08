@@ -1,5 +1,7 @@
-use crate::models::{Agent, Config, DiscoveredModel, Provider, ProviderType};
+use crate::db;
+use crate::models::{Agent, Config, DiscoveredModel, Model, Provider, ProviderType};
 use crate::pi_io;
+use indexmap::IndexMap;
 use tauri_plugin_opener::OpenerExt;
 
 fn fmt_anyhow(err: anyhow::Error) -> String {
@@ -16,24 +18,72 @@ pub fn debug_log(message: String) {
 
 #[tauri::command]
 pub fn load_agent_config_command(agent: Agent) -> Result<Config, String> {
-    match agent {
-        Agent::KimiCode => crate::kimi_code_io::load_kimi_code_config_as_config()
-            .map_err(fmt_anyhow),
-        Agent::Pi => {
-            let file = pi_io::load_pi_models().map_err(fmt_anyhow)?;
-            Ok(pi_io::pi_file_to_config(&file))
+    // Load from Pi Switch's own SQLite database first.
+    match db::load_config(&agent) {
+        Ok(config) if !config.providers.is_empty() => Ok(config),
+        _ => {
+            // Fallback to the agent's native config on first use.
+            match agent {
+                Agent::KimiCode => crate::kimi_code_io::load_kimi_code_config_as_config()
+                    .map_err(fmt_anyhow),
+                Agent::Pi => {
+                    let file = pi_io::load_pi_models().map_err(fmt_anyhow)?;
+                    Ok(pi_io::pi_file_to_config(&file))
+                }
+            }
         }
     }
 }
 
 #[tauri::command]
 pub fn save_agent_config_command(agent: Agent, config: Config) -> Result<(), String> {
+    // Save the full Pi Switch configuration to local SQLite.
+    db::save_config(&agent, &config).map_err(fmt_anyhow)
+}
+
+#[tauri::command]
+pub fn activate_agent_config_command(agent: Agent) -> Result<(), String> {
+    // Load the full config from SQLite and write only the active provider
+    // to the agent's native config file.
+    let config = db::load_config(&agent).map_err(fmt_anyhow)?;
+    let active_config = build_active_config(&config);
     match agent {
-        Agent::KimiCode => crate::kimi_code_io::save_config_as_kimi_code(&config).map_err(fmt_anyhow),
+        Agent::KimiCode => crate::kimi_code_io::save_config_as_kimi_code(&active_config)
+            .map_err(fmt_anyhow),
         Agent::Pi => {
-            let file = pi_io::config_to_pi_file(&config);
+            let file = pi_io::config_to_pi_file(&active_config);
             pi_io::save_pi_models(&file).map_err(fmt_anyhow)
         }
+    }
+}
+
+fn build_active_config(config: &Config) -> Config {
+    let is_kimi_native = |p: &Provider| p.managed;
+
+    let providers: IndexMap<String, Provider> = config
+        .providers
+        .iter()
+        .filter(|(_, p)| is_kimi_native(p) || p.active)
+        .map(|(k, p)| (k.clone(), p.clone()))
+        .collect();
+
+    let active_provider_names: std::collections::HashSet<&str> = providers
+        .values()
+        .map(|p| p.name.as_str())
+        .collect();
+
+    let models: IndexMap<String, Model> = config
+        .models
+        .iter()
+        .filter(|(_, m)| active_provider_names.contains(m.provider.as_str()))
+        .map(|(k, m)| (k.clone(), m.clone()))
+        .collect();
+
+    Config {
+        default_model: config.default_model.clone(),
+        providers,
+        models,
+        raw_other: config.raw_other.clone(),
     }
 }
 

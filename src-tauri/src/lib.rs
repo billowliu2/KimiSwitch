@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod db;
 pub mod kimi_code_io;
 pub mod models;
 pub mod pi_io;
@@ -9,6 +10,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::load_agent_config_command,
             commands::save_agent_config_command,
+            commands::activate_agent_config_command,
             commands::open_agent_config_dir,
             commands::get_app_version,
             commands::list_provider_models,
