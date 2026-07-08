@@ -338,6 +338,7 @@ export default function App() {
             onDelete={handleDeleteProvider}
             onAdd={handleAddProvider}
             onSwitchProvider={handleSwitchProvider}
+            agent={agent}
           />
         ) : currentProvider ? (
           <ProviderEdit
