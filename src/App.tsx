@@ -391,10 +391,7 @@ export default function App() {
               });
             }}
             onModelAdd={() => {
-              const providerModels = Object.values(config.models).filter(
-                (m) => m.provider === currentProvider.name
-              );
-              const alias = `${currentProvider.name}-${providerModels.length + 1}`;
+              const alias = `新模型[${currentProvider.name}]`;
               updateConfig((cfg) => ({
                 ...cfg,
                 models: {
@@ -405,7 +402,7 @@ export default function App() {
                     model: "",
                     max_context_size: getDefaultMaxContextSize(alias),
                     display_name: null,
-                    role: null,
+                    role: `新模型[${currentProvider.name}]`,
                     supports_1m: false,
                     capabilities: [],
                   },

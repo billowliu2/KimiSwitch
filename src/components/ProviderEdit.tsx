@@ -379,6 +379,7 @@ function ModelMapping({
     for (const dm of discovered) {
       if (!selected.has(dm.id)) continue;
       const alias = dm.id.replace(/[^a-zA-Z0-9_-]/g, "-");
+      const role = `${dm.id}[${provider.name}]`;
       const max_context_size = dm.max_context_size ?? getDefaultMaxContextSize(dm.id);
       toAdd.push({
         alias,
@@ -386,7 +387,7 @@ function ModelMapping({
         model: dm.id,
         max_context_size,
         display_name: dm.display_name,
-        role: null,
+        role,
         supports_1m: max_context_size >= 1_000_000,
         capabilities: [],
       });
@@ -482,17 +483,9 @@ function ModelMapping({
             {models.map((m) => (
               <tr key={m.alias} className="hover:bg-[#1c1c20]">
                 <td className="px-4 py-2">
-                  <input
-                    className="w-full bg-transparent border border-[#2a2a2e] rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    value={m.role || ""}
-                    placeholder={m.alias}
-                    onChange={(e) =>
-                      onModelChange({
-                        ...m,
-                        role: e.target.value || null,
-                      })
-                    }
-                  />
+                  <span className="text-sm text-gray-400">
+                    {m.model ? `${m.model}[${m.provider}]` : m.alias}
+                  </span>
                 </td>
                 <td className="px-4 py-2">
                   <input
