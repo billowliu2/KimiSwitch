@@ -16,9 +16,10 @@ use crate::models::{Agent, Config, Model, Provider, ProviderType};
 pub type KimiResult<T> = anyhow::Result<T>;
 
 pub fn kimi_code_config_dir() -> PathBuf {
-    dirs::home_dir()
-        .map(|h| h.join(".kimi-code"))
-        .expect("failed to resolve home directory")
+    std::env::var_os("KIMI_CODE_HOME")
+        .map(PathBuf::from)
+        .or_else(|| dirs::home_dir().map(|h| h.join(".kimi-code")))
+        .expect("failed to resolve Kimi Code config directory")
 }
 
 pub fn kimi_code_config_path() -> PathBuf {
@@ -101,6 +102,16 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
                 || table.get("managed").and_then(|v| v.as_bool()).unwrap_or(false);
             let enabled = table.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
 
+            let env: IndexMap<String, String> = table
+                .get("env")
+                .and_then(|v| v.as_table())
+                .map(|t| {
+                    t.iter()
+                        .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                        .collect()
+                })
+                .unwrap_or_default();
+
             let raw_other = {
                 let mut rest = table.clone();
                 rest.remove("type");
@@ -109,6 +120,7 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
                 rest.remove("managed");
                 rest.remove("enabled");
                 rest.remove("oauth");
+                rest.remove("env");
                 toml_value_to_json(&TomlValue::Table(rest))
             };
 
@@ -119,7 +131,7 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
                     provider_type,
                     base_url: base_url.filter(|s| !s.is_empty()),
                     api_key: api_key.filter(|s| !s.is_empty()),
-                    env: IndexMap::new(),
+                    env,
                     note: None,
                     official_url: None,
                     managed,
@@ -226,13 +238,11 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
             .unwrap_or(TomlValue::String("".to_string())),
     );
 
-    let is_kimi_native = |p: &Provider| p.managed;
-
     let mut providers_table = Table::new();
     for (name, provider) in &config.providers {
-        // Skip inactive custom providers when writing to Kimi Code config.
-        // Kimi native (managed) providers are always preserved.
-        if !is_kimi_native(provider) && !provider.active {
+        // Only write the active provider to Kimi Code config so the agent
+        // follows Pi Switch's selection.
+        if !provider.active {
             continue;
         }
         let mut pt = Table::new();
@@ -244,6 +254,13 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
             pt.insert("api_key".to_string(), TomlValue::String(api_key));
         }
         pt.insert("enabled".to_string(), TomlValue::Boolean(provider.enabled));
+        if !provider.env.is_empty() {
+            let mut env_table = Table::new();
+            for (k, v) in &provider.env {
+                env_table.insert(k.clone(), TomlValue::String(v.clone()));
+            }
+            pt.insert("env".to_string(), TomlValue::Table(env_table));
+        }
         if provider.managed {
             // Preserve existing oauth config if present, otherwise create a default entry.
             let oauth = provider
@@ -258,9 +275,10 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
                 });
             pt.insert("oauth".to_string(), oauth);
         }
-        // Merge remaining raw fields (oauth is handled explicitly above).
+        // Merge remaining raw fields (oauth and env are handled explicitly above).
         if let TomlValue::Table(mut extra) = json_to_toml(&provider.raw_other).unwrap_or(TomlValue::Table(Table::new())) {
             extra.remove("oauth");
+            extra.remove("env");
             for (k, v) in extra {
                 pt.insert(k, v);
             }
@@ -273,7 +291,7 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
     let active_provider_names: std::collections::HashSet<&str> = config
         .providers
         .values()
-        .filter(|p| is_kimi_native(p) || p.active)
+        .filter(|p| p.active)
         .map(|p| p.name.as_str())
         .collect();
 

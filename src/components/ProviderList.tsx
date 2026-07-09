@@ -94,8 +94,7 @@ export function ProviderList({
               const defaultModelName = defaultModel
                 ? models[defaultModel]?.display_name || defaultModel
                 : null;
-              const isKimiNative = provider.managed === true;
-              const isActive = !isKimiNative && provider.active === true;
+              const isActive = provider.active === true;
 
               return (
                 <div

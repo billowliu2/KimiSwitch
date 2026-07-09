@@ -87,12 +87,13 @@ fn active_provider_and_model(config: &Config) -> Option<(String, String)> {
 }
 
 fn build_active_config(config: &Config) -> Config {
-    let is_kimi_native = |p: &Provider| p.managed;
-
+    // Only the provider explicitly marked as active is written to the agent's
+    // native config. This ensures Kimi Code / Pi follow Pi Switch's choice
+    // instead of falling back to a managed/native provider.
     let providers: IndexMap<String, Provider> = config
         .providers
         .iter()
-        .filter(|(_, p)| is_kimi_native(p) || p.active)
+        .filter(|(_, p)| p.active)
         .map(|(k, p)| (k.clone(), p.clone()))
         .collect();
 

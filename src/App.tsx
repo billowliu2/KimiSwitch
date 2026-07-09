@@ -195,15 +195,14 @@ export default function App() {
   const handleSwitchProvider = async (name: string) => {
     updateConfig((cfg) => {
       const target = cfg.providers[name];
-      if (!target || target.managed) return cfg;
+      if (!target) return cfg;
 
-      const isKimiNative = (p: Provider) => p.managed === true;
-
-      // Mark the selected provider as active and deactivate other custom providers.
-      // Kimi native providers are left untouched. No provider/model records are deleted.
+      // Only the selected provider is active. All other providers (including
+      // Kimi native/managed and custom) are deactivated so the target agent
+      // follows Pi Switch's choice exactly.
       const providers: Record<string, Provider> = {};
       for (const [key, p] of Object.entries(cfg.providers)) {
-        providers[key] = { ...p, active: isKimiNative(p) ? undefined : key === name };
+        providers[key] = { ...p, active: key === name };
       }
 
       // Set default model to the first model of the selected provider.

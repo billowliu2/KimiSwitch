@@ -17,9 +17,10 @@ pub type PiResult<T> = anyhow::Result<T>;
 
 /// Returns the default Pi agent config directory for the current user.
 pub fn pi_agent_dir() -> PathBuf {
-    dirs::home_dir()
-        .map(|h| h.join(".pi").join("agent"))
-        .expect("failed to resolve home directory")
+    std::env::var_os("PI_CODING_AGENT_DIR")
+        .map(PathBuf::from)
+        .or_else(|| dirs::home_dir().map(|h| h.join(".pi").join("agent")))
+        .expect("failed to resolve Pi agent config directory")
 }
 
 /// Returns the path to Pi's `models.json` file.

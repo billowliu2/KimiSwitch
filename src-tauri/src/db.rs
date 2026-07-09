@@ -258,6 +258,7 @@ fn set_setting_tx(tx: &rusqlite::Transaction, key: &str, value: &str) -> DbResul
 fn provider_type_for_str(s: &str) -> ProviderType {
     match s {
         "anthropic" => ProviderType::Anthropic,
+        "openai" => ProviderType::Openai,
         "openai_responses" => ProviderType::OpenaiResponses,
         "google-genai" => ProviderType::GoogleGenai,
         "vertexai" => ProviderType::Vertexai,
