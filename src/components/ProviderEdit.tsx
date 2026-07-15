@@ -483,21 +483,21 @@ function ModelMapping({
             {models.map((m) => (
               <tr key={m.alias} className="hover:bg-[#1c1c20]">
                 <td className="px-4 py-2">
+                  <select
+                    className="w-full bg-[#1f1f23] border border-[#2a2a2e] rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    value={m.role || "Sonnet"}
+                    onChange={(e) => onModelChange({ ...m, role: e.target.value })}
+                  >
+                    <option value="Sonnet">Sonnet</option>
+                    <option value="Opus">Opus</option>
+                    <option value="Fable">Fable</option>
+                    <option value="Haiku">Haiku</option>
+                  </select>
+                </td>
+                <td className="px-4 py-2">
                   <span className="text-sm text-gray-400">
                     {m.model ? `${m.model}[${m.provider}]` : m.alias}
                   </span>
-                </td>
-                <td className="px-4 py-2">
-                  <input
-                    className="w-full bg-transparent border border-[#2a2a2e] rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    value={m.display_name || ""}
-                    onChange={(e) =>
-                      onModelChange({
-                        ...m,
-                        display_name: e.target.value || null,
-                      })
-                    }
-                  />
                 </td>
                 <td className="px-4 py-2">
                   <input

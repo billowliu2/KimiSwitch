@@ -11,6 +11,7 @@ use indexmap::IndexMap;
 use serde_json::Value;
 use toml::value::{Table, Value as TomlValue};
 
+use crate::config_io::backup_file;
 use crate::models::{Agent, Config, Model, Provider, ProviderType};
 
 pub type KimiResult<T> = anyhow::Result<T>;
@@ -51,21 +52,9 @@ pub fn save_kimi_code_config(value: &TomlValue) -> KimiResult<()> {
     }
 
     if path.exists() {
-        let timestamp = chrono::Local::now()
-            .format("%Y%m%d_%H%M%S_%.3f")
-            .to_string();
-        let mut backup_path = path.with_extension(format!("toml.bak.{}", timestamp));
-        if backup_path.exists() {
-            for n in 1..1000 {
-                let candidate = path.with_extension(format!("toml.bak.{}.{:03}", timestamp, n));
-                if !candidate.exists() {
-                    backup_path = candidate;
-                    break;
-                }
-            }
-        }
-        std::fs::copy(&path, &backup_path)
-            .with_context(|| format!("failed to back up {} to {}", path.display(), backup_path.display()))?;
+        backup_file(&path, 7).with_context(|| {
+            format!("failed to back up Kimi Code config {}", path.display())
+        })?;
     }
 
     let content = toml::to_string_pretty(value)

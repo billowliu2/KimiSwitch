@@ -92,7 +92,7 @@ export function ProviderList({
                 (m) => m.provider === provider.name
               );
               const defaultModelName = defaultModel
-                ? models[defaultModel]?.display_name || defaultModel
+                ? models[defaultModel]?.model || models[defaultModel]?.display_name || defaultModel
                 : null;
               const isActive = provider.active === true;
 

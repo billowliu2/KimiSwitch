@@ -11,6 +11,7 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::config_io::backup_file;
 use crate::models::{Config, Model, Provider, ProviderType};
 
 pub type PiResult<T> = anyhow::Result<T>;
@@ -132,21 +133,9 @@ pub fn save_pi_models(file: &PiModelsFile) -> PiResult<()> {
     }
 
     if path.exists() {
-        let timestamp = chrono::Local::now()
-            .format("%Y%m%d_%H%M%S_%.3f")
-            .to_string();
-        let mut backup_path = path.with_extension(format!("json.bak.{}", timestamp));
-        if backup_path.exists() {
-            for n in 1..1000 {
-                let candidate = path.with_extension(format!("json.bak.{}.{:03}", timestamp, n));
-                if !candidate.exists() {
-                    backup_path = candidate;
-                    break;
-                }
-            }
-        }
-        std::fs::copy(&path, &backup_path)
-            .with_context(|| format!("failed to back up {} to {}", path.display(), backup_path.display()))?;
+        backup_file(&path, 7).with_context(|| {
+            format!("failed to back up Pi models {}", path.display())
+        })?;
     }
 
     let content = serde_json::to_string_pretty(file)
@@ -196,21 +185,9 @@ pub fn save_pi_settings(file: &PiSettingsFile) -> PiResult<()> {
     }
 
     if path.exists() {
-        let timestamp = chrono::Local::now()
-            .format("%Y%m%d_%H%M%S_%.3f")
-            .to_string();
-        let mut backup_path = path.with_extension(format!("json.bak.{}", timestamp));
-        if backup_path.exists() {
-            for n in 1..1000 {
-                let candidate = path.with_extension(format!("json.bak.{}.{:03}", timestamp, n));
-                if !candidate.exists() {
-                    backup_path = candidate;
-                    break;
-                }
-            }
-        }
-        std::fs::copy(&path, &backup_path)
-            .with_context(|| format!("failed to back up {} to {}", path.display(), backup_path.display()))?;
+        backup_file(&path, 7).with_context(|| {
+            format!("failed to back up Pi settings {}", path.display())
+        })?;
     }
 
     let content = serde_json::to_string_pretty(file)

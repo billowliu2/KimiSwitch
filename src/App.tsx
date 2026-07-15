@@ -10,6 +10,30 @@ import type { Agent, Model, Provider } from "./types";
 
 const AGENT_STORAGE_KEY = "pi-switch-agent";
 
+function getProviderDefaultModel(provider: Provider): string | null {
+  const raw = provider.raw_other as Record<string, unknown> | undefined;
+  const value = raw?.default_model;
+  return typeof value === "string" ? value : null;
+}
+
+function setProviderDefaultModel(provider: Provider, alias: string | null): Provider {
+  const raw = (provider.raw_other as Record<string, unknown> | undefined) ?? {};
+  if (alias) {
+    return { ...provider, raw_other: { ...raw, default_model: alias } };
+  }
+  const { default_model: _, ...rest } = raw;
+  return { ...provider, raw_other: rest };
+}
+
+function findFirstModelForProvider(models: Record<string, Model>, providerName: string): string | null {
+  for (const [key, m] of Object.entries(models)) {
+    if (m.provider === providerName) {
+      return key;
+    }
+  }
+  return null;
+}
+
 const AGENTS: { key: Agent; label: string }[] = [
   { key: "kimi_code", label: "Kimi Code" },
   { key: "pi", label: "Pi" },
@@ -189,13 +213,33 @@ export default function App() {
   };
 
   const handleSetDefaultModel = (alias: string) => {
-    updateConfig((cfg) => ({ ...cfg, default_model: alias }));
+    updateConfig((cfg) => {
+      const model = cfg.models[alias];
+      if (!model) return cfg;
+      const provider = cfg.providers[model.provider];
+      if (!provider) return cfg;
+      const providers = {
+        ...cfg.providers,
+        [provider.name]: setProviderDefaultModel(provider, alias),
+      };
+      return { ...cfg, providers, default_model: alias };
+    });
   };
 
   const handleSwitchProvider = async (name: string) => {
     updateConfig((cfg) => {
       const target = cfg.providers[name];
       if (!target) return cfg;
+
+      // Find the currently active provider so we can remember its default
+      // model before switching away.
+      let activeProviderName: string | null = null;
+      for (const [key, p] of Object.entries(cfg.providers)) {
+        if (p.active) {
+          activeProviderName = key;
+          break;
+        }
+      }
 
       // Only the selected provider is active. All other providers (including
       // Kimi native/managed and custom) are deactivated so the target agent
@@ -205,13 +249,23 @@ export default function App() {
         providers[key] = { ...p, active: key === name };
       }
 
-      // Set default model to the first model of the selected provider.
-      let default_model: string | null = null;
-      for (const [key, m] of Object.entries(cfg.models)) {
-        if (m.provider === name) {
-          default_model = key;
-          break;
+      // Remember the active provider's current default model (if it belongs to
+      // that provider) so switching back later restores the user's choice.
+      if (activeProviderName && cfg.default_model) {
+        const activeProvider = providers[activeProviderName];
+        if (activeProvider && cfg.models[cfg.default_model]?.provider === activeProviderName) {
+          providers[activeProviderName] = setProviderDefaultModel(
+            activeProvider,
+            cfg.default_model
+          );
         }
+      }
+
+      // Prefer the target provider's remembered default model; fall back to
+      // its first model when there is no saved preference or it is invalid.
+      let default_model = getProviderDefaultModel(target);
+      if (!default_model || cfg.models[default_model]?.provider !== name) {
+        default_model = findFirstModelForProvider(cfg.models, name);
       }
 
       return { ...cfg, providers, default_model };
@@ -257,6 +311,13 @@ export default function App() {
       let default_model = cfg.default_model;
       if (default_model && !(default_model in updatedModels)) {
         default_model = null;
+      }
+
+      // Remember this provider's default model preference so it survives
+      // provider switches.
+      const updatedProvider = providers[provider.name];
+      if (updatedProvider && default_model && updatedModels[default_model]?.provider === provider.name) {
+        providers[provider.name] = setProviderDefaultModel(updatedProvider, default_model);
       }
 
       return { ...cfg, providers, models: updatedModels, default_model };
@@ -391,6 +452,11 @@ export default function App() {
               });
             }}
             onModelAdd={() => {
+              const providerModels = Object.values(config.models).filter(
+                (m) => m.provider === currentProvider.name
+              );
+              const roles = ["Sonnet", "Opus", "Fable", "Haiku"];
+              const defaultRole = roles[providerModels.length % roles.length];
               const alias = `新模型[${currentProvider.name}]`;
               updateConfig((cfg) => ({
                 ...cfg,
@@ -402,7 +468,7 @@ export default function App() {
                     model: "",
                     max_context_size: getDefaultMaxContextSize(alias),
                     display_name: null,
-                    role: `新模型[${currentProvider.name}]`,
+                    role: defaultRole,
                     supports_1m: false,
                     capabilities: [],
                   },

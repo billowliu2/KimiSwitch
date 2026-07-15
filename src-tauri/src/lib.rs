@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod config_io;
 pub mod db;
 pub mod kimi_code_io;
 pub mod models;
