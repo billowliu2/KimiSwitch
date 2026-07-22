@@ -14,7 +14,6 @@
 
 - [这是什么](#这是什么)
 - [核心特性](#核心特性)
-- [截图](#截图)
 - [架构总览](#架构总览)
 - [支持的供应商类型](#支持的供应商类型)
 - [数据存储位置](#数据存储位置)
@@ -26,7 +25,6 @@
 - [打包发布](#打包发布)
 - [常见问题](#常见问题)
 - [安全提示](#安全提示)
-- [License](#license)
 
 ---
 
@@ -39,7 +37,7 @@
 
 Pi Switch 提供统一的图形界面：
 
-- 一处编辑，两处生效（Kimi Code + Pi）
+- 统一图形界面，分别管理 Kimi Code 和 Pi 两套 Agent 配置，顶部 Tab 切换
 - 一键切换供应商，自动写入对应 Agent 的原生配置
 - 一键拉取模型列表（OpenAI / Anthropic / Google GenAI）
 - 切换后给出 `/reload` 提示，确保 Kimi Code 会话立即生效
@@ -57,9 +55,9 @@ Pi Switch 提供统一的图形界面：
 | **全局设置** | 思考开关/等级、循环重试、后台任务、权限规则、生命周期钩子（仅 Kimi Code） |
 | **JSON 直编** | 高级用户可手动编辑完整配置 JSON（保留未知字段，不会丢字段） |
 | **i18n** | 简体中文 / English，运行时切换 |
-| **自动备份** | 写入 Kimi Code / Pi 原生配置前自动备份，保留最近 7 个版本 |
+| **自动备份** | 写入 Kimi Code / Pi 原生配置前自动备份，按时间戳命名，保留最近 7 天（见 `src-tauri/src/config_io.rs`） |
 | **快捷键** | Ctrl+S 保存、Ctrl+R 重载、Ctrl+O 打开配置目录 |
-| **校验** | 切换前检查名称重复、凭证缺失、Vertex 字段缺失等 |
+| **校验（预留）** | i18n 已定义错误文案（名称重复、凭证缺失、Vertex 字段缺失等），后端 `validators.rs` 为占位实现，尚未接线 |
 | **未保存提示** | 关闭窗口前检测未保存修改，标题栏加 `*` 前缀 |
 
 ## 架构总览
@@ -119,9 +117,9 @@ Pi Switch 提供统一的图形界面：
 | 文件 | 用途 | 备份 |
 | --- | --- | --- |
 | `%USERPROFILE%\.pi-switch\pi-switch.db` | Pi Switch 自己的 SQLite 数据库，存全量配置 | — |
-| `%USERPROFILE%\.kimi-code\config.toml` | Kimi Code CLI 的 TOML 配置（**切换时写入**） | 自动保留最近 7 份 `config.toml.bak.N` |
-| `%USERPROFILE%\.pi\agent\models.json` | Pi 的供应商+模型配置（**切换时写入**） | 自动保留最近 7 份 `models.json.bak.N` |
-| `%USERPROFILE%\.pi\agent\settings.json` | Pi 的默认供应商/模型（**切换时写入**） | 自动保留最近 7 份 `settings.json.bak.N` |
+| `%USERPROFILE%\.kimi-code\config.toml` | Kimi Code CLI 的 TOML 配置（**切换时写入**） | 同目录下 `backups/config.toml.bak.{YYYYMMDD_HHMMSS}`，保留 7 天 |
+| `%USERPROFILE%\.pi\agent\models.json` | Pi 的供应商+模型配置（**切换时写入**） | 同目录下 `backups/models.json.bak.{YYYYMMDD_HHMMSS}`，保留 7 天 |
+| `%USERPROFILE%\.pi\agent\settings.json` | Pi 的默认供应商/模型（**切换时写入**） | 同目录下 `backups/settings.json.bak.{YYYYMMDD_HHMMSS}`，保留 7 天 |
 | `localStorage[pi-switch-agent]` | 前端记住上次选中的 Agent（kimi_code / pi） | — |
 
 环境变量覆盖：
@@ -136,7 +134,7 @@ Pi Switch 提供统一的图形界面：
 | 工具 | 版本 | 说明 |
 | --- | --- | --- |
 | Node.js | ≥ 18 | 前端构建 |
-| Rust | ≥ 1.77 stable (edition 2021) | Tauri 后端编译 |
+| Rust | stable 最新版（edition 2021） | Tauri 后端编译 |
 | WebView2 Runtime | Windows 10/11 默认已装 | Tauri v2 运行时 |
 | Microsoft C++ Build Tools | 最新版 | Rust 编译依赖 |
 | WiX Toolset 3.14 | `src-tauri/wix314-binaries/` 目录 | MSI 打包（首次构建自动下载） |
@@ -274,7 +272,6 @@ cargo test
 - [ ] 切换供应商后默认模型正确回填
 - [ ] 重命名供应商后引用它的模型也跟着改
 - [ ] JSON 直编后 `raw_other` 不丢字段
-- [ ] Vertex 供应商缺 GOOGLE_CLOUD_PROJECT 时给出明确报错
 
 ## 打包发布
 
@@ -312,15 +309,11 @@ A: Vertex 需要 GCP project/location 凭证，当前实现留了 TODO，等 GCP
 **Q: 支持 macOS / Linux 吗？**
 A: 代码不依赖 Windows 专属 API，但 `tauri.conf.json` 的 bundle 目标目前只配了 `msi`。理论上把 `bundle.targets` 改成 `["app", "dmg"]` 等即可跨平台，但未验证。
 
-- 协议：MIT（详见 [LICENSE](./LICENSE)）
-
 ## 安全提示
 
 - API Key 以明文存储在本地 SQLite 和 Agent 原生配置里——**不要在共享电脑上保存**
 - 不要把 `pi-switch.db`、`config.toml`、`models.json` 提交到 Git
 - 应用 CSP 已收紧（`default-src 'self'`），但 WebView2 仍可能缓存表单内容，注意在公共电脑用完退出
-
-- 许可证：MIT（详见 [LICENSE](./LICENSE)）
 
 ---
 
@@ -329,3 +322,7 @@ A: 代码不依赖 Windows 专属 API，但 `tauri.conf.json` 的 bundle 目标�
 - [Kimi Code CLI](https://github.com/MoonshotAI/kimi-cli) — 兼容的 Agent 之一
 - [Tauri](https://tauri.app) — 桌面应用框架
 - 设计文档见 `docs/superpowers/specs/`，实施计划见 `docs/superpowers/plans/`
+
+---
+
+许可证：MIT，详见 [LICENSE](./LICENSE)。Copyright (c) 2026 CodingPlan.site
