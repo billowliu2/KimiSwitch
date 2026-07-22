@@ -2,6 +2,8 @@
 
 > Windows 桌面端 LLM 供应商配置管理器，让你在 **Kimi Code CLI** 和 **Pi** 两个 Agent 之间无缝切换多家 LLM 供应商与模型。
 
+[English](./README_EN.md) | **中文**
+
 [![Tauri](https://img.shields.io/badge/Tauri-v2-blue?logo=tauri)](https://tauri.app)
 [![React](https://img.shields.io/badge/React-18-61dafb?logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178c6?logo=typescript)](https://www.typescriptlang.org)
