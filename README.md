@@ -6,7 +6,7 @@
 [![React](https://img.shields.io/badge/React-18-61dafb?logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178c6?logo=typescript)](https://www.typescriptlang.org)
 [![Rust](https://img.shields.io/badge/Rust-2021-ed764d?logo=rust)](https://www.rust-lang.org)
-[![License](https://img.shields.io/badge/license-Private-lightgrey)](#license)
+[![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 
 ---
 
@@ -312,15 +312,15 @@ A: Vertex 需要 GCP project/location 凭证，当前实现留了 TODO，等 GCP
 **Q: 支持 macOS / Linux 吗？**
 A: 代码不依赖 Windows 专属 API，但 `tauri.conf.json` 的 bundle 目标目前只配了 `msi`。理论上把 `bundle.targets` 改成 `["app", "dmg"]` 等即可跨平台，但未验证。
 
+- 协议：MIT（详见 [LICENSE](./LICENSE)）
+
 ## 安全提示
 
 - API Key 以明文存储在本地 SQLite 和 Agent 原生配置里——**不要在共享电脑上保存**
 - 不要把 `pi-switch.db`、`config.toml`、`models.json` 提交到 Git
 - 应用 CSP 已收紧（`default-src 'self'`），但 WebView2 仍可能缓存表单内容，注意在公共电脑用完退出
 
-## License
-
-Private / All rights reserved. 仅供内部使用。
+- 许可证：MIT（详见 [LICENSE](./LICENSE)）
 
 ---
 
