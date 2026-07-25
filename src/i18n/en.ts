@@ -2,7 +2,7 @@ import type { TranslationKey } from "./zh";
 
 export const enTranslations: Record<TranslationKey, string> = {
   // App / global
-  appTitle: "Pi Switch",
+  appTitle: "Kimi Switch",
   loading: "Loading...",
   loadTimeout: "Loading is taking a while. Try restarting the app if it stays stuck.",
   loadFailed: "Failed to load:",
@@ -58,7 +58,6 @@ export const enTranslations: Record<TranslationKey, string> = {
   fetchingModels: "Fetching...",
   discoveredModels: "Discovered {count} models",
   addSelected: "Add selected",
-  modelRole: "Model role",
   displayName: "Display name",
   actualModel: "Actual model",
   contextSize: "Context size",
@@ -88,6 +87,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   switchTo: "Switch to",
   inUse: "In use",
   switchReloadHint: "After switching providers, run /reload in Kimi Code to apply the change.",
+  reloadCopiedHint: "Provider switched. /reload copied to clipboard; paste it in Kimi Code.",
   unsavedChanges: "Unsaved changes",
   qwenActivateNotImplemented: "Qwen Code activation will be implemented in a follow-up.",
   agentSettings: "Global Settings",
@@ -123,6 +123,13 @@ export const enTranslations: Record<TranslationKey, string> = {
   importConfigConfirm: "Importing will overwrite unsaved changes. Continue?",
   importConfigFailed: "Import failed: {message}",
   capabilities: "Capabilities",
+  fetchEnableThinking: "Enable thinking for fetched models",
+  capThinking: "Thinking",
+  capAlwaysThinking: "Always Thinking",
+  capImageIn: "Image Input",
+  capVideoIn: "Video Input",
+  capToolUse: "Tool Use",
+  customCapabilities: "Other capabilities (comma-separated)",
 
   // Languages
   language: "Language",

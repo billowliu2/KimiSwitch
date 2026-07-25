@@ -8,7 +8,7 @@ import { useTranslation } from "./i18n";
 import { getDefaultMaxContextSize } from "./lib/model-defaults";
 import type { Agent, Model, Provider } from "./types";
 
-const AGENT_STORAGE_KEY = "pi-switch-agent";
+const AGENT_STORAGE_KEY = "kimi-switch-agent";
 
 function getProviderDefaultModel(provider: Provider): string | null {
   const raw = provider.raw_other as Record<string, unknown> | undefined;
@@ -65,6 +65,7 @@ export default function App() {
   const [view, setView] = useState<"list" | "edit">("list");
   const [editingProvider, setEditingProvider] = useState<string>("");
   const [loadTimeout, setLoadTimeout] = useState(false);
+  const [switchMessage, setSwitchMessage] = useState<string | null>(null);
 
   const setAgent = (next: Agent) => {
     setAgentState(next);
@@ -243,7 +244,7 @@ export default function App() {
 
       // Only the selected provider is active. All other providers (including
       // Kimi native/managed and custom) are deactivated so the target agent
-      // follows Pi Switch's choice exactly.
+      // follows Kimi Switch's choice exactly.
       const providers: Record<string, Provider> = {};
       for (const [key, p] of Object.entries(cfg.providers)) {
         providers[key] = { ...p, active: key === name };
@@ -271,9 +272,19 @@ export default function App() {
       return { ...cfg, providers, default_model };
     });
 
-    // Persist the full config to Pi Switch's SQLite and activate the selected provider.
+    // Persist the full config to Kimi Switch's SQLite and activate the selected provider.
     await save();
     await invoke("activate_agent_config_command", { agent });
+
+    // /reload is an interactive Kimi Code TUI command with no CLI equivalent,
+    // so we copy it to the clipboard as a convenience.
+    try {
+      await navigator.clipboard.writeText("/reload");
+      setSwitchMessage(t("reloadCopiedHint"));
+      setTimeout(() => setSwitchMessage(null), 4000);
+    } catch {
+      // Clipboard may be unavailable; ignore silently.
+    }
   };
 
   const handleApplyProviderJson = (provider: Provider, models: Model[]) => {
@@ -391,6 +402,12 @@ export default function App() {
         </div>
       )}
 
+      {switchMessage && (
+        <div className="bg-green-900/20 text-green-400 p-2 text-sm border-b border-green-500/20 text-center">
+          {switchMessage}
+        </div>
+      )}
+
       <main className="flex-1 overflow-hidden relative">
         {view === "list" ? (
           <ProviderList
@@ -452,11 +469,6 @@ export default function App() {
               });
             }}
             onModelAdd={() => {
-              const providerModels = Object.values(config.models).filter(
-                (m) => m.provider === currentProvider.name
-              );
-              const roles = ["Sonnet", "Opus", "Fable", "Haiku"];
-              const defaultRole = roles[providerModels.length % roles.length];
               const alias = `新模型[${currentProvider.name}]`;
               updateConfig((cfg) => ({
                 ...cfg,
@@ -468,9 +480,8 @@ export default function App() {
                     model: "",
                     max_context_size: getDefaultMaxContextSize(alias),
                     display_name: null,
-                    role: defaultRole,
                     supports_1m: false,
-                    capabilities: [],
+                    capabilities: agent === "kimi_code" ? ["thinking"] : [],
                   },
                 },
               }));

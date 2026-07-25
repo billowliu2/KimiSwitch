@@ -2,7 +2,7 @@
 //!
 //! Kimi Code stores its configuration in `~/.kimi-code/config.toml`.
 //! This module reads/writes that file and converts between Kimi's TOML
-//! format and Pi Switch's internal `Config`/`Provider`/`Model` types.
+//! format and Kimi Switch's internal `Config`/`Provider`/`Model` types.
 
 use std::path::PathBuf;
 
@@ -64,7 +64,7 @@ pub fn save_kimi_code_config(value: &TomlValue) -> KimiResult<()> {
     Ok(())
 }
 
-/// Import a Kimi Code TOML config into Pi Switch's internal `Config`.
+/// Import a Kimi Code TOML config into Kimi Switch's internal `Config`.
 pub fn kimi_code_to_config(value: &TomlValue) -> Config {
     let root = value.as_table().cloned().unwrap_or_default();
 
@@ -75,6 +75,72 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
 
     let mut providers = IndexMap::new();
     let mut models = IndexMap::new();
+
+    // Read models first so we can determine which provider the default_model
+    // belongs to. Only that provider should be marked active in the UI.
+    if let Some(models_table) = root.get("models").and_then(|v| v.as_table()) {
+        for (alias, mv) in models_table {
+            let table = mv.as_table().cloned().unwrap_or_default();
+            let provider = table
+                .get("provider")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_default();
+            let model_id = table
+                .get("model")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_default();
+            let max_context_size = table
+                .get("max_context_size")
+                .and_then(|v| v.as_integer())
+                .map(|n| n as u64)
+                .unwrap_or(128_000);
+            let display_name = table
+                .get("display_name")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let capabilities: Vec<String> = table
+                .get("capabilities")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let supports_1m = max_context_size >= 1_000_000;
+
+            let raw_other = {
+                let mut rest = table.clone();
+                rest.remove("provider");
+                rest.remove("model");
+                rest.remove("max_context_size");
+                rest.remove("display_name");
+                rest.remove("capabilities");
+                toml_value_to_json(&TomlValue::Table(rest))
+            };
+
+            models.insert(
+                alias.clone(),
+                Model {
+                    alias: alias.clone(),
+                    provider,
+                    model: model_id,
+                    max_context_size,
+                    display_name,
+                    supports_1m,
+                    capabilities,
+                    raw_other,
+                },
+            );
+        }
+    }
+
+    let active_provider_name = default_model
+        .as_ref()
+        .and_then(|alias| models.get(alias))
+        .map(|m| m.provider.as_str());
 
     if let Some(providers_table) = root.get("providers").and_then(|v| v.as_table()) {
         for (name, pv) in providers_table {
@@ -125,68 +191,7 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
                     official_url: None,
                     managed,
                     enabled,
-                    active: true,
-                    raw_other,
-                },
-            );
-        }
-    }
-
-    if let Some(models_table) = root.get("models").and_then(|v| v.as_table()) {
-        for (alias, mv) in models_table {
-            let table = mv.as_table().cloned().unwrap_or_default();
-            let provider = table
-                .get("provider")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-                .unwrap_or_default();
-            let model_id = table
-                .get("model")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-                .unwrap_or_default();
-            let max_context_size = table
-                .get("max_context_size")
-                .and_then(|v| v.as_integer())
-                .map(|n| n as u64)
-                .unwrap_or(128_000);
-            let display_name = table
-                .get("display_name")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
-            let capabilities: Vec<String> = table
-                .get("capabilities")
-                .and_then(|v| v.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                        .collect()
-                })
-                .unwrap_or_default();
-            let supports_1m = capabilities.iter().any(|c| c == "thinking")
-                || max_context_size >= 1_000_000;
-
-            let raw_other = {
-                let mut rest = table.clone();
-                rest.remove("provider");
-                rest.remove("model");
-                rest.remove("max_context_size");
-                rest.remove("display_name");
-                rest.remove("capabilities");
-                toml_value_to_json(&TomlValue::Table(rest))
-            };
-
-            models.insert(
-                alias.clone(),
-                Model {
-                    alias: alias.clone(),
-                    provider,
-                    model: model_id,
-                    max_context_size,
-                    display_name,
-                    role: None,
-                    supports_1m,
-                    capabilities,
+                    active: active_provider_name == Some(name.as_str()),
                     raw_other,
                 },
             );
@@ -209,7 +214,7 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
     }
 }
 
-/// Export Pi Switch's internal `Config` to a Kimi Code TOML config value.
+/// Export Kimi Switch's internal `Config` to a Kimi Code TOML config value.
 ///
 /// If `existing` is provided, unknown top-level sections (e.g. `services`) are
 /// preserved; otherwise a fresh TOML table is used.
@@ -230,7 +235,7 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
     let mut providers_table = Table::new();
     for (name, provider) in &config.providers {
         // Only write the active provider to Kimi Code config so the agent
-        // follows Pi Switch's selection.
+        // follows Kimi Switch's selection.
         if !provider.active {
             continue;
         }
@@ -299,10 +304,7 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
         if let Some(display_name) = model.display_name.clone().filter(|s| !s.is_empty()) {
             mt.insert("display_name".to_string(), TomlValue::String(display_name));
         }
-        let mut capabilities = model.capabilities.clone();
-        if model.supports_1m && !capabilities.iter().any(|c| c == "thinking") {
-            capabilities.push("thinking".to_string());
-        }
+        let capabilities = model.capabilities.clone();
         if !capabilities.is_empty() {
             mt.insert(
                 "capabilities".to_string(),
@@ -461,7 +463,8 @@ api_key = ""
         assert_eq!(model.model, "kimi-for-coding");
         assert_eq!(model.max_context_size, 262144);
         assert!(model.capabilities.contains(&"thinking".to_string()));
-        assert!(model.supports_1m);
+        // supports_1m reflects context size only, not thinking capability.
+        assert!(!model.supports_1m);
 
         // Unknown top-level sections are preserved.
         let services = config.raw_other.get("services");
@@ -496,7 +499,6 @@ api_key = ""
                 model: "glm-5.2".to_string(),
                 max_context_size: 900_000,
                 display_name: None,
-                role: None,
                 supports_1m: true,
                 capabilities: vec!["thinking".to_string()],
                 raw_other: Value::Null,
@@ -526,5 +528,63 @@ api_key = ""
         assert_eq!(model.get("model").and_then(|v| v.as_str()), Some("glm-5.2"));
         let caps = model.get("capabilities").unwrap().as_array().unwrap();
         assert!(caps.iter().any(|v| v.as_str() == Some("thinking")));
+    }
+
+    #[test]
+    fn kimi_code_export_does_not_inject_thinking_from_supports_1m() {
+        let mut providers = IndexMap::new();
+        providers.insert(
+            "test-provider".to_string(),
+            Provider {
+                name: "test-provider".to_string(),
+                provider_type: ProviderType::Anthropic,
+                base_url: Some("https://example.com".to_string()),
+                api_key: Some("sk-test".to_string()),
+                env: IndexMap::new(),
+                note: None,
+                official_url: None,
+                managed: false,
+                enabled: true,
+                active: true,
+                raw_other: Value::Null,
+            },
+        );
+        let mut models = IndexMap::new();
+        models.insert(
+            "big-model".to_string(),
+            Model {
+                alias: "big-model".to_string(),
+                provider: "test-provider".to_string(),
+                model: "big-model".to_string(),
+                max_context_size: 2_000_000,
+                display_name: None,
+                supports_1m: true,
+                capabilities: vec![],
+                raw_other: Value::Null,
+            },
+        );
+        let config = Config {
+            default_model: Some("big-model".to_string()),
+            providers,
+            models,
+            raw_other: Value::Null,
+        };
+
+        let exported = config_to_kimi_code(&config, None);
+        let root = exported.as_table().unwrap();
+        let models_table = root.get("models").unwrap().as_table().unwrap();
+        let model = models_table.get("big-model").unwrap().as_table().unwrap();
+        // supports_1m=true but capabilities empty → must NOT inject "thinking".
+        let caps = model.get("capabilities");
+        match caps {
+            None => {}
+            Some(v) => {
+                let arr = v.as_array().unwrap();
+                assert!(
+                    !arr.iter().any(|c| c.as_str() == Some("thinking")),
+                    "thinking should not be injected from supports_1m"
+                );
+            }
+        }
     }
 }

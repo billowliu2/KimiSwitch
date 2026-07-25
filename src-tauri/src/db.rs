@@ -1,6 +1,6 @@
-//! Pi Switch local SQLite storage.
+//! Kimi Switch local SQLite storage.
 //!
-//! This module stores the full Pi Switch configuration (all providers and models
+//! This module stores the full Kimi Switch configuration (all providers and models
 //! for both Kimi Code and Pi agents) in a local SQLite database. It is separate
 //! from the agent-specific config files that are written when the user activates
 //! a provider.
@@ -16,17 +16,43 @@ use crate::models::{Agent, Config, Model, Provider, ProviderType};
 
 pub type DbResult<T> = anyhow::Result<T>;
 
-pub fn pi_switch_data_dir() -> PathBuf {
+pub fn kimi_switch_data_dir() -> PathBuf {
     dirs::home_dir()
-        .map(|h| h.join(".pi-switch"))
+        .map(|h| h.join(".kimi-switch"))
         .expect("failed to resolve home directory")
 }
 
 pub fn db_path() -> PathBuf {
-    pi_switch_data_dir().join("pi-switch.db")
+    kimi_switch_data_dir().join("kimi-switch.db")
+}
+
+/// One-time migration: if the legacy `~/.pi-switch/` data directory exists and
+/// `~/.kimi-switch/` does not, move it so existing users keep their saved
+/// configuration. Safe to call on every startup — it is a no-op once the new
+/// directory exists.
+fn migrate_legacy_data_dir() {
+    let new_dir = kimi_switch_data_dir();
+    if new_dir.exists() {
+        return;
+    }
+    let old_dir = match dirs::home_dir() {
+        Some(h) => h.join(".pi-switch"),
+        None => return,
+    };
+    if !old_dir.exists() {
+        return;
+    }
+    // Best-effort move; failures are silently ignored so the app can still start.
+    if let Some(new_parent) = new_dir.parent() {
+        if let Err(_) = std::fs::create_dir_all(new_parent) {
+            return;
+        }
+    }
+    let _ = std::fs::rename(&old_dir, &new_dir);
 }
 
 pub fn init_db() -> DbResult<Connection> {
+    migrate_legacy_data_dir();
     let path = db_path();
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
@@ -64,7 +90,6 @@ pub fn init_db() -> DbResult<Connection> {
             model TEXT NOT NULL,
             max_context_size INTEGER NOT NULL,
             display_name TEXT,
-            role TEXT,
             supports_1m INTEGER NOT NULL DEFAULT 0,
             capabilities TEXT,
             raw_other TEXT,
@@ -128,20 +153,19 @@ pub fn load_config(agent: &Agent) -> DbResult<Config> {
     let mut models = IndexMap::new();
     {
         let mut stmt = tx.prepare(
-            "SELECT alias, provider_name, model, max_context_size, display_name, role, supports_1m, capabilities, raw_other
+            "SELECT alias, provider_name, model, max_context_size, display_name, supports_1m, capabilities, raw_other
              FROM models WHERE agent = ?1 ORDER BY id",
         )?;
         let model_rows = stmt.query_map(params![agent.as_str()], |row| {
-            let caps_json: Option<String> = row.get(7)?;
-            let raw_json: Option<String> = row.get(8)?;
+            let caps_json: Option<String> = row.get(6)?;
+            let raw_json: Option<String> = row.get(7)?;
             Ok(Model {
                 alias: row.get(0)?,
                 provider: row.get(1)?,
                 model: row.get(2)?,
                 max_context_size: row.get::<_, i64>(3)? as u64,
                 display_name: row.get(4)?,
-                role: row.get(5)?,
-                supports_1m: row.get::<_, i32>(6)? != 0,
+                supports_1m: row.get::<_, i32>(5)? != 0,
                 capabilities: caps_json
                     .and_then(|s| serde_json::from_str(&s).ok())
                     .unwrap_or_default(),
@@ -202,8 +226,8 @@ pub fn save_config(agent: &Agent, config: &Config) -> DbResult<()> {
     {
         let mut insert_model = tx.prepare(
             "INSERT INTO models
-             (agent, alias, provider_name, model, max_context_size, display_name, role, supports_1m, capabilities, raw_other)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+             (agent, alias, provider_name, model, max_context_size, display_name, supports_1m, capabilities, raw_other)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         )?;
 
         for model in config.models.values() {
@@ -214,7 +238,6 @@ pub fn save_config(agent: &Agent, config: &Config) -> DbResult<()> {
                 model.model,
                 model.max_context_size as i64,
                 model.display_name,
-                model.role,
                 model.supports_1m as i32,
                 serde_json::to_string(&model.capabilities).ok(),
                 serde_json::to_string(&model.raw_other).ok(),

@@ -2,7 +2,7 @@
 
 ## 背景
 
-Kimi Code CLI 的 `~/.kimi-code/config.toml` 包含大量全局设置：`[thinking]`、`[loop_control]`、`[background]`、`[[permission.rules]]`、`[[hooks]]` 等。当前 Pi Switch 只暴露了 `providers` 和 `models` 的可视化编辑，其他全局配置只能通过"配置 JSON"标签页手动修改，不够便捷。
+Kimi Code CLI 的 `~/.kimi-code/config.toml` 包含大量全局设置：`[thinking]`、`[loop_control]`、`[background]`、`[[permission.rules]]`、`[[hooks]]` 等。当前 Kimi Switch 只暴露了 `providers` 和 `models` 的可视化编辑，其他全局配置只能通过"配置 JSON"标签页手动修改，不够便捷。
 
 ## 目标
 

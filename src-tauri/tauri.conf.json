@@ -1,7 +1,7 @@
 {
-  "productName": "Pi Switch",
-  "version": "0.1.0",
-  "identifier": "com.piswitch.app",
+  "productName": "Kimi Switch",
+  "version": "0.2.0",
+  "identifier": "com.kimiswitch.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
@@ -11,7 +11,7 @@
   "app": {
     "windows": [
       {
-        "title": "Pi Switch",
+        "title": "Kimi Switch",
         "width": 1200,
         "height": 800,
         "minWidth": 1000,

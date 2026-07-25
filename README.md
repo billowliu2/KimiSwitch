@@ -1,4 +1,4 @@
-# Pi Switch
+# Kimi Switch
 
 > Windows 桌面端 LLM 供应商配置管理器，让你在 **Kimi Code CLI** 和 **Pi** 两个 Agent 之间无缝切换多家 LLM 供应商与模型。
 
@@ -32,12 +32,12 @@
 
 ## 这是什么
 
-**Pi Switch** 是一个为 LLM CLI 用户打造的 Windows 桌面配置管理工具。它解决两个痛点：
+**Kimi Switch** 是一个为 LLM CLI 用户打造的 Windows 桌面配置管理工具。它解决两个痛点：
 
 1. **多供应商管理繁琐**：在 Kimi / Anthropic / OpenAI / Google GenAI / 自建代理 等多家供应商之间切换时，需要反复手改 TOML/JSON，容易出错。
 2. **多 Agent 配置割裂**：同时使用 **Kimi Code CLI** 和 **Pi** 两个 Agent 的开发者，每个 Agent 都有一套独立的配置格式，改一处要改两份。
 
-Pi Switch 提供统一的图形界面：
+Kimi Switch 提供统一的图形界面：
 
 - 统一图形界面，分别管理 Kimi Code 和 Pi 两套 Agent 配置，顶部 Tab 切换
 - 一键切换供应商，自动写入对应 Agent 的原生配置
@@ -66,7 +66,7 @@ Pi Switch 提供统一的图形界面：
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│                       Pi Switch (Tauri v2)                         │
+│                       Kimi Switch (Tauri v2)                         │
 │                                                                    │
 │   ┌──────────────────────────┐    ┌──────────────────────────┐    │
 │   │   React Frontend (TS)    │    │   Rust Backend (lib.rs)  │    │
@@ -86,17 +86,17 @@ Pi Switch 提供统一的图形界面：
                    ▼                              ▼
        ┌──────────────────────┐      ┌──────────────────────────┐
        │  SQLite              │      │  Agent 原生配置文件       │
-       │  ~/.pi-switch/       │      │  ├─ ~/.kimi-code/        │
-       │    pi-switch.db      │      │  │  └─ config.toml       │
+       │  ~/.kimi-switch/       │      │  ├─ ~/.kimi-code/        │
+       │    kimi-switch.db      │      │  │  └─ config.toml       │
        │                      │      │  └─ ~/.pi/agent/         │
-       │  (Pi Switch 内部状态) │      │     ├─ models.json      │
+       │  (Kimi Switch 内部状态) │      │     ├─ models.json      │
        └──────────────────────┘      │     └─ settings.json     │
                                      └──────────────────────────┘
 ```
 
 **关键设计**：
 
-- Pi Switch 维护自己的 SQLite 数据库存**完整配置**（所有供应商 + 所有模型，含未激活的）
+- Kimi Switch 维护自己的 SQLite 数据库存**完整配置**（所有供应商 + 所有模型，含未激活的）
 - 点「切换使用」时只把**当前激活的供应商**写入 Agent 原生配置，其他不写
 - 这样 Kimi Code / Pi 始终只看到一个活跃供应商，不会被托管/OAuth 默认值干扰
 - `raw_other` 字段透传未知键，保证前后往返不丢字段
@@ -118,11 +118,11 @@ Pi Switch 提供统一的图形界面：
 
 | 文件 | 用途 | 备份 |
 | --- | --- | --- |
-| `%USERPROFILE%\.pi-switch\pi-switch.db` | Pi Switch 自己的 SQLite 数据库，存全量配置 | — |
+| `%USERPROFILE%\.kimi-switch\kimi-switch.db` | Kimi Switch 自己的 SQLite 数据库，存全量配置 | — |
 | `%USERPROFILE%\.kimi-code\config.toml` | Kimi Code CLI 的 TOML 配置（**切换时写入**） | 同目录下 `backups/config.toml.bak.{YYYYMMDD_HHMMSS}`，保留 7 天 |
 | `%USERPROFILE%\.pi\agent\models.json` | Pi 的供应商+模型配置（**切换时写入**） | 同目录下 `backups/models.json.bak.{YYYYMMDD_HHMMSS}`，保留 7 天 |
 | `%USERPROFILE%\.pi\agent\settings.json` | Pi 的默认供应商/模型（**切换时写入**） | 同目录下 `backups/settings.json.bak.{YYYYMMDD_HHMMSS}`，保留 7 天 |
-| `localStorage[pi-switch-agent]` | 前端记住上次选中的 Agent（kimi_code / pi） | — |
+| `localStorage[kimi-switch-agent]` | 前端记住上次选中的 Agent（kimi_code / pi） | — |
 
 环境变量覆盖：
 
@@ -205,7 +205,7 @@ npm run dev
 │   └── tauri.conf.json           # Tauri 配置（窗口/打包/CSP）
 │
 ├── scripts/generate-icons.py     # 从 SVG 生成各尺寸图标
-├── public/pi.svg                 # 应用图标源（蓝紫渐变 π）
+├── public/kimi.svg               # 应用图标源（蓝紫渐变 π）
 └── docs/superpowers/             # 设计规范与实施计划
 ```
 
@@ -283,7 +283,7 @@ npm run tauri-build
 
 产物位置：
 
-- `src-tauri/target/release/bundle/msi/Pi Switch_0.1.0_x64_en-US.msi`
+- `src-tauri/target/release/bundle/msi/Kimi Switch_0.1.0_x64_en-US.msi`
 
 Windows 安装包（MSI），含 WebView2 bootstrapper 自动下载。`nsis` 已禁用，目前只产 MSI。
 
@@ -303,7 +303,7 @@ A: 在 Kimi Code 会话里执行 `/reload`（Kimi Code CLI 才会重新读取 `~
 A: 关闭窗口前会弹原生 `beforeunload` 提示，标题栏也会显示 `*` 前缀。
 
 **Q: 怎么备份/迁移我的配置？**
-A: 备份 `%USERPROFILE%\.pi-switch\pi-switch.db` 即可，里面存了全量配置（含未激活的供应商）。
+A: 备份 `%USERPROFILE%\.kimi-switch\kimi-switch.db` 即可，里面存了全量配置（含未激活的供应商）。
 
 **Q: Vertex AI 为什么不能拉取模型列表？**
 A: Vertex 需要 GCP project/location 凭证，当前实现留了 TODO，等 GCP SDK 集成后再补。
@@ -314,7 +314,7 @@ A: 代码不依赖 Windows 专属 API，但 `tauri.conf.json` 的 bundle 目标�
 ## 安全提示
 
 - API Key 以明文存储在本地 SQLite 和 Agent 原生配置里——**不要在共享电脑上保存**
-- 不要把 `pi-switch.db`、`config.toml`、`models.json` 提交到 Git
+- 不要把 `kimi-switch.db`、`config.toml`、`models.json` 提交到 Git
 - 应用 CSP 已收紧（`default-src 'self'`），但 WebView2 仍可能缓存表单内容，注意在公共电脑用完退出
 
 ---

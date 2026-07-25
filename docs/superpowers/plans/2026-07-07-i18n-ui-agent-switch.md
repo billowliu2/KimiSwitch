@@ -229,16 +229,16 @@ Search `src/components/` and `src/App.tsx` for any literal Chinese or English UI
 
 **Files:**
 - Modify: `index.html`
-- Create/overwrite: `public/pi.svg`
+- Create/overwrite: `public/kimi.svg`
 - Create/overwrite: `src-tauri/icons/32x32.png`, `src-tauri/icons/128x128.png`, `src-tauri/icons/128x128@2x.png`, `src-tauri/icons/icon.ico`
 
-- [ ] **Step 6.1: Generate Pi Switch icons**
+- [ ] **Step 6.1: Generate Kimi Switch icons**
 
-Use a Python script (Pillow) to generate PNG/ICO files with a π symbol. Update `index.html` favicon to `/pi.svg`.
+Use a Python script (Pillow) to generate PNG/ICO files with a π symbol. Update `index.html` favicon to `/kimi.svg`.
 
 - [ ] **Step 6.2: Verify app title**
 
-`tauri.conf.json` already has `"title": "Pi Switch"`. Ensure `index.html` `<title>` is also `Pi Switch`.
+`tauri.conf.json` already has `"title": "Kimi Switch"`. Ensure `index.html` `<title>` is also `Kimi Switch`.
 
 ---
 

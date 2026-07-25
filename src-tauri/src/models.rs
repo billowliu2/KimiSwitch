@@ -129,8 +129,6 @@ pub struct Model {
     pub model: String,
     pub max_context_size: u64,
     pub display_name: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub role: Option<String>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub supports_1m: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -147,7 +145,6 @@ impl std::fmt::Debug for Model {
             .field("model", &self.model)
             .field("max_context_size", &self.max_context_size)
             .field("display_name", &self.display_name)
-            .field("role", &self.role)
             .field("supports_1m", &self.supports_1m)
             .field("capabilities", &self.capabilities)
             .field("raw_other", &"<json>")
@@ -162,7 +159,6 @@ impl PartialEq for Model {
             && self.model == other.model
             && self.max_context_size == other.max_context_size
             && self.display_name == other.display_name
-            && self.role == other.role
             && self.supports_1m == other.supports_1m
             && self.capabilities == other.capabilities
             && self.raw_other == other.raw_other

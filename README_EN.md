@@ -1,4 +1,4 @@
-# Pi Switch
+# Kimi Switch
 
 > A Windows desktop LLM provider config manager that lets you switch between multiple LLM providers and models across the **Kimi Code CLI** and **Pi** agents.
 
@@ -32,12 +32,12 @@
 
 ## What Is This
 
-**Pi Switch** is a Windows desktop configuration tool built for LLM CLI users. It solves two pain points:
+**Kimi Switch** is a Windows desktop configuration tool built for LLM CLI users. It solves two pain points:
 
 1. **Tedious multi-provider management**: switching between Kimi / Anthropic / OpenAI / Google GenAI / self-hosted proxies requires repeatedly hand-editing TOML/JSON, which is error-prone.
 2. **Fragmented multi-agent configs**: developers using both **Kimi Code CLI** and **Pi** have to maintain two independent config formats, duplicating every change.
 
-Pi Switch provides a unified GUI:
+Kimi Switch provides a unified GUI:
 
 - One unified interface to manage two separate agent configs (Kimi Code and Pi), switched via a top tab
 - One-click provider switching that writes the active provider into the target agent's native config
@@ -66,7 +66,7 @@ Pi Switch provides a unified GUI:
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│                       Pi Switch (Tauri v2)                         │
+│                       Kimi Switch (Tauri v2)                         │
 │                                                                    │
 │   ┌──────────────────────────┐    ┌──────────────────────────┐    │
 │   │   React Frontend (TS)    │    │   Rust Backend (lib.rs)  │    │
@@ -86,17 +86,17 @@ Pi Switch provides a unified GUI:
                    ▼                              ▼
        ┌──────────────────────┐      ┌──────────────────────────┐
        │  SQLite              │      │  Agent native configs    │
-       │  ~/.pi-switch/       │      │  ├─ ~/.kimi-code/        │
-       │    pi-switch.db      │      │  │  └─ config.toml       │
+       │  ~/.kimi-switch/       │      │  ├─ ~/.kimi-code/        │
+       │    kimi-switch.db      │      │  │  └─ config.toml       │
        │                      │      │  └─ ~/.pi/agent/         │
-       │  (Pi Switch internal)│      │     ├─ models.json      │
+       │  (Kimi Switch internal)│      │     ├─ models.json      │
        └──────────────────────┘      │     └─ settings.json     │
                                      └──────────────────────────┘
 ```
 
 **Key design points**:
 
-- Pi Switch keeps its own SQLite database for the **full config** (all providers + all models, including inactive ones)
+- Kimi Switch keeps its own SQLite database for the **full config** (all providers + all models, including inactive ones)
 - Clicking "Switch to" writes **only the active provider** into the agent's native config; the others are not written
 - This way Kimi Code / Pi always see exactly one active provider and are never confused by managed/OAuth defaults
 - The `raw_other` field passes unknown keys through untouched, so round-trips never lose fields
@@ -118,11 +118,11 @@ Credential precedence: the `api_key` field wins over the same-named key in the `
 
 | File | Purpose | Backup |
 | --- | --- | --- |
-| `%USERPROFILE%\.pi-switch\pi-switch.db` | Pi Switch's own SQLite database holding the full config | — |
+| `%USERPROFILE%\.kimi-switch\kimi-switch.db` | Kimi Switch's own SQLite database holding the full config | — |
 | `%USERPROFILE%\.kimi-code\config.toml` | Kimi Code CLI's TOML config (**written on switch**) | `backups/config.toml.bak.{YYYYMMDD_HHMMSS}` next to it, kept 7 days |
 | `%USERPROFILE%\.pi\agent\models.json` | Pi's provider+model config (**written on switch**) | `backups/models.json.bak.{YYYYMMDD_HHMMSS}` next to it, kept 7 days |
 | `%USERPROFILE%\.pi\agent\settings.json` | Pi's default provider/model (**written on switch**) | `backups/settings.json.bak.{YYYYMMDD_HHMMSS}` next to it, kept 7 days |
-| `localStorage[pi-switch-agent]` | Frontend remembers the last selected agent (kimi_code / pi) | — |
+| `localStorage[kimi-switch-agent]` | Frontend remembers the last selected agent (kimi_code / pi) | — |
 
 Environment-variable overrides:
 
@@ -205,7 +205,7 @@ Good for pure UI debugging.
 │   └── tauri.conf.json           # Tauri config (window/bundle/CSP)
 │
 ├── scripts/generate-icons.py     # Generate all icon sizes from SVG
-├── public/pi.svg                 # App icon source (blue-purple gradient π)
+├── public/kimi.svg               # App icon source (blue-purple gradient π)
 └── docs/superpowers/             # Design specs & implementation plans
 ```
 
@@ -283,7 +283,7 @@ npm run tauri-build
 
 Output:
 
-- `src-tauri/target/release/bundle/msi/Pi Switch_0.1.0_x64_en-US.msi`
+- `src-tauri/target/release/bundle/msi/Kimi Switch_0.1.0_x64_en-US.msi`
 
 A Windows installer (MSI) with the WebView2 bootstrapper embedded for auto-download. `nsis` is disabled; only MSI is produced.
 
@@ -303,7 +303,7 @@ A: Run `/reload` inside the Kimi Code session (the CLI only re-reads `~/.kimi-co
 A: A native `beforeunload` prompt appears before closing, and the title bar shows a `*` prefix.
 
 **Q: How do I back up / migrate my config?**
-A: Back up `%USERPROFILE%\.pi-switch\pi-switch.db`; it holds the full config (including inactive providers).
+A: Back up `%USERPROFILE%\.kimi-switch\kimi-switch.db`; it holds the full config (including inactive providers).
 
 **Q: Why can't Vertex AI fetch the model list?**
 A: Vertex requires GCP project/location credentials. The current implementation leaves a TODO pending GCP SDK integration.
@@ -314,7 +314,7 @@ A: The code doesn't depend on Windows-only APIs, but `tauri.conf.json` only targ
 ## Security Notes
 
 - API keys are stored in plaintext in the local SQLite database and agent native configs — **do not store them on shared computers**
-- Do not commit `pi-switch.db`, `config.toml`, or `models.json` to Git
+- Do not commit `kimi-switch.db`, `config.toml`, or `models.json` to Git
 - The app CSP is tightened (`default-src 'self'`), but WebView2 may still cache form content — log out when finished on public machines
 
 ---

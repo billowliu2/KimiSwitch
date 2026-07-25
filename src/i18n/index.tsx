@@ -27,7 +27,7 @@ interface I18nContextValue {
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
-const STORAGE_KEY = "pi-switch-lang";
+const STORAGE_KEY = "kimi-switch-lang";
 
 function getInitialLang(): Language {
   try {

@@ -66,9 +66,21 @@ export function ProviderList({
           type="button"
           onClick={onAdd}
           title={t("addProvider")}
-          className="w-9 h-9 flex items-center justify-center rounded-full bg-orange-500 hover:bg-orange-600 text-white text-xl shadow-lg focus:ring-2 focus:ring-orange-400 focus:outline-none transition-colors"
+          className="w-9 h-9 flex items-center justify-center rounded-full bg-orange-500 hover:bg-orange-600 text-white shadow-lg focus:ring-2 focus:ring-orange-400 focus:outline-none transition-colors"
         >
-          +
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M12 5v14M5 12h14" />
+          </svg>
         </button>
       </div>
 
@@ -80,9 +92,21 @@ export function ProviderList({
             <button
               type="button"
               onClick={onAdd}
-              className="mt-4 w-12 h-12 rounded-full bg-orange-500 hover:bg-orange-600 text-white text-2xl shadow-lg flex items-center justify-center mx-auto"
+              className="mt-4 w-12 h-12 rounded-full bg-orange-500 hover:bg-orange-600 text-white shadow-lg flex items-center justify-center mx-auto"
             >
-              +
+              <svg
+                width="28"
+                height="28"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
             </button>
           </div>
         ) : (

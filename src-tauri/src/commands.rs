@@ -18,7 +18,7 @@ pub fn debug_log(message: String) {
 
 #[tauri::command]
 pub fn load_agent_config_command(agent: Agent) -> Result<Config, String> {
-    // Load from Pi Switch's own SQLite database first.
+    // Load from Kimi Switch's own SQLite database first.
     match db::load_config(&agent) {
         Ok(config) if !config.providers.is_empty() => Ok(config),
         _ => {
@@ -51,7 +51,7 @@ pub fn load_agent_config_command(agent: Agent) -> Result<Config, String> {
 
 #[tauri::command]
 pub fn save_agent_config_command(agent: Agent, config: Config) -> Result<(), String> {
-    // Save the full Pi Switch configuration to local SQLite.
+    // Save the full Kimi Switch configuration to local SQLite.
     db::save_config(&agent, &config).map_err(fmt_anyhow)
 }
 
@@ -88,7 +88,7 @@ fn active_provider_and_model(config: &Config) -> Option<(String, String)> {
 
 fn build_active_config(config: &Config) -> Config {
     // Only the provider explicitly marked as active is written to the agent's
-    // native config. This ensures Kimi Code / Pi follow Pi Switch's choice
+    // native config. This ensures Kimi Code / Pi follow Kimi Switch's choice
     // instead of falling back to a managed/native provider.
     let providers: IndexMap<String, Provider> = config
         .providers

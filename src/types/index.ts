@@ -34,8 +34,6 @@ export interface Model {
   model: string;
   max_context_size: number;
   display_name: string | null;
-  /** Optional model role, e.g. Sonnet/Opus/Fable/Haiku for Claude-style mapping. */
-  role?: string | null;
   /** Whether the model declares extended context / thinking support. */
   supports_1m?: boolean;
   /** Agent-specific capability flags (e.g. Kimi Code `capabilities`). */

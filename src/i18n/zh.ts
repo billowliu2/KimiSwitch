@@ -1,6 +1,6 @@
 export const zhTranslations = {
   // App / global
-  appTitle: "Pi Switch",
+  appTitle: "Kimi Switch",
   loading: "加载中...",
   loadTimeout: "加载时间较长，如果一直卡住，请尝试重新启动应用。",
   loadFailed: "加载失败：",
@@ -56,7 +56,6 @@ export const zhTranslations = {
   fetchingModels: "获取中...",
   discoveredModels: "发现 {count} 个模型",
   addSelected: "添加选中的",
-  modelRole: "模型角色",
   displayName: "显示名称",
   actualModel: "实际请求模型",
   contextSize: "上下文长度",
@@ -86,6 +85,7 @@ export const zhTranslations = {
   switchTo: "切换使用",
   inUse: "使用中",
   switchReloadHint: "切换供应商后，请在 Kimi Code 中执行 /reload 以生效。",
+  reloadCopiedHint: "已切换供应商，/reload 已复制到剪贴板，请在 Kimi Code 中粘贴执行。",
   unsavedChanges: "未保存修改",
   qwenActivateNotImplemented: "Qwen Code 启用功能将在后续实现。",
   agentSettings: "全局配置",
@@ -121,6 +121,13 @@ export const zhTranslations = {
   importConfigConfirm: "导入会覆盖当前未保存的修改，是否继续？",
   importConfigFailed: "导入失败：{message}",
   capabilities: "能力标签",
+  fetchEnableThinking: "为获取的模型启用思考",
+  capThinking: "思考",
+  capAlwaysThinking: "始终思考",
+  capImageIn: "图像输入",
+  capVideoIn: "视频输入",
+  capToolUse: "工具调用",
+  customCapabilities: "其他能力（逗号分隔）",
 
   // Languages
   language: "语言",

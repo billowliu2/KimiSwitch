@@ -2,7 +2,7 @@
 //!
 //! Pi stores custom providers and models in `~/.pi/agent/models.json`.
 //! This module reads and writes that file and converts between Pi's JSON
-//! format and Pi Switch's internal `Config`/`Provider`/`Model` types.
+//! format and Kimi Switch's internal `Config`/`Provider`/`Model` types.
 
 use std::path::PathBuf;
 
@@ -150,7 +150,7 @@ pub fn pi_settings_path() -> PathBuf {
     pi_agent_dir().join("settings.json")
 }
 
-/// Pi's `settings.json` file (only the fields Pi Switch manipulates).
+/// Pi's `settings.json` file (only the fields Kimi Switch manipulates).
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PiSettingsFile {
     #[serde(rename = "defaultProvider", default, skip_serializing_if = "Option::is_none")]
@@ -197,7 +197,7 @@ pub fn save_pi_settings(file: &PiSettingsFile) -> PiResult<()> {
     Ok(())
 }
 
-/// Convert a Pi Switch provider type to the Pi `api` field value.
+/// Convert a Kimi Switch provider type to the Pi `api` field value.
 pub fn pi_api_for_provider(provider_type: &ProviderType) -> &'static str {
     match provider_type {
         ProviderType::Openai => "openai-completions",
@@ -210,7 +210,7 @@ pub fn pi_api_for_provider(provider_type: &ProviderType) -> &'static str {
     }
 }
 
-/// Convert a Pi `api` field value back to a Pi Switch provider type.
+/// Convert a Pi `api` field value back to a Kimi Switch provider type.
 pub fn provider_type_for_pi_api(api: &str) -> ProviderType {
     match api {
         "openai-responses" => ProviderType::OpenaiResponses,
@@ -222,7 +222,7 @@ pub fn provider_type_for_pi_api(api: &str) -> ProviderType {
 }
 
 /// Merge provider-level fields that have dedicated `PiProvider` fields into the
-/// `raw_other` blob so they survive the round-trip through Pi Switch's internal
+/// `raw_other` blob so they survive the round-trip through Kimi Switch's internal
 /// `Config`.
 fn merge_provider_known_into_raw(pi_provider: &PiProvider, raw: &mut Value) {
     let has_known = pi_provider.headers.is_some()
@@ -249,7 +249,7 @@ fn merge_provider_known_into_raw(pi_provider: &PiProvider, raw: &mut Value) {
 }
 
 /// Merge model-level fields that have dedicated `PiModel` fields into the
-/// `raw_other` blob so they survive the round-trip through Pi Switch's internal
+/// `raw_other` blob so they survive the round-trip through Kimi Switch's internal
 /// `Config`.
 fn merge_model_known_into_raw(pi_model: &PiModel, raw: &mut Value) {
     let has_known = pi_model.cost.is_some()
@@ -310,7 +310,7 @@ fn extract_model_fields(raw: &Value) -> (Option<PiCost>, Option<Value>, Option<u
     (cost, compat, max_tokens, extra)
 }
 
-/// Import a Pi `models.json` into a Pi Switch `Config`.
+/// Import a Pi `models.json` into a Kimi Switch `Config`.
 pub fn pi_file_to_config(file: &PiModelsFile) -> Config {
     let mut providers = IndexMap::new();
     let mut models = IndexMap::new();
@@ -364,7 +364,6 @@ pub fn pi_file_to_config(file: &PiModelsFile) -> Config {
                     model: pi_model.id.clone(),
                     max_context_size: pi_model.context_window,
                     display_name,
-                    role: None,
                     supports_1m: pi_model.reasoning || pi_model.context_window >= 1_000_000,
                     capabilities: vec![],
                     raw_other: model_raw,
@@ -383,7 +382,7 @@ pub fn pi_file_to_config(file: &PiModelsFile) -> Config {
     }
 }
 
-/// Export a Pi Switch `Config` to a Pi `models.json`.
+/// Export a Kimi Switch `Config` to a Pi `models.json`.
 pub fn config_to_pi_file(config: &Config) -> PiModelsFile {
     let mut providers = IndexMap::new();
 

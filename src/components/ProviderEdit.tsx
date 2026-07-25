@@ -1,9 +1,29 @@
 import { useEffect, useId, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "../i18n";
+import type { TranslationKey } from "../i18n/zh";
 import { getDefaultMaxContextSize } from "../lib/model-defaults";
 import { AgentSettingsPanel } from "./AgentSettingsPanel";
 import type { Agent, DiscoveredModel, Model, Provider, ProviderType } from "../types";
+
+const KNOWN_CAPABILITIES = [
+  "thinking",
+  "always_thinking",
+  "image_in",
+  "video_in",
+  "tool_use",
+] as const;
+
+const CAPABILITY_LABELS: Record<
+  (typeof KNOWN_CAPABILITIES)[number],
+  TranslationKey
+> = {
+  thinking: "capThinking",
+  always_thinking: "capAlwaysThinking",
+  image_in: "capImageIn",
+  video_in: "capVideoIn",
+  tool_use: "capToolUse",
+};
 
 const PROVIDER_TYPES: ProviderType[] = [
   "openai",
@@ -346,6 +366,7 @@ function ModelMapping({
   const [discovered, setDiscovered] = useState<DiscoveredModel[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [discoverError, setDiscoverError] = useState<string | null>(null);
+  const [fetchThinking, setFetchThinking] = useState(true);
 
   const handleDiscover = async () => {
     setDiscovering(true);
@@ -379,7 +400,6 @@ function ModelMapping({
     for (const dm of discovered) {
       if (!selected.has(dm.id)) continue;
       const alias = dm.id.replace(/[^a-zA-Z0-9_-]/g, "-");
-      const role = `${dm.id}[${provider.name}]`;
       const max_context_size = dm.max_context_size ?? getDefaultMaxContextSize(dm.id);
       toAdd.push({
         alias,
@@ -387,9 +407,8 @@ function ModelMapping({
         model: dm.id,
         max_context_size,
         display_name: dm.display_name,
-        role,
         supports_1m: max_context_size >= 1_000_000,
-        capabilities: [],
+        capabilities: fetchThinking ? ["thinking"] : [],
       });
     }
     onBulkAdd(toAdd);
@@ -434,6 +453,15 @@ function ModelMapping({
           <div className="text-sm font-medium">
             {t("discoveredModels", { count: discovered.length })}
           </div>
+          <label className="flex items-center gap-2 text-sm text-[#e5e5e7] cursor-pointer">
+            <input
+              type="checkbox"
+              checked={fetchThinking}
+              onChange={(e) => setFetchThinking(e.target.checked)}
+              className="w-4 h-4 rounded border-[#2a2a2e] bg-[#1f1f23] text-blue-600 focus:ring-blue-500"
+            />
+            {t("fetchEnableThinking")}
+          </label>
           <div className="max-h-48 overflow-auto space-y-1">
             {discovered.map((m) => (
               <label
@@ -467,7 +495,6 @@ function ModelMapping({
         <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-[#1f1f23] text-gray-400">
             <tr>
-              <th className="text-left px-4 py-3 font-medium">{t("modelRole")}</th>
               <th className="text-left px-4 py-3 font-medium">{t("displayName")}</th>
               <th className="text-left px-4 py-3 font-medium">{t("actualModel")}</th>
               <th className="text-left px-4 py-3 font-medium w-28">{t("contextSize")}</th>
@@ -482,18 +509,6 @@ function ModelMapping({
           <tbody className="divide-y divide-[#2a2a2e]">
             {models.map((m) => (
               <tr key={m.alias} className="hover:bg-[#1c1c20]">
-                <td className="px-4 py-2">
-                  <select
-                    className="w-full bg-[#1f1f23] border border-[#2a2a2e] rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    value={m.role || "Sonnet"}
-                    onChange={(e) => onModelChange({ ...m, role: e.target.value })}
-                  >
-                    <option value="Sonnet">Sonnet</option>
-                    <option value="Opus">Opus</option>
-                    <option value="Fable">Fable</option>
-                    <option value="Haiku">Haiku</option>
-                  </select>
-                </td>
                 <td className="px-4 py-2">
                   <span className="text-sm text-gray-400">
                     {m.model ? `${m.model}[${m.provider}]` : m.alias}
@@ -539,18 +554,10 @@ function ModelMapping({
                 </td>
                 {agent === "kimi_code" && (
                   <td className="px-4 py-2">
-                    <input
-                      className="w-full bg-transparent border border-[#2a2a2e] rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      value={(m.capabilities || []).join(", ")}
-                      placeholder="thinking, image_in"
-                      onChange={(e) =>
-                        onModelChange({
-                          ...m,
-                          capabilities: e.target.value
-                            .split(",")
-                            .map((s) => s.trim())
-                            .filter(Boolean),
-                        })
+                    <CapabilitiesCell
+                      capabilities={m.capabilities || []}
+                      onChange={(next) =>
+                        onModelChange({ ...m, capabilities: next })
                       }
                     />
                   </td>
@@ -664,6 +671,58 @@ function JsonPreview({
         value={text}
         onChange={(e) => setText(e.target.value)}
         spellCheck={false}
+      />
+    </div>
+  );
+}
+
+function CapabilitiesCell({
+  capabilities,
+  onChange,
+}: {
+  capabilities: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const { t } = useTranslation();
+  const known = new Set<string>(KNOWN_CAPABILITIES);
+  const customs = capabilities.filter((c) => !known.has(c));
+
+  const toggle = (cap: string, on: boolean) => {
+    if (on) {
+      onChange([...capabilities.filter((c) => c !== cap), cap]);
+    } else {
+      onChange(capabilities.filter((c) => c !== cap));
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      {KNOWN_CAPABILITIES.map((cap) => (
+        <label
+          key={cap}
+          className="flex items-center gap-1 text-xs text-gray-400 cursor-pointer"
+        >
+          <input
+            type="checkbox"
+            checked={capabilities.includes(cap)}
+            onChange={(e) => toggle(cap, e.target.checked)}
+            className="w-3.5 h-3.5 rounded border-[#2a2a2e] bg-[#1f1f23] text-blue-600 focus:ring-blue-500"
+          />
+          {t(CAPABILITY_LABELS[cap])}
+        </label>
+      ))}
+      <input
+        className="w-28 bg-transparent border border-[#2a2a2e] rounded px-1.5 py-1 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        value={customs.join(", ")}
+        placeholder={t("customCapabilities")}
+        onChange={(e) => {
+          const newCustoms = e.target.value
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+          const kept = capabilities.filter((c) => known.has(c));
+          onChange([...kept, ...newCustoms]);
+        }}
       />
     </div>
   );
