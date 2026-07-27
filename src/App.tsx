@@ -6,6 +6,7 @@ import { ProviderList } from "./components/ProviderList";
 import { ProviderEdit } from "./components/ProviderEdit";
 import { useTranslation } from "./i18n";
 import { getDefaultMaxContextSize } from "./lib/model-defaults";
+import { getModelRef } from "./lib/models-dev";
 import type { Agent, Model, Provider } from "./types";
 
 const AGENT_STORAGE_KEY = "kimi-switch-agent";
@@ -242,24 +243,29 @@ export default function App() {
         }
       }
 
-      // Only the selected provider is active. All other providers (including
-      // Kimi native/managed and custom) are deactivated so the target agent
-      // follows Kimi Switch's choice exactly.
+      // Rebuild providers with the selected one moved to the front so it is
+      // visually prioritised. All others are deactivated.
       const providers: Record<string, Provider> = {};
-      for (const [key, p] of Object.entries(cfg.providers)) {
-        providers[key] = { ...p, active: key === name };
-      }
+      providers[name] = { ...target, active: true };
 
-      // Remember the active provider's current default model (if it belongs to
-      // that provider) so switching back later restores the user's choice.
-      if (activeProviderName && cfg.default_model) {
-        const activeProvider = providers[activeProviderName];
-        if (activeProvider && cfg.models[cfg.default_model]?.provider === activeProviderName) {
+      // Remember the old active provider's current default model (if it
+      // belongs to that provider) so switching back later restores the user's
+      // choice.
+      if (activeProviderName && activeProviderName !== name && cfg.default_model) {
+        const oldActive = cfg.providers[activeProviderName];
+        if (oldActive && cfg.models[cfg.default_model]?.provider === activeProviderName) {
           providers[activeProviderName] = setProviderDefaultModel(
-            activeProvider,
+            { ...oldActive, active: false },
             cfg.default_model
           );
         }
+      }
+
+      // Add remaining providers (skip selected and old-active if already added).
+      for (const [key, p] of Object.entries(cfg.providers)) {
+        if (key === name) continue;
+        if (providers[key]) continue;
+        providers[key] = { ...p, active: false };
       }
 
       // Prefer the target provider's remembered default model; fall back to
@@ -315,7 +321,10 @@ export default function App() {
           ...m,
           alias,
           provider: provider.name,
-          max_context_size: m.max_context_size ?? getDefaultMaxContextSize(m.model),
+          max_context_size:
+            m.max_context_size ??
+            getModelRef(m.model)?.context ??
+            getDefaultMaxContextSize(m.model),
         };
       }
 

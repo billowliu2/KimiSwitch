@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "../i18n";
 import type { TranslationKey } from "../i18n/zh";
 import { getDefaultMaxContextSize } from "../lib/model-defaults";
+import { capabilitiesFromRef, getModelRef } from "../lib/models-dev";
 import { AgentSettingsPanel } from "./AgentSettingsPanel";
 import type { Agent, DiscoveredModel, Model, Provider, ProviderType } from "../types";
 
@@ -400,15 +401,24 @@ function ModelMapping({
     for (const dm of discovered) {
       if (!selected.has(dm.id)) continue;
       const alias = dm.id.replace(/[^a-zA-Z0-9_-]/g, "-");
-      const max_context_size = dm.max_context_size ?? getDefaultMaxContextSize(dm.id);
+      const ref = getModelRef(dm.id);
+      // Priority: API-provided value > models.dev reference > regex fallback
+      const max_context_size =
+        dm.max_context_size ?? ref?.context ?? getDefaultMaxContextSize(dm.id);
       toAdd.push({
         alias,
         provider: provider.name,
         model: dm.id,
         max_context_size,
-        display_name: dm.display_name,
+        display_name: dm.display_name ?? ref?.name ?? null,
         supports_1m: max_context_size >= 1_000_000,
-        capabilities: fetchThinking ? ["thinking"] : [],
+        // Reference data wins when available; otherwise keep the old
+        // fetchThinking-checkbox behavior as the fallback.
+        capabilities: ref
+          ? capabilitiesFromRef(ref)
+          : fetchThinking
+            ? ["thinking"]
+            : [],
       });
     }
     onBulkAdd(toAdd);

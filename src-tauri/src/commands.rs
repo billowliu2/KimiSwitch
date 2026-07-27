@@ -18,33 +18,77 @@ pub fn debug_log(message: String) {
 
 #[tauri::command]
 pub fn load_agent_config_command(agent: Agent) -> Result<Config, String> {
-    // Load from Kimi Switch's own SQLite database first.
-    match db::load_config(&agent) {
-        Ok(config) if !config.providers.is_empty() => Ok(config),
-        _ => {
-            // Fallback to the agent's native config on first use.
-            match agent {
-                Agent::KimiCode => crate::kimi_code_io::load_kimi_code_config_as_config()
-                    .map_err(fmt_anyhow),
-                Agent::Pi => {
-                    let file = pi_io::load_pi_models().map_err(fmt_anyhow)?;
-                    let mut config = pi_io::pi_file_to_config(&file);
-                    if config.default_model.is_none() {
-                        if let Ok(settings) = pi_io::load_pi_settings() {
-                            if let (Some(provider), Some(model_id)) =
-                                (settings.default_provider, settings.default_model)
-                            {
-                                if let Some(alias) = config.models.values().find(|m| {
-                                    m.provider == provider && m.model == model_id
-                                }) {
-                                    config.default_model = Some(alias.alias.clone());
+    // Load Kimi Switch's own SQLite database (metadata + migration fallback).
+    let db_config = db::load_config(&agent).ok();
+
+    match agent {
+        Agent::KimiCode => {
+            // config.toml is the authoritative source for provider/model data
+            // because the user can add or edit providers at any time via the
+            // CLI's /provider command. SQLite only enriches with Kimi
+            // Switch-private metadata (note, official_url, remembered default
+            // model) and fills gaps when config.toml is incomplete.
+            let mut config = crate::kimi_code_io::load_kimi_code_config_as_config()
+                .map_err(fmt_anyhow)?;
+
+            if let Some(db) = &db_config {
+                // Enrich config.toml providers with SQLite metadata.
+                for (name, p) in config.providers.iter_mut() {
+                    if let Some(db_p) = db.providers.get(name) {
+                        p.note = db_p.note.clone();
+                        p.official_url = db_p.official_url.clone();
+                        // Restore the remembered per-provider default model
+                        // (Kimi-Switch-private, stored in raw_other).
+                        if let Some(dm) = db_p.raw_other.get("default_model") {
+                            match &mut p.raw_other {
+                                serde_json::Value::Object(obj) => {
+                                    obj.insert("default_model".to_string(), dm.clone());
+                                }
+                                _ => {
+                                    let mut obj = serde_json::Map::new();
+                                    obj.insert("default_model".to_string(), dm.clone());
+                                    p.raw_other = serde_json::Value::Object(obj);
                                 }
                             }
                         }
                     }
-                    Ok(config)
+                }
+                // Migration safety: include providers/models that exist in
+                // SQLite but not in config.toml (e.g. after upgrading from the
+                // old single-provider-write behaviour).
+                for (name, p) in &db.providers {
+                    config.providers.entry(name.clone()).or_insert_with(|| p.clone());
+                }
+                for (alias, m) in &db.models {
+                    config.models.entry(alias.clone()).or_insert_with(|| m.clone());
                 }
             }
+
+            Ok(config)
+        }
+        Agent::Pi => {
+            // Pi: SQLite first, fall back to native config on first use.
+            if let Some(config) = db_config {
+                if !config.providers.is_empty() {
+                    return Ok(config);
+                }
+            }
+            let file = pi_io::load_pi_models().map_err(fmt_anyhow)?;
+            let mut config = pi_io::pi_file_to_config(&file);
+            if config.default_model.is_none() {
+                if let Ok(settings) = pi_io::load_pi_settings() {
+                    if let (Some(provider), Some(model_id)) =
+                        (settings.default_provider, settings.default_model)
+                    {
+                        if let Some(alias) = config.models.values().find(|m| {
+                            m.provider == provider && m.model == model_id
+                        }) {
+                            config.default_model = Some(alias.alias.clone());
+                        }
+                    }
+                }
+            }
+            Ok(config)
         }
     }
 }
@@ -52,19 +96,30 @@ pub fn load_agent_config_command(agent: Agent) -> Result<Config, String> {
 #[tauri::command]
 pub fn save_agent_config_command(agent: Agent, config: Config) -> Result<(), String> {
     // Save the full Kimi Switch configuration to local SQLite.
-    db::save_config(&agent, &config).map_err(fmt_anyhow)
+    db::save_config(&agent, &config).map_err(fmt_anyhow)?;
+    // For Kimi Code, config.toml is the authoritative provider store, so
+    // persist changes there immediately — not only on activation. This
+    // ensures edits (Ctrl+S) survive a restart even without switching.
+    if matches!(agent, Agent::KimiCode) {
+        crate::kimi_code_io::save_config_as_kimi_code(&config).map_err(fmt_anyhow)?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
 pub fn activate_agent_config_command(agent: Agent) -> Result<(), String> {
-    // Load the full config from SQLite and write only the active provider
-    // to the agent's native config file.
-    let config = db::load_config(&agent).map_err(fmt_anyhow)?;
-    let active_config = build_active_config(&config);
     match agent {
-        Agent::KimiCode => crate::kimi_code_io::save_config_as_kimi_code(&active_config)
-            .map_err(fmt_anyhow),
+        Agent::KimiCode => {
+            // No-op: save_agent_config_command already writes config.toml for
+            // Kimi Code. Avoiding a second write here prevents a redundant disk
+            // write + backup on every switch.
+            Ok(())
+        }
         Agent::Pi => {
+            // Load the full config from SQLite and write only the active
+            // provider to Pi's native config files.
+            let config = db::load_config(&agent).map_err(fmt_anyhow)?;
+            let active_config = build_active_config(&config);
             let file = pi_io::config_to_pi_file(&active_config);
             pi_io::save_pi_models(&file).map_err(fmt_anyhow)?;
 
@@ -87,9 +142,10 @@ fn active_provider_and_model(config: &Config) -> Option<(String, String)> {
 }
 
 fn build_active_config(config: &Config) -> Config {
-    // Only the provider explicitly marked as active is written to the agent's
-    // native config. This ensures Kimi Code / Pi follow Kimi Switch's choice
-    // instead of falling back to a managed/native provider.
+    // Used only by Pi: writes only the provider explicitly marked as active
+    // to Pi's native config so Pi follows Kimi Switch's selection instead of
+    // falling back to another provider. Kimi Code does not use this — it
+    // writes all providers and selects via default_model.
     let providers: IndexMap<String, Provider> = config
         .providers
         .iter()

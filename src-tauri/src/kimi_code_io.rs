@@ -174,8 +174,13 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
                 rest.remove("api_key");
                 rest.remove("managed");
                 rest.remove("enabled");
-                rest.remove("oauth");
                 rest.remove("env");
+                // NOTE: `oauth` is intentionally kept in raw_other so that the
+                // exact `storage`/`key` block round-trips verbatim on export.
+                // Previously it was stripped here and regenerated on export
+                // with a key derived from the provider name, which corrupted
+                // the managed:kimi-code credential reference (e.g.
+                // "oauth/kimi-code" became "oauth/managed-kimi-code").
                 toml_value_to_json(&TomlValue::Table(rest))
             };
 
@@ -234,11 +239,10 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
 
     let mut providers_table = Table::new();
     for (name, provider) in &config.providers {
-        // Only write the active provider to Kimi Code config so the agent
-        // follows Kimi Switch's selection.
-        if !provider.active {
-            continue;
-        }
+        // Write ALL providers to Kimi Code config. The active provider is
+        // selected via `default_model`, so keeping the full list matches the
+        // CLI's native multi-provider behavior and prevents data loss when
+        // switching.
         let mut pt = Table::new();
         pt.insert("type".to_string(), TomlValue::String(provider.provider_type.as_str().to_string()));
         if let Some(base_url) = provider.base_url.clone().filter(|s| !s.is_empty()) {
@@ -273,6 +277,10 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
         if let TomlValue::Table(mut extra) = json_to_toml(&provider.raw_other).unwrap_or(TomlValue::Table(Table::new())) {
             extra.remove("oauth");
             extra.remove("env");
+            // Strip Kimi-Switch-private field: the remembered per-provider
+            // default model is stored in raw_other.default_model and must NOT
+            // leak into the agent's config.toml.
+            extra.remove("default_model");
             for (k, v) in extra {
                 pt.insert(k, v);
             }
@@ -281,19 +289,10 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
     }
     root.insert("providers".to_string(), TomlValue::Table(providers_table));
 
-    // Collect provider names that survived the filter above.
-    let active_provider_names: std::collections::HashSet<&str> = config
-        .providers
-        .values()
-        .filter(|p| p.active)
-        .map(|p| p.name.as_str())
-        .collect();
-
+    // Write all models — each provider's models are kept so the CLI's
+    // /provider command can list and switch between them.
     let mut models_table = Table::new();
     for (alias, model) in &config.models {
-        if !active_provider_names.contains(model.provider.as_str()) {
-            continue;
-        }
         let mut mt = Table::new();
         mt.insert("provider".to_string(), TomlValue::String(model.provider.clone()));
         mt.insert("model".to_string(), TomlValue::String(model.model.clone()));
@@ -586,5 +585,141 @@ api_key = ""
                 );
             }
         }
+    }
+
+    #[test]
+    fn kimi_code_oauth_key_roundtrip() {
+        // Regression: importing then exporting managed:kimi-code must preserve
+        // the exact oauth key "oauth/kimi-code". Previously the oauth block
+        // was dropped on import and regenerated on export as
+        // "oauth/managed-kimi-code", breaking the official subscription.
+        let toml_str = r#"
+default_model = "kimi-code/k3"
+
+[providers."managed:kimi-code"]
+type = "kimi"
+api_key = ""
+base_url = "https://api.kimi.com/coding/v1"
+
+[providers."managed:kimi-code".oauth]
+storage = "file"
+key = "oauth/kimi-code"
+
+[models."kimi-code/k3"]
+provider = "managed:kimi-code"
+model = "k3"
+max_context_size = 1048576
+"#;
+        let value: TomlValue = toml_str.parse().unwrap();
+        let config = kimi_code_to_config(&value);
+
+        // Export back to TOML.
+        let exported = config_to_kimi_code(&config, None);
+        let root = exported.as_table().unwrap();
+        let providers = root.get("providers").unwrap().as_table().unwrap();
+        let managed = providers.get("managed:kimi-code").unwrap().as_table().unwrap();
+        let oauth = managed.get("oauth").unwrap().as_table().unwrap();
+        assert_eq!(
+            oauth.get("key").and_then(|v| v.as_str()),
+            Some("oauth/kimi-code"),
+            "oauth key must round-trip verbatim, not be regenerated"
+        );
+        assert_eq!(
+            oauth.get("storage").and_then(|v| v.as_str()),
+            Some("file")
+        );
+    }
+
+    #[test]
+    fn kimi_code_export_writes_all_providers() {
+        // Regression: inactive providers must still be written to config.toml
+        // so that switching does not wipe the provider list.
+        let mut providers = IndexMap::new();
+        providers.insert(
+            "active-one".to_string(),
+            Provider {
+                name: "active-one".to_string(),
+                provider_type: ProviderType::Anthropic,
+                base_url: Some("https://a.example.com".to_string()),
+                api_key: Some("sk-a".to_string()),
+                env: IndexMap::new(),
+                note: None,
+                official_url: None,
+                managed: false,
+                enabled: true,
+                active: true,
+                raw_other: Value::Null,
+            },
+        );
+        providers.insert(
+            "inactive-one".to_string(),
+            Provider {
+                name: "inactive-one".to_string(),
+                provider_type: ProviderType::Openai,
+                base_url: Some("https://b.example.com".to_string()),
+                api_key: Some("sk-b".to_string()),
+                env: IndexMap::new(),
+                note: None,
+                official_url: None,
+                managed: false,
+                enabled: true,
+                active: false,
+                raw_other: Value::Null,
+            },
+        );
+        let config = Config {
+            default_model: None,
+            providers,
+            models: IndexMap::new(),
+            raw_other: Value::Null,
+        };
+
+        let exported = config_to_kimi_code(&config, None);
+        let root = exported.as_table().unwrap();
+        let providers_table = root.get("providers").unwrap().as_table().unwrap();
+        assert_eq!(providers_table.len(), 2, "both providers must be written");
+        assert!(providers_table.contains_key("active-one"));
+        assert!(providers_table.contains_key("inactive-one"));
+    }
+
+    #[test]
+    fn kimi_code_export_strips_private_default_model() {
+        // The remembered per-provider default model (raw_other.default_model)
+        // is a Kimi-Switch-private field and must NOT leak into config.toml.
+        let mut providers = IndexMap::new();
+        providers.insert(
+            "p".to_string(),
+            Provider {
+                name: "p".to_string(),
+                provider_type: ProviderType::Anthropic,
+                base_url: None,
+                api_key: Some("sk-x".to_string()),
+                env: IndexMap::new(),
+                note: None,
+                official_url: None,
+                managed: false,
+                enabled: true,
+                active: true,
+                raw_other: serde_json::json!({"default_model": "some-alias"}),
+            },
+        );
+        let config = Config {
+            default_model: None,
+            providers,
+            models: IndexMap::new(),
+            raw_other: Value::Null,
+        };
+
+        let exported = config_to_kimi_code(&config, None);
+        let root = exported.as_table().unwrap();
+        let provider = root
+            .get("providers").unwrap()
+            .as_table().unwrap()
+            .get("p").unwrap()
+            .as_table().unwrap();
+        assert!(
+            !provider.contains_key("default_model"),
+            "private default_model must not leak into config.toml"
+        );
     }
 }

@@ -40,7 +40,7 @@
 Kimi Switch 提供统一的图形界面：
 
 - 统一图形界面，分别管理 Kimi Code 和 Pi 两套 Agent 配置，顶部 Tab 切换
-- 一键切换供应商，自动写入对应 Agent 的原生配置
+- 一键切换供应商，更新对应 Agent 原生配置的 `default_model`，保留全部供应商
 - 一键拉取模型列表（OpenAI / Anthropic / Google GenAI）
 - 切换后给出 `/reload` 提示，确保 Kimi Code 会话立即生效
 
@@ -96,10 +96,11 @@ Kimi Switch 提供统一的图形界面：
 
 **关键设计**：
 
-- Kimi Switch 维护自己的 SQLite 数据库存**完整配置**（所有供应商 + 所有模型，含未激活的）
-- 点「切换使用」时只把**当前激活的供应商**写入 Agent 原生配置，其他不写
-- 这样 Kimi Code / Pi 始终只看到一个活跃供应商，不会被托管/OAuth 默认值干扰
-- `raw_other` 字段透传未知键，保证前后往返不丢字段
+- 对 Kimi Code，`config.toml` 是供应商/模型数据的**权威来源**：所有供应商和模型始终全量保留，`default_model` 决定哪个生效（与 CLI 原生 `/provider` 行为一致）
+- SQLite 只存 Kimi Switch 专有元数据（备注、官网、每个供应商记住的默认模型），并在 `config.toml` 不完整时兜底
+- 加载时以 `config.toml` 为准，因此通过 `/provider` 在 CLI 端增/改/删的供应商都会被正确反映，切换不再覆盖丢失
+- `raw_other` 字段透传未知键（含 `[oauth]` 段），保证前后往返不丢字段
+- Pi 的行为不变：切换时仍只写活跃供应商到 `models.json`
 
 ## 支持的供应商类型
 
@@ -118,8 +119,8 @@ Kimi Switch 提供统一的图形界面：
 
 | 文件 | 用途 | 备份 |
 | --- | --- | --- |
-| `%USERPROFILE%\.kimi-switch\kimi-switch.db` | Kimi Switch 自己的 SQLite 数据库，存全量配置 | — |
-| `%USERPROFILE%\.kimi-code\config.toml` | Kimi Code CLI 的 TOML 配置（**切换时写入**） | 同目录下 `backups/config.toml.bak.{YYYYMMDD_HHMMSS}`，保留 7 天 |
+| `%USERPROFILE%\.kimi-switch\kimi-switch.db` | Kimi Switch 自己的 SQLite 数据库，存元数据（备注/官网/记住的模型）+ 迁移兜底 | — |
+| `%USERPROFILE%\.kimi-code\config.toml` | Kimi Code CLI 的 TOML 配置（**权威数据源，切换/保存时写入**） | 同目录下 `backups/config.toml.bak.{YYYYMMDD_HHMMSS}`，保留 7 天 |
 | `%USERPROFILE%\.pi\agent\models.json` | Pi 的供应商+模型配置（**切换时写入**） | 同目录下 `backups/models.json.bak.{YYYYMMDD_HHMMSS}`，保留 7 天 |
 | `%USERPROFILE%\.pi\agent\settings.json` | Pi 的默认供应商/模型（**切换时写入**） | 同目录下 `backups/settings.json.bak.{YYYYMMDD_HHMMSS}`，保留 7 天 |
 | `localStorage[kimi-switch-agent]` | 前端记住上次选中的 Agent（kimi_code / pi） | — |
@@ -213,9 +214,9 @@ npm run dev
 
 | 命令 | 说明 |
 | --- | --- |
-| `load_agent_config_command(agent)` | 加载配置：优先 SQLite，为空则从 Agent 原生配置导入 |
-| `save_agent_config_command(agent, config)` | 保存全量配置到 SQLite |
-| `activate_agent_config_command(agent)` | 把当前激活的供应商写入 Agent 原生配置 |
+| `load_agent_config_command(agent)` | 加载配置：Kimi Code 以 `config.toml` 为权威数据源，SQLite 补充元数据；Pi 优先 SQLite |
+| `save_agent_config_command(agent, config)` | 保存到 SQLite；Kimi Code 同时写入 `config.toml` |
+| `activate_agent_config_command(agent)` | 全量写入 Agent 原生配置（Kimi Code 写全部供应商，`default_model` 决定生效项；Pi 仅写活跃供应商） |
 | `open_agent_config_dir(agent)` | 用系统资源管理器打开 Agent 配置目录 |
 | `get_app_version()` | 返回 `Cargo.toml` 版本号 |
 | `list_provider_models(provider)` | 调供应商 API 拉取模型列表（异步） |
@@ -241,7 +242,7 @@ npm run dev
 
 | 快捷键 | 作用 |
 | --- | --- |
-| `Ctrl + S` | 保存当前修改到 SQLite |
+| `Ctrl + S` | 保存当前修改到 SQLite + config.toml（Kimi Code） |
 | `Ctrl + R` | 重新读取配置（未保存时会提示） |
 | `Ctrl + O` | 打开当前 Agent 的配置目录 |
 
@@ -303,7 +304,7 @@ A: 在 Kimi Code 会话里执行 `/reload`（Kimi Code CLI 才会重新读取 `~
 A: 关闭窗口前会弹原生 `beforeunload` 提示，标题栏也会显示 `*` 前缀。
 
 **Q: 怎么备份/迁移我的配置？**
-A: 备份 `%USERPROFILE%\.kimi-switch\kimi-switch.db` 即可，里面存了全量配置（含未激活的供应商）。
+A: 对 Kimi Code，`config.toml` 本身就是全量配置的权威来源，直接备份它即可；SQLite 存额外的备注/官网等元数据，需要时一并备份 `kimi-switch.db`。对 Pi，备份 `kimi-switch.db`。
 
 **Q: Vertex AI 为什么不能拉取模型列表？**
 A: Vertex 需要 GCP project/location 凭证，当前实现留了 TODO，等 GCP SDK 集成后再补。

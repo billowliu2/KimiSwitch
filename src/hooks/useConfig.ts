@@ -48,11 +48,16 @@ export function useConfig(agent: Agent): UseConfigReturn {
   }, [refresh]);
 
   const updateConfig = useCallback((updater: (config: Config) => Config) => {
-    setConfig((prev) => {
-      const next = prev ? updater(prev) : prev;
+    // Compute next state synchronously from the ref (always current) and set
+    // the ref BEFORE setConfig. Previously the ref was updated inside the
+    // setConfig updater, which React 18 defers — so save() reading the ref
+    // immediately after would get a stale value.
+    const prev = configRef.current;
+    if (prev) {
+      const next = updater(prev);
       configRef.current = next;
-      return next;
-    });
+      setConfig(next);
+    }
     setDirty(true);
   }, []);
 

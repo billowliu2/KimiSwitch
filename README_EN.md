@@ -40,7 +40,7 @@
 Kimi Switch provides a unified GUI:
 
 - One unified interface to manage two separate agent configs (Kimi Code and Pi), switched via a top tab
-- One-click provider switching that writes the active provider into the target agent's native config
+- One-click provider switching that updates `default_model` in the target agent's native config while preserving all providers
 - One-click model-list fetching (OpenAI / Anthropic / Google GenAI)
 - A `/reload` hint after switching so Kimi Code sessions take effect immediately
 
@@ -96,10 +96,11 @@ Kimi Switch provides a unified GUI:
 
 **Key design points**:
 
-- Kimi Switch keeps its own SQLite database for the **full config** (all providers + all models, including inactive ones)
-- Clicking "Switch to" writes **only the active provider** into the agent's native config; the others are not written
-- This way Kimi Code / Pi always see exactly one active provider and are never confused by managed/OAuth defaults
-- The `raw_other` field passes unknown keys through untouched, so round-trips never lose fields
+- For Kimi Code, `config.toml` is the **authoritative source** for provider/model data: all providers and models are always written in full, and `default_model` selects the active one (matching the CLI's native `/provider` behaviour)
+- SQLite stores only Kimi Switch-private metadata (notes, official URLs, per-provider remembered default model) and acts as a fallback when `config.toml` is incomplete
+- On load, `config.toml` takes precedence, so providers added/edited/deleted via the CLI's `/provider` are correctly reflected — switching no longer overwrites or loses them
+- The `raw_other` field passes unknown keys through untouched (including `[oauth]` blocks), so round-trips never lose fields
+- Pi behaviour is unchanged: switching still writes only the active provider to `models.json`
 
 ## Supported Provider Types
 
@@ -118,8 +119,8 @@ Credential precedence: the `api_key` field wins over the same-named key in the `
 
 | File | Purpose | Backup |
 | --- | --- | --- |
-| `%USERPROFILE%\.kimi-switch\kimi-switch.db` | Kimi Switch's own SQLite database holding the full config | — |
-| `%USERPROFILE%\.kimi-code\config.toml` | Kimi Code CLI's TOML config (**written on switch**) | `backups/config.toml.bak.{YYYYMMDD_HHMMSS}` next to it, kept 7 days |
+| `%USERPROFILE%\.kimi-switch\kimi-switch.db` | Kimi Switch's own SQLite database, holding metadata (notes/official URLs/remembered models) + migration fallback | — |
+| `%USERPROFILE%\.kimi-code\config.toml` | Kimi Code CLI's TOML config (**authoritative source, written on switch/save**) | `backups/config.toml.bak.{YYYYMMDD_HHMMSS}` next to it, kept 7 days |
 | `%USERPROFILE%\.pi\agent\models.json` | Pi's provider+model config (**written on switch**) | `backups/models.json.bak.{YYYYMMDD_HHMMSS}` next to it, kept 7 days |
 | `%USERPROFILE%\.pi\agent\settings.json` | Pi's default provider/model (**written on switch**) | `backups/settings.json.bak.{YYYYMMDD_HHMMSS}` next to it, kept 7 days |
 | `localStorage[kimi-switch-agent]` | Frontend remembers the last selected agent (kimi_code / pi) | — |
@@ -213,9 +214,9 @@ Good for pure UI debugging.
 
 | Command | Description |
 | --- | --- |
-| `load_agent_config_command(agent)` | Load config: SQLite first, falling back to the agent's native config on first use |
-| `save_agent_config_command(agent, config)` | Save the full config to SQLite |
-| `activate_agent_config_command(agent)` | Write the active provider into the agent's native config |
+| `load_agent_config_command(agent)` | Load config: Kimi Code reads `config.toml` as the authoritative source, enriched with SQLite metadata; Pi reads SQLite first |
+| `save_agent_config_command(agent, config)` | Save to SQLite; for Kimi Code also writes `config.toml` |
+| `activate_agent_config_command(agent)` | Write to the agent's native config (Kimi Code writes all providers — `default_model` picks the active one; Pi writes only the active provider) |
 | `open_agent_config_dir(agent)` | Open the agent's config dir in the system file manager |
 | `get_app_version()` | Return the `Cargo.toml` version |
 | `list_provider_models(provider)` | Fetch model list from the provider API (async) |
@@ -241,7 +242,7 @@ Good for pure UI debugging.
 
 | Shortcut | Action |
 | --- | --- |
-| `Ctrl + S` | Save current changes to SQLite |
+| `Ctrl + S` | Save current changes to SQLite + config.toml (Kimi Code) |
 | `Ctrl + R` | Reload config (prompts if unsaved) |
 | `Ctrl + O` | Open the current agent's config dir |
 
@@ -303,7 +304,7 @@ A: Run `/reload` inside the Kimi Code session (the CLI only re-reads `~/.kimi-co
 A: A native `beforeunload` prompt appears before closing, and the title bar shows a `*` prefix.
 
 **Q: How do I back up / migrate my config?**
-A: Back up `%USERPROFILE%\.kimi-switch\kimi-switch.db`; it holds the full config (including inactive providers).
+A: For Kimi Code, `config.toml` itself is the authoritative full config — back it up directly. SQLite holds extra metadata (notes, official URLs); back up `kimi-switch.db` too if you need those. For Pi, back up `kimi-switch.db`.
 
 **Q: Why can't Vertex AI fetch the model list?**
 A: Vertex requires GCP project/location credentials. The current implementation leaves a TODO pending GCP SDK integration.
