@@ -1,6 +1,22 @@
+import { useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { Pencil, Copy, Activity, Loader2, Trash2 } from "lucide-react";
 import { useTranslation } from "../i18n";
 import { ProviderIcon } from "./ProviderIcon";
 import type { Agent, Model, Provider } from "../types";
+
+interface ConnectivityResult {
+  ok: boolean;
+  latencyMs: number;
+  statusCode?: number | null;
+  error?: string | null;
+}
+
+interface TestState {
+  status: "testing" | "ok" | "fail";
+  latency?: number;
+  error?: string;
+}
 
 interface ProviderListProps {
   providers: Provider[];
@@ -8,10 +24,14 @@ interface ProviderListProps {
   models: Record<string, Model>;
   onEdit: (name: string) => void;
   onDelete: (name: string) => void;
+  onDuplicate: (name: string) => void;
   onAdd: () => void;
   onSwitchProvider: (name: string) => void;
   agent: Agent;
 }
+
+const iconBtn =
+  "w-8 h-8 flex items-center justify-center rounded border border-border text-content-muted hover:text-content-primary hover:bg-hover-2 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors";
 
 export function ProviderList({
   providers,
@@ -19,11 +39,45 @@ export function ProviderList({
   models,
   onEdit,
   onDelete,
+  onDuplicate,
   onAdd,
   onSwitchProvider,
   agent,
 }: ProviderListProps) {
   const { t } = useTranslation();
+  const [testState, setTestState] = useState<Record<string, TestState>>({});
+
+  const handleTest = async (provider: Provider) => {
+    setTestState((s) => ({ ...s, [provider.name]: { status: "testing" } }));
+    try {
+      const result = await invoke<ConnectivityResult>("test_connectivity", { provider });
+      setTestState((s) => ({
+        ...s,
+        [provider.name]: {
+          status: result.ok ? "ok" : "fail",
+          latency: result.latencyMs,
+          error: result.error ?? undefined,
+        },
+      }));
+    } catch (e) {
+      setTestState((s) => ({
+        ...s,
+        [provider.name]: {
+          status: "fail",
+          error: e instanceof Error ? e.message : String(e),
+        },
+      }));
+    }
+    // auto-clear the inline result after a few seconds
+    setTimeout(() => {
+      setTestState((s) => {
+        const next = { ...s };
+        delete next[provider.name];
+        return next;
+      });
+    }, 6000);
+  };
+
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -85,6 +139,7 @@ export function ProviderList({
                 ? models[defaultModel]?.model || models[defaultModel]?.display_name || defaultModel
                 : null;
               const isActive = provider.active === true;
+              const ts = testState[provider.name];
 
               return (
                 <div
@@ -139,6 +194,27 @@ export function ProviderList({
                           {t("defaultModel", { name: defaultModelName ?? "" })}
                         </span>
                       )}
+                    {/* inline connectivity test result */}
+                    {ts && ts.status !== "testing" && (
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full border tabular-nums ${
+                          ts.status === "ok"
+                            ? ts.latency && ts.latency > 6000
+                              ? "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-500/30"
+                              : "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-green-300 dark:border-green-500/30"
+                            : "bg-red-100 dark:bg-red-900/30 text-red-500 dark:text-red-400 border-red-300 dark:border-red-500/30"
+                        }`}
+                        title={
+                          ts.status === "fail"
+                            ? ts.error || t("connectivityFail", { name: provider.name, error: "" })
+                            : ts.latency && ts.latency > 6000
+                              ? t("connectivitySlow", { name: provider.name, latency: ts.latency ?? 0 })
+                              : t("connectivityOk", { name: provider.name, latency: ts.latency ?? 0 })
+                        }
+                      >
+                        {ts.status === "ok" ? `${ts.latency}ms` : "✕"}
+                      </span>
+                    )}
                     <button
                       type="button"
                       onClick={(e) => {
@@ -162,15 +238,48 @@ export function ProviderList({
                         ⓘ
                       </span>
                     )}
+
+                    {/* icon button group */}
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         onEdit(provider.name);
                       }}
-                      className="px-3 py-1.5 text-sm border border-border rounded hover:bg-hover-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      title={t("edit")}
+                      className={iconBtn}
+                      aria-label={t("edit")}
                     >
-                      {t("edit")}
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDuplicate(provider.name);
+                      }}
+                      title={t("copyProvider")}
+                      className={iconBtn}
+                      aria-label={t("copyProvider")}
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleTest(provider);
+                      }}
+                      disabled={ts?.status === "testing"}
+                      title={t("testConnectivity")}
+                      className={`${iconBtn} disabled:opacity-50`}
+                      aria-label={t("testConnectivity")}
+                    >
+                      {ts?.status === "testing" ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Activity className="w-4 h-4" />
+                      )}
                     </button>
                     <button
                       type="button"
@@ -178,9 +287,11 @@ export function ProviderList({
                         e.stopPropagation();
                         onDelete(provider.name);
                       }}
-                      className="px-3 py-1.5 text-sm border border-border rounded hover:bg-red-900/30 hover:border-red-500/30 text-red-400 focus:ring-2 focus:ring-red-500 focus:outline-none"
+                      title={t("delete")}
+                      className={`${iconBtn} hover:text-red-400 hover:border-red-500/30 hover:bg-red-900/20`}
+                      aria-label={t("delete")}
                     >
-                      {t("delete")}
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>

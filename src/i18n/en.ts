@@ -31,6 +31,13 @@ export const enTranslations: Record<TranslationKey, string> = {
   defaultModel: "Default: {name}",
   edit: "Edit",
   delete: "Delete",
+  copyProvider: "Duplicate provider",
+  testConnectivity: "Test connectivity",
+  testing: "Testing...",
+  connectivityOk: "{name} reachable ({latency}ms)",
+  connectivitySlow: "{name} reachable but slow ({latency}ms)",
+  connectivityFail: "{name} unreachable: {error}",
+  copiedProvider: "Duplicated as {name}",
 
   // Provider edit
   editProvider: "Edit Provider",

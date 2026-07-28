@@ -29,6 +29,13 @@ export const zhTranslations = {
   defaultModel: "默认: {name}",
   edit: "编辑",
   delete: "删除",
+  copyProvider: "复制供应商",
+  testConnectivity: "测试连通性",
+  testing: "测试中...",
+  connectivityOk: "{name} 连通正常（{latency}ms）",
+  connectivitySlow: "{name} 连通较慢（{latency}ms）",
+  connectivityFail: "{name} 无法连通：{error}",
+  copiedProvider: "已复制为 {name}",
 
   // Provider edit
   editProvider: "编辑供应商",

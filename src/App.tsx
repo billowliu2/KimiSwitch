@@ -205,6 +205,39 @@ export default function App() {
     }
   };
 
+  const handleDuplicateProvider = async (name: string) => {
+    updateConfig((cfg) => {
+      const src = cfg.providers[name];
+      if (!src) return cfg;
+      let newName = `${name}-copy`;
+      let n = 2;
+      while (cfg.providers[newName]) {
+        newName = `${name}-copy-${n}`;
+        n++;
+      }
+      // Clone the provider (deactivated, clear its remembered default model
+      // since the model aliases will be re-keyed to the new name below).
+      const copied = setProviderDefaultModel(
+        { ...src, name: newName, active: false },
+        null
+      );
+      const providers = { ...cfg.providers, [newName]: copied };
+      // Re-key this provider's models to the new provider name so the copy
+      // has its own independent model set.
+      const models = { ...cfg.models };
+      for (const [alias, m] of Object.entries(cfg.models)) {
+        if (m.provider === name) {
+          const newAlias = newName + alias.slice(name.length);
+          models[newAlias] = { ...m, alias: newAlias, provider: newName };
+        }
+      }
+      return { ...cfg, providers, models };
+    });
+    await save();
+    setSwitchMessage(t("copiedProvider", { name: `${name}-copy` }));
+    setTimeout(() => setSwitchMessage(null), 3000);
+  };
+
   const handleSetDefaultModel = (alias: string) => {
     updateConfig((cfg) => {
       const model = cfg.models[alias];
@@ -458,6 +491,7 @@ export default function App() {
               setView("edit");
             }}
             onDelete={handleDeleteProvider}
+            onDuplicate={handleDuplicateProvider}
             onAdd={handleAddProvider}
             onSwitchProvider={handleSwitchProvider}
             agent={agent}

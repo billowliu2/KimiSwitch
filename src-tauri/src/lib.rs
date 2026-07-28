@@ -99,6 +99,7 @@ pub fn run() {
             commands::open_agent_config_dir,
             commands::get_app_version,
             commands::list_provider_models,
+            commands::test_connectivity,
             commands::debug_log,
             commands::get_app_setting,
             commands::set_app_setting,

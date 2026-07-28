@@ -211,6 +211,55 @@ pub async fn list_provider_models(provider: Provider) -> Result<Vec<DiscoveredMo
     }
 }
 
+/// Test reachability of a provider's base URL (cc-switch semantics):
+/// any HTTP response counts as reachable; only network-layer errors fail.
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectivityResult {
+    pub ok: bool,
+    pub latency_ms: u64,
+    pub status_code: Option<u16>,
+    pub error: Option<String>,
+}
+
+#[tauri::command]
+pub async fn test_connectivity(provider: Provider) -> Result<ConnectivityResult, String> {
+    let base = resolve_base_url(&provider);
+    if base.trim().is_empty() {
+        return Ok(ConnectivityResult {
+            ok: false,
+            latency_ms: 0,
+            status_code: None,
+            error: Some("no base URL configured".to_string()),
+        });
+    }
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .build()
+        .map_err(|e| format!("failed to build HTTP client: {e}"))?;
+    let start = std::time::Instant::now();
+    match client.get(base.as_str()).send().await {
+        Ok(resp) => Ok(ConnectivityResult {
+            ok: true,
+            latency_ms: start.elapsed().as_millis() as u64,
+            status_code: Some(resp.status().as_u16()),
+            error: None,
+        }),
+        Err(e) => Ok(ConnectivityResult {
+            ok: false,
+            latency_ms: start.elapsed().as_millis() as u64,
+            status_code: None,
+            error: Some(if e.is_connect() {
+                "connection refused / DNS failed".to_string()
+            } else if e.is_timeout() {
+                "request timed out".to_string()
+            } else {
+                e.to_string()
+            }),
+        }),
+    }
+}
+
 fn resolve_api_key(provider: &Provider) -> Option<String> {
     if provider.managed {
         return Some("managed".to_string());

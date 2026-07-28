@@ -22,12 +22,12 @@ function Card({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-panel">
+    <div className="flex flex-col rounded-xl border border-border bg-panel">
       <div className="border-b border-border px-4 py-2.5 flex items-baseline justify-between">
         <h3 className="text-sm font-medium text-content-primary">{title}</h3>
         {subtitle && <span className="text-xs text-content-muted">{subtitle}</span>}
       </div>
-      <div className="p-4">{children}</div>
+      <div className="flex-1 p-4">{children}</div>
     </div>
   );
 }
