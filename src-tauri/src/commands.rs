@@ -248,21 +248,9 @@ fn expected_api_key_key(provider_type: &ProviderType) -> &'static str {
     }
 }
 
-// ── OpenAI-compatible /models endpoint ──────────────────────────────
+// ── OpenAI-compatible /models endpoint (with pagination) ─────────────
 
 async fn fetch_openai_models(base: &str, api_key: &str) -> Result<Vec<DiscoveredModel>, String> {
-    let url = format!("{}/models", base.trim_end_matches('/'));
-    let resp = reqwest::Client::new()
-        .get(&url)
-        .bearer_auth(api_key)
-        .send()
-        .await
-        .map_err(|e| format!("HTTP request to {} failed: {e}", url))?;
-
-    if !resp.status().is_success() {
-        return Err(format!("{} returned HTTP {}", url, resp.status()));
-    }
-
     #[derive(serde::Deserialize)]
     struct OaiModel {
         id: String,
@@ -270,16 +258,57 @@ async fn fetch_openai_models(base: &str, api_key: &str) -> Result<Vec<Discovered
     #[derive(serde::Deserialize)]
     struct OaiList {
         data: Vec<OaiModel>,
+        #[serde(default)]
+        has_more: Option<bool>,
+        #[serde(default)]
+        last_id: Option<String>,
+        #[serde(default)]
+        next_page_token: Option<String>,
     }
 
-    let body: OaiList = resp
-        .json()
-        .await
-        .map_err(|e| format!("failed to parse response from {}: {e}", url))?;
+    let client = reqwest::Client::new();
+    let root = base.trim_end_matches('/').to_string();
+    let mut url = format!("{}/models", root);
+    let mut all: Vec<OaiModel> = Vec::new();
+    const MAX_PAGES: usize = 50;
 
-    Ok(body
-        .data
+    for _ in 0..MAX_PAGES {
+        let resp = client
+            .get(&url)
+            .bearer_auth(api_key)
+            .send()
+            .await
+            .map_err(|e| format!("HTTP request to {} failed: {e}", url))?;
+        if !resp.status().is_success() {
+            return Err(format!("{} returned HTTP {}", url, resp.status()));
+        }
+        let body: OaiList = resp
+            .json()
+            .await
+            .map_err(|e| format!("failed to parse response from {}: {e}", url))?;
+        all.extend(body.data);
+
+        // OpenAI cursor pagination: has_more + last_id → ?after=<last_id>
+        if body.has_more.unwrap_or(false) {
+            if let Some(last_id) = body.last_id.clone() {
+                url = format!("{}/models?after={}", root, last_id);
+                continue;
+            }
+        }
+        // Token-based pagination: next_page_token → ?page_token=<token>
+        if let Some(token) = body.next_page_token.clone() {
+            if !token.is_empty() {
+                url = format!("{}/models?page_token={}", root, token);
+                continue;
+            }
+        }
+        break;
+    }
+
+    let mut seen = std::collections::HashSet::new();
+    Ok(all
         .into_iter()
+        .filter(|m| seen.insert(m.id.clone()))
         .map(|m| DiscoveredModel {
             id: m.id,
             display_name: None,
@@ -288,22 +317,9 @@ async fn fetch_openai_models(base: &str, api_key: &str) -> Result<Vec<Discovered
         .collect())
 }
 
-// ── Anthropic /v1/models endpoint ───────────────────────────────────
+// ── Anthropic /v1/models endpoint (with pagination) ──────────────────
 
 async fn fetch_anthropic_models(base: &str, api_key: &str) -> Result<Vec<DiscoveredModel>, String> {
-    let url = format!("{}/v1/models", base.trim_end_matches('/'));
-    let resp = reqwest::Client::new()
-        .get(&url)
-        .header("x-api-key", api_key)
-        .header("anthropic-version", "2023-06-01")
-        .send()
-        .await
-        .map_err(|e| format!("HTTP request to {} failed: {e}", url))?;
-
-    if !resp.status().is_success() {
-        return Err(format!("{} returned HTTP {}", url, resp.status()));
-    }
-
     #[derive(serde::Deserialize)]
     struct AntModel {
         id: String,
@@ -312,16 +328,46 @@ async fn fetch_anthropic_models(base: &str, api_key: &str) -> Result<Vec<Discove
     #[derive(serde::Deserialize)]
     struct AntList {
         data: Vec<AntModel>,
+        #[serde(default)]
+        has_more: Option<bool>,
+        #[serde(default)]
+        last_id: Option<String>,
     }
 
-    let body: AntList = resp
-        .json()
-        .await
-        .map_err(|e| format!("failed to parse response from {}: {e}", url))?;
+    let client = reqwest::Client::new();
+    let root = base.trim_end_matches('/').to_string();
+    let mut url = format!("{}/v1/models?limit=1000", root);
+    let mut all: Vec<AntModel> = Vec::new();
+    const MAX_PAGES: usize = 20;
 
-    Ok(body
-        .data
+    for _ in 0..MAX_PAGES {
+        let resp = client
+            .get(&url)
+            .header("x-api-key", api_key)
+            .header("anthropic-version", "2023-06-01")
+            .send()
+            .await
+            .map_err(|e| format!("HTTP request to {} failed: {e}", url))?;
+        if !resp.status().is_success() {
+            return Err(format!("{} returned HTTP {}", url, resp.status()));
+        }
+        let body: AntList = resp
+            .json()
+            .await
+            .map_err(|e| format!("failed to parse response from {}: {e}", url))?;
+        let more = body.has_more.unwrap_or(false);
+        let cursor = body.last_id.clone();
+        all.extend(body.data);
+        if !(more && cursor.is_some()) {
+            break;
+        }
+        url = format!("{}/v1/models?limit=1000&after_id={}", root, cursor.unwrap());
+    }
+
+    let mut seen = std::collections::HashSet::new();
+    Ok(all
         .into_iter()
+        .filter(|m| seen.insert(m.id.clone()))
         .map(|m| DiscoveredModel {
             id: m.id,
             display_name: m.display_name,
@@ -330,27 +376,12 @@ async fn fetch_anthropic_models(base: &str, api_key: &str) -> Result<Vec<Discove
         .collect())
 }
 
-// ── Google GenAI /v1beta/models endpoint ────────────────────────────
+// ── Google GenAI /v1beta/models endpoint (with pagination) ───────────
 
 async fn fetch_google_genai_models(
     base: &str,
     api_key: &str,
 ) -> Result<Vec<DiscoveredModel>, String> {
-    let url = format!(
-        "{}/v1beta/models?key={}",
-        base.trim_end_matches('/'),
-        api_key
-    );
-    let resp = reqwest::Client::new()
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| format!("HTTP request to {} failed: {e}", url))?;
-
-    if !resp.status().is_success() {
-        return Err(format!("{} returned HTTP {}", url, resp.status()));
-    }
-
     #[derive(serde::Deserialize)]
     struct GglModel {
         name: String,
@@ -362,18 +393,52 @@ async fn fetch_google_genai_models(
     #[derive(serde::Deserialize)]
     struct GglList {
         models: Vec<GglModel>,
+        #[serde(rename = "nextPageToken", default)]
+        next_page_token: Option<String>,
     }
 
-    let body: GglList = resp
-        .json()
-        .await
-        .map_err(|e| format!("failed to parse response from {}: {e}", url))?;
+    let client = reqwest::Client::new();
+    let root = base.trim_end_matches('/').to_string();
+    let mut url = format!("{}/v1beta/models?key={}&pageSize=1000", root, api_key);
+    let mut all: Vec<GglModel> = Vec::new();
+    const MAX_PAGES: usize = 50;
 
-    Ok(body
-        .models
+    for _ in 0..MAX_PAGES {
+        let resp = client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| format!("HTTP request to {} failed: {e}", url))?;
+        if !resp.status().is_success() {
+            return Err(format!("{} returned HTTP {}", url, resp.status()));
+        }
+        let body: GglList = resp
+            .json()
+            .await
+            .map_err(|e| format!("failed to parse response from {}: {e}", url))?;
+        let cursor = body.next_page_token.clone();
+        all.extend(body.models);
+        match cursor {
+            Some(t) if !t.is_empty() => {
+                url = format!(
+                    "{}/v1beta/models?key={}&pageSize=1000&pageToken={}",
+                    root, api_key, t
+                );
+            }
+            _ => break,
+        }
+    }
+
+    let mut seen = std::collections::HashSet::new();
+    Ok(all
         .into_iter()
+        .filter(|m| seen.insert(m.name.clone()))
         .map(|m| {
-            let id = m.name.strip_prefix("models/").unwrap_or(&m.name).to_string();
+            let id = m
+                .name
+                .strip_prefix("models/")
+                .unwrap_or(&m.name)
+                .to_string();
             DiscoveredModel {
                 id,
                 display_name: m.display_name,
