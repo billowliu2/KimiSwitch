@@ -58,7 +58,7 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
 
   return (
     <div className="mt-6 space-y-4">
-      <h3 className="text-gray-400 text-sm font-medium">{t("agentSettings")}</h3>
+      <h3 className="text-content-muted text-sm font-medium">{t("agentSettings")}</h3>
 
       <Card title={t("enableThinking")}>
         <Checkbox
@@ -67,7 +67,7 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
           onChange={(checked) => updateThinking({ enabled: checked })}
         />
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-sm text-gray-400">{t("thinkingLevel")}</span>
+          <span className="text-sm text-content-muted">{t("thinkingLevel")}</span>
           <Segmented
             options={THINKING_LEVELS.map((lvl) => ({
               key: lvl,
@@ -86,7 +86,7 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
           disabled={!thinkingEnabled}
           onChange={(checked) => updateThinking({ keep: checked ? "all" : false })}
         />
-        <p className="text-xs text-gray-500">{t("thinkingContextHint")}</p>
+        <p className="text-xs text-content-muted">{t("thinkingContextHint")}</p>
       </Card>
 
       <Card title={t("loopControlSettings")}>
@@ -120,7 +120,7 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
           {(settings.permission?.rules ?? []).map((rule, idx) => (
             <div key={idx} className="flex items-center gap-2">
               <select
-                className="bg-[#1f1f23] border border-[#2a2a2e] rounded px-2 py-1 text-sm"
+                className="bg-input border border-border rounded px-2 py-1 text-sm"
                 value={rule.decision ?? "allow"}
                 onChange={(e) => {
                   const rules = [...(settings.permission?.rules ?? [])];
@@ -139,7 +139,7 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
               </select>
               <input
                 type="text"
-                className="flex-1 min-w-0 bg-[#1f1f23] border border-[#2a2a2e] rounded px-2 py-1 text-sm"
+                className="flex-1 min-w-0 bg-input border border-border rounded px-2 py-1 text-sm"
                 value={rule.pattern ?? ""}
                 placeholder={t("permissionPattern")}
                 onChange={(e) => {
@@ -171,7 +171,7 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
                 { decision: "allow", pattern: "" },
               ]);
             }}
-            className="px-3 py-1.5 text-sm border border-[#2a2a2e] rounded hover:bg-[#252529]"
+            className="px-3 py-1.5 text-sm border border-border rounded hover:bg-hover-2"
           >
             {t("addRule")}
           </button>
@@ -184,7 +184,7 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
                 { decision: "deny", pattern: "Bash(rm -rf*)" },
               ]);
             }}
-            className="px-3 py-1.5 text-sm border border-[#2a2a2e] rounded hover:bg-[#252529]"
+            className="px-3 py-1.5 text-sm border border-border rounded hover:bg-hover-2"
           >
             {t("addCommonRules")}
           </button>
@@ -198,7 +198,7 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
               <input
                 list="hook-events"
                 type="text"
-                className="w-32 bg-[#1f1f23] border border-[#2a2a2e] rounded px-2 py-1 text-sm"
+                className="w-32 bg-input border border-border rounded px-2 py-1 text-sm"
                 value={hook.event ?? ""}
                 placeholder={t("hookEvent")}
                 onChange={(e) => {
@@ -214,7 +214,7 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
               </datalist>
               <input
                 type="text"
-                className="w-24 bg-[#1f1f23] border border-[#2a2a2e] rounded px-2 py-1 text-sm"
+                className="w-24 bg-input border border-border rounded px-2 py-1 text-sm"
                 value={hook.matcher ?? ""}
                 placeholder={t("hookMatcher")}
                 onChange={(e) => {
@@ -225,7 +225,7 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
               />
               <input
                 type="text"
-                className="flex-1 min-w-0 bg-[#1f1f23] border border-[#2a2a2e] rounded px-2 py-1 text-sm"
+                className="flex-1 min-w-0 bg-input border border-border rounded px-2 py-1 text-sm"
                 value={hook.command ?? ""}
                 placeholder={t("hookCommand")}
                 onChange={(e) => {
@@ -236,7 +236,7 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
               />
               <input
                 type="number"
-                className="w-20 bg-[#1f1f23] border border-[#2a2a2e] rounded px-2 py-1 text-sm"
+                className="w-20 bg-input border border-border rounded px-2 py-1 text-sm"
                 value={hook.timeout ?? ""}
                 placeholder={t("hookTimeout")}
                 onChange={(e) => {
@@ -267,7 +267,7 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
           onClick={() => {
             setHooks([...(settings.hooks ?? []), { event: "", matcher: "", command: "" }]);
           }}
-          className="px-3 py-1.5 text-sm border border-[#2a2a2e] rounded hover:bg-[#252529]"
+          className="px-3 py-1.5 text-sm border border-border rounded hover:bg-hover-2"
         >
           {t("addHook")}
         </button>
@@ -278,8 +278,8 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
 
 function Card({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="bg-[#16161a] border border-[#2a2a2e] rounded-xl p-4 space-y-3">
-      <h4 className="text-gray-400 text-sm font-medium">{title}</h4>
+    <div className="bg-panel border border-border rounded-xl p-4 space-y-3">
+      <h4 className="text-content-muted text-sm font-medium">{title}</h4>
       {children}
     </div>
   );
@@ -299,7 +299,7 @@ function Checkbox({
   return (
     <label
       className={`flex items-center gap-2 text-sm ${
-        disabled ? "text-gray-600" : "text-[#e5e5e7]"
+        disabled ? "text-content-muted" : "text-content-primary"
       }`}
     >
       <input
@@ -307,7 +307,7 @@ function Checkbox({
         checked={checked}
         disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
-        className="rounded border-[#2a2a2e] bg-[#1f1f23] text-blue-600 focus:ring-blue-500"
+        className="rounded border-border bg-input text-blue-600 focus:ring-blue-500"
       />
       {label}
     </label>
@@ -324,8 +324,8 @@ function NumberField({
   onChange: (value: number | undefined) => void;
 }) {
   return (
-    <label className="flex items-center gap-3 text-sm text-[#e5e5e7]">
-      <span className="text-gray-400">{label}</span>
+    <label className="flex items-center gap-3 text-sm text-content-primary">
+      <span className="text-content-muted">{label}</span>
       <input
         type="number"
         value={value ?? ""}
@@ -333,7 +333,7 @@ function NumberField({
           const raw = e.target.value;
           onChange(raw === "" ? undefined : Number(raw));
         }}
-        className="w-32 bg-[#1f1f23] border border-[#2a2a2e] rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        className="w-32 bg-input border border-border rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
       />
     </label>
   );
@@ -352,7 +352,7 @@ function Segmented({
 }) {
   return (
     <div
-      className={`flex items-center rounded overflow-hidden border border-[#2a2a2e] ${
+      className={`flex items-center rounded overflow-hidden border border-border ${
         disabled ? "opacity-50" : ""
       }`}
     >
@@ -365,7 +365,7 @@ function Segmented({
           className={`px-3 py-1 text-sm ${
             value === opt.key
               ? "bg-blue-600 text-white"
-              : "bg-[#1f1f23] text-gray-400 hover:bg-[#252529]"
+              : "bg-input text-content-muted hover:bg-hover-2"
           }`}
         >
           {opt.label}

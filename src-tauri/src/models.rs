@@ -85,6 +85,10 @@ pub struct Provider {
     pub enabled: bool,
     #[serde(default)]
     pub active: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon_color: Option<String>,
     #[serde(default, skip_serializing_if = "Value::is_null")]
     pub raw_other: Value,
 }
@@ -101,6 +105,8 @@ impl PartialEq for Provider {
             && self.managed == other.managed
             && self.enabled == other.enabled
             && self.active == other.active
+            && self.icon == other.icon
+            && self.icon_color == other.icon_color
             && self.raw_other == other.raw_other
     }
 }
@@ -117,6 +123,9 @@ impl std::fmt::Debug for Provider {
             .field("env", &"<redacted>")
             .field("managed", &self.managed)
             .field("enabled", &self.enabled)
+            .field("active", &self.active)
+            .field("icon", &self.icon)
+            .field("icon_color", &self.icon_color)
             .field("raw_other", &"<json>")
             .finish()
     }

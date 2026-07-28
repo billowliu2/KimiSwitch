@@ -56,16 +56,16 @@ export function DailyDetailModal({ day, colorMap, onClose }: DailyDetailModalPro
       aria-label={day.date}
     >
       <div
-        className="w-full max-w-lg rounded-xl border border-[#2a2a2e] bg-[#16161a] shadow-2xl"
+        className="w-full max-w-lg rounded-xl border border-border bg-panel shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-[#2a2a2e] px-5 py-3.5">
+        <div className="flex items-start justify-between border-b border-border px-5 py-3.5">
           <div>
-            <div className="text-[11px] uppercase tracking-wider text-gray-500">
+            <div className="text-[11px] uppercase tracking-wider text-content-muted">
               {t("dayDetail")}
             </div>
-            <div className="mt-0.5 text-lg font-semibold text-[#e5e5e7]">
+            <div className="mt-0.5 text-lg font-semibold text-content-primary">
               {day.date}
             </div>
           </div>
@@ -73,7 +73,7 @@ export function DailyDetailModal({ day, colorMap, onClose }: DailyDetailModalPro
             type="button"
             onClick={onClose}
             aria-label={t("close")}
-            className="rounded-md p-1 text-gray-500 hover:bg-[#2a2a2e] hover:text-gray-200 transition-colors"
+            className="rounded-md p-1 text-content-muted hover:bg-border hover:text-content-primary transition-colors"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -117,11 +117,11 @@ export function DailyDetailModal({ day, colorMap, onClose }: DailyDetailModalPro
 
         {/* Per-model breakdown */}
         <div className="px-5 pb-4">
-          <div className="mb-2 text-[11px] uppercase tracking-wider text-gray-500">
+          <div className="mb-2 text-[11px] uppercase tracking-wider text-content-muted">
             {t("modelDistribution")} · {segments.length}
           </div>
           {segments.length === 0 ? (
-            <div className="py-6 text-center text-sm text-gray-500">
+            <div className="py-6 text-center text-sm text-content-muted">
               {t("noData")}
             </div>
           ) : (
@@ -135,19 +135,19 @@ export function DailyDetailModal({ day, colorMap, onClose }: DailyDetailModalPro
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-2">
                       <span
-                        className="truncate text-[#e5e5e7]"
+                        className="truncate text-content-primary"
                         title={s.model}
                       >
                         {shortModel(s.model)}
                       </span>
-                      <span className="shrink-0 text-xs text-gray-400 tabular-nums">
+                      <span className="shrink-0 text-xs text-content-muted tabular-nums">
                         {fmtTokens(s.tokens)}{" "}
-                        <span className="text-gray-500">
+                        <span className="text-content-muted">
                           · {s.pct.toFixed(1)}%
                         </span>
                       </span>
                     </div>
-                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-[#2a2a2e]">
+                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-border">
                       <div
                         className="h-full rounded-full transition-all"
                         style={{
@@ -164,7 +164,7 @@ export function DailyDetailModal({ day, colorMap, onClose }: DailyDetailModalPro
         </div>
 
         {/* Footer hint */}
-        <div className="border-t border-[#2a2a2e] px-5 py-2 text-[11px] text-gray-500">
+        <div className="border-t border-border px-5 py-2 text-[11px] text-content-muted">
           {t("modalEscHint")}
         </div>
       </div>
@@ -183,15 +183,15 @@ function SummaryChip({
 }) {
   const valueClass =
     tone === "orange"
-      ? "text-orange-400"
+      ? "text-orange-600 dark:text-orange-400"
       : tone === "blue"
         ? "text-blue-400"
         : tone === "green"
-          ? "text-emerald-400"
-          : "text-[#e5e5e7]";
+          ? "text-emerald-600 dark:text-emerald-400"
+          : "text-content-primary";
   return (
-    <div className="rounded-md bg-[#1c1c20] px-3 py-2">
-      <div className="text-[10px] uppercase tracking-wider text-gray-500">
+    <div className="rounded-md bg-hover px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wider text-content-muted">
         {label}
       </div>
       <div className={`mt-0.5 text-sm font-semibold tabular-nums ${valueClass}`}>

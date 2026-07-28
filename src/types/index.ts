@@ -24,6 +24,10 @@ export interface Provider {
   enabled?: boolean;
   /** Whether this provider is the currently active one for Kimi Code. */
   active?: boolean;
+  /** Manually selected brand icon key (from extracted icons). */
+  icon?: string | null;
+  /** Custom icon color; falls back to icon metadata defaultColor. */
+  icon_color?: string | null;
   /** Extra agent-specific provider fields preserved across edits. */
   raw_other?: unknown;
 }

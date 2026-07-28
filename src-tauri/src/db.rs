@@ -106,6 +106,20 @@ pub fn init_db() -> DbResult<Connection> {
         [],
     )?;
 
+    // Add icon columns for provider icon picker (introduced in v0.3.1).
+    // SQLite has no ADD COLUMN IF NOT EXISTS, so ignore duplicate-column errors.
+    for stmt in [
+        "ALTER TABLE providers ADD COLUMN icon TEXT",
+        "ALTER TABLE providers ADD COLUMN icon_color TEXT",
+    ] {
+        if let Err(e) = conn.execute(stmt, []) {
+            let msg = e.to_string();
+            if !msg.contains("duplicate column name") {
+                return Err(e).with_context(|| format!("failed to run migration: {}", stmt));
+            }
+        }
+    }
+
     Ok(conn)
 }
 
@@ -118,13 +132,13 @@ pub fn load_config(agent: &Agent) -> DbResult<Config> {
     let mut providers = IndexMap::new();
     {
         let mut stmt = tx.prepare(
-            "SELECT name, provider_type, base_url, api_key, env, note, official_url, managed, enabled, active, raw_other
+            "SELECT name, provider_type, base_url, api_key, env, note, official_url, managed, enabled, active, icon, icon_color, raw_other
              FROM providers WHERE agent = ?1 ORDER BY id",
         )?;
         let provider_rows = stmt.query_map(params![agent.as_str()], |row| {
             let provider_type: String = row.get(1)?;
             let env_json: Option<String> = row.get(4)?;
-            let raw_json: Option<String> = row.get(10)?;
+            let raw_json: Option<String> = row.get(12)?;
             Ok(Provider {
                 name: row.get(0)?,
                 provider_type: provider_type_for_str(&provider_type),
@@ -138,6 +152,8 @@ pub fn load_config(agent: &Agent) -> DbResult<Config> {
                 managed: row.get::<_, i32>(7)? != 0,
                 enabled: row.get::<_, i32>(8)? != 0,
                 active: row.get::<_, i32>(9)? != 0,
+                icon: row.get(10)?,
+                icon_color: row.get(11)?,
                 raw_other: raw_json
                     .and_then(|s| serde_json::from_str(&s).ok())
                     .unwrap_or(Value::Null),
@@ -201,8 +217,8 @@ pub fn save_config(agent: &Agent, config: &Config) -> DbResult<()> {
     {
         let mut insert_provider = tx.prepare(
             "INSERT INTO providers
-             (agent, name, provider_type, base_url, api_key, env, note, official_url, managed, enabled, active, raw_other)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+             (agent, name, provider_type, base_url, api_key, env, note, official_url, managed, enabled, active, icon, icon_color, raw_other)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
         )?;
 
         for provider in config.providers.values() {
@@ -218,6 +234,8 @@ pub fn save_config(agent: &Agent, config: &Config) -> DbResult<()> {
                 provider.managed as i32,
                 provider.enabled as i32,
                 provider.active as i32,
+                provider.icon,
+                provider.icon_color,
                 serde_json::to_string(&provider.raw_other).ok(),
             ])?;
         }
@@ -275,6 +293,27 @@ fn set_setting_tx(tx: &rusqlite::Transaction, key: &str, value: &str) -> DbResul
          ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         params![key, value],
     )?;
+    Ok(())
+}
+
+/// Public helper: read a single setting without an explicit transaction.
+pub fn get_setting_pub(key: &str) -> DbResult<Option<String>> {
+    let conn = init_db()?;
+    let mut stmt = conn.prepare("SELECT value FROM settings WHERE key = ?1")?;
+    let mut rows = stmt.query(params![key])?;
+    if let Some(row) = rows.next()? {
+        Ok(Some(row.get(0)?))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Public helper: write a single setting in its own transaction.
+pub fn set_setting_pub(key: &str, value: &str) -> DbResult<()> {
+    let mut conn = init_db()?;
+    let tx = conn.transaction()?;
+    set_setting_tx(&tx, key, value)?;
+    tx.commit()?;
     Ok(())
 }
 

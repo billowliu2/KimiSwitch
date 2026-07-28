@@ -2,6 +2,7 @@ use crate::db;
 use crate::models::{Agent, Config, DiscoveredModel, Model, Provider, ProviderType};
 use crate::pi_io;
 use indexmap::IndexMap;
+use serde::Serialize;
 use tauri_plugin_opener::OpenerExt;
 
 fn fmt_anyhow(err: anyhow::Error) -> String {
@@ -37,6 +38,10 @@ pub fn load_agent_config_command(agent: Agent) -> Result<Config, String> {
                     if let Some(db_p) = db.providers.get(name) {
                         p.note = db_p.note.clone();
                         p.official_url = db_p.official_url.clone();
+                        // Restore Kimi Switch metadata that does not live in
+                        // the agent's config.toml.
+                        p.icon = db_p.icon.clone();
+                        p.icon_color = db_p.icon_color.clone();
                         // Restore the remembered per-provider default model
                         // (Kimi-Switch-private, stored in raw_other).
                         if let Some(dm) = db_p.raw_other.get("default_model") {
@@ -376,4 +381,176 @@ async fn fetch_google_genai_models(
             }
         })
         .collect())
+}
+
+// ---------------------------------------------------------------------------
+// App settings (generic key/value via SQLite)
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn get_app_setting(key: String) -> Option<String> {
+    db::get_setting_pub(&key).ok().flatten()
+}
+
+#[tauri::command]
+pub fn set_app_setting(key: String, value: String) -> Result<(), String> {
+    db::set_setting_pub(&key, &value).map_err(|e| e.to_string())
+}
+
+// ---------------------------------------------------------------------------
+// Version check (lightweight: GET Gitea releases API, compare tag_name)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateInfo {
+    pub current: String,
+    pub latest: String,
+    pub update_available: bool,
+    pub release_url: String,
+    pub download_url: Option<String>,
+}
+
+fn parse_version(s: &str) -> Vec<u32> {
+    s.trim_start_matches('v')
+        .split('.')
+        .filter_map(|p| p.parse::<u32>().ok())
+        .collect()
+}
+
+fn version_lt(current: &str, latest: &str) -> bool {
+    let c = parse_version(current);
+    let l = parse_version(latest);
+    for i in 0..c.len().max(l.len()) {
+        let cv = *c.get(i).unwrap_or(&0);
+        let lv = *l.get(i).unwrap_or(&0);
+        if cv < lv {
+            return true;
+        }
+        if cv > lv {
+            return false;
+        }
+    }
+    false
+}
+
+#[tauri::command]
+pub async fn check_for_update() -> Result<UpdateInfo, String> {
+    let current = env!("CARGO_PKG_VERSION").to_string();
+    let url = "https://git.codingplan.site/api/v1/repos/admin/KimiCodeSwitch/releases?limit=1";
+
+    let resp = reqwest::get(url)
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
+
+    let releases: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("parse failed: {e}"))?;
+
+    let first = releases
+        .as_array()
+        .and_then(|a| a.first())
+        .ok_or("no releases found")?;
+
+    let latest = first
+        .get("tag_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("0.0.0")
+        .to_string();
+
+    let release_url = first
+        .get("html_url")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    let download_url = first
+        .get("assets")
+        .and_then(|a| a.as_array())
+        .and_then(|a| a.first())
+        .and_then(|a| a.get("browser_download_url"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    let update_available = version_lt(&current, &latest);
+
+    Ok(UpdateInfo {
+        current,
+        latest,
+        update_available,
+        release_url,
+        download_url,
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Silent download with progress events
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub async fn download_update(
+    app: tauri::AppHandle,
+    url: String,
+) -> Result<String, String> {
+    use futures_util::StreamExt;
+    use std::io::Write;
+    use tauri::Emitter;
+
+    let resp = reqwest::get(&url)
+        .await
+        .map_err(|e| format!("download request failed: {e}"))?;
+
+    let total = resp.content_length().unwrap_or(0);
+
+    let temp_dir = std::env::temp_dir();
+    let file_path = temp_dir.join("KimiSwitch_update.msi");
+
+    let mut file = std::fs::File::create(&file_path)
+        .map_err(|e| format!("create temp file failed: {e}"))?;
+
+    let mut downloaded: u64 = 0;
+    let mut stream = resp.bytes_stream();
+
+    while let Some(chunk_result) = stream.next().await {
+        let chunk = chunk_result.map_err(|e| format!("read chunk failed: {e}"))?;
+        file.write_all(&chunk)
+            .map_err(|e| format!("write failed: {e}"))?;
+        downloaded += chunk.len() as u64;
+
+        let progress = if total > 0 {
+            ((downloaded as f64 / total as f64) * 100.0).min(100.0) as u32
+        } else {
+            0
+        };
+
+        let _ = app.emit(
+            "download-progress",
+            serde_json::json!({
+                "downloaded": downloaded,
+                "total": total,
+                "progress": progress,
+            }),
+        );
+    }
+
+    drop(file);
+
+    let path_str = file_path.to_string_lossy().to_string();
+
+    let _ = app.emit(
+        "download-complete",
+        serde_json::json!({ "path": &path_str }),
+    );
+
+    Ok(path_str)
+}
+
+/// Open the downloaded MSI installer using the system default handler.
+#[tauri::command]
+pub fn open_installer(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    app.opener()
+        .open_path(&path, None::<&str>)
+        .map_err(|e| e.to_string())
 }

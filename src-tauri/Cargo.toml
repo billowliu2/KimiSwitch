@@ -1,6 +1,6 @@
 [package]
 name = "kimiswitch"
-version = "0.3.0"
+version = "0.4.0"
 description = "Kimi Switch - model config manager"
 authors = ["you"]
 edition = "2021"
@@ -20,7 +20,8 @@ anyhow = "1.0"
 regex = "1"
 walkdir = "2"
 fs_extra = "1"
-reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"], default-features = false }
+futures-util = "0.3"
 dirs = "5.0"
 toml = "0.8"
 rusqlite = { version = "0.32", features = ["bundled", "chrono"] }

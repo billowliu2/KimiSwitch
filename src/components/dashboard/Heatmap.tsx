@@ -9,7 +9,7 @@ interface HeatmapProps {
 }
 
 const LEVEL_BG = [
-  "bg-[#1a1a1e]", // 0 — empty / no usage
+  "bg-cell-empty", // 0 — empty / no usage
   "bg-emerald-900/55",
   "bg-emerald-700/65",
   "bg-emerald-500/85",
@@ -101,7 +101,7 @@ export function Heatmap({ heatmap }: HeatmapProps) {
 
   if (!cells.length) {
     return (
-      <div className="flex h-28 items-center justify-center text-sm text-gray-500">
+      <div className="flex h-28 items-center justify-center text-sm text-content-muted">
         {t("noData")}
       </div>
     );
@@ -129,7 +129,7 @@ export function Heatmap({ heatmap }: HeatmapProps) {
               return (
                 <div
                   key={wi}
-                  className="text-[10px] leading-none text-gray-500 whitespace-nowrap overflow-visible"
+                  className="text-[10px] leading-none text-content-muted whitespace-nowrap overflow-visible"
                 >
                   {label ? label.label : ""}
                 </div>
@@ -146,7 +146,7 @@ export function Heatmap({ heatmap }: HeatmapProps) {
               {dowLabels.map((d, i) => (
                 <div
                   key={d}
-                  className={`flex items-center text-[10px] text-gray-500 ${
+                  className={`flex items-center text-[10px] text-content-muted ${
                     i % 2 === 1 ? "opacity-100" : "opacity-0"
                   }`}
                   style={{ height: CELL }}
@@ -193,7 +193,7 @@ export function Heatmap({ heatmap }: HeatmapProps) {
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-3 text-[11px] text-gray-500">
+      <div className="flex items-center justify-between gap-3 text-[11px] text-content-muted">
         <span>
           {heatmap.start} → {heatmap.end}
         </span>
@@ -234,15 +234,15 @@ function HeatmapTooltip({ state }: { state: HoverState }) {
   return (
     <div
       style={style}
-      className="rounded-md border border-gray-700 bg-gray-900 px-3 py-1.5 text-xs text-gray-100 shadow-xl"
+      className="rounded-md border border-border bg-panel px-3 py-1.5 text-xs text-content-primary shadow-xl"
       role="tooltip"
     >
-      <div className="font-medium text-gray-50">{cell.date}</div>
-      <div className="text-gray-400">
+      <div className="font-medium text-content-primary">{cell.date}</div>
+      <div className="text-content-muted">
         {fmtTokens(cell.totalTokens)} · {fmtUsd(cell.costUsd)} ·{" "}
         {fmtInt(cell.requests)} {t("requests")}
       </div>
-      <div className="text-gray-400">
+      <div className="text-content-muted">
         {t("cacheHitRate")}: {fmtPct(cell.cacheHitRate)}
       </div>
     </div>

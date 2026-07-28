@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useConfig } from "./hooks/useConfig";
+import { useUpdateCheck } from "./hooks/useUpdateCheck";
 import { ProviderList } from "./components/ProviderList";
 import { ProviderEdit } from "./components/ProviderEdit";
 import { DashboardPage } from "./components/dashboard/DashboardPage";
 import { SessionsPage } from "./components/sessions/SessionsPage";
+import { SettingsModal } from "./components/SettingsModal";
 import { useTranslation } from "./i18n";
 import { getDefaultMaxContextSize } from "./lib/model-defaults";
 import { getModelRef } from "./lib/models-dev";
@@ -49,6 +51,7 @@ function getInitialAgent(): Agent {
 
 export default function App() {
   const { t, lang, setLang } = useTranslation();
+  const { updateInfo, checking, checkNow, lastChecked } = useUpdateCheck();
   const [agent] = useState<Agent>(getInitialAgent);
   const {
     config,
@@ -64,6 +67,7 @@ export default function App() {
   const [editingProvider, setEditingProvider] = useState<string>("");
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [switchMessage, setSwitchMessage] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
 
   useEffect(() => {
@@ -336,10 +340,10 @@ export default function App() {
 
   if (loading || !config) {
     return (
-      <div className="p-4 space-y-2 text-[#e5e5e7]">
+      <div className="p-4 space-y-2 text-content-primary">
         <div>{t("loading")}</div>
         {loadTimeout && (
-          <div className="text-sm text-orange-400">{t("loadTimeout")}</div>
+          <div className="text-sm text-orange-600 dark:text-orange-400">{t("loadTimeout")}</div>
         )}
         {error && (
           <div className="text-sm text-red-400 bg-red-900/20 p-2 rounded">
@@ -361,16 +365,16 @@ export default function App() {
   const currentProvider = config.providers[editingProvider];
 
   return (
-    <div className="flex flex-col h-full bg-[#0f0f11] text-[#e5e5e7]">
-      <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[#2a2a2e] bg-[#16161a]">
-        <div className="flex items-center bg-[#1f1f23] border border-[#2a2a2e] rounded p-0.5">
+    <div className="flex flex-col h-full bg-app text-content-primary">
+      <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border bg-panel">
+        <div className="flex items-center bg-input border border-border rounded p-0.5">
           <button
             type="button"
             onClick={() => setView("list")}
             className={`px-3 py-1 text-sm rounded transition-colors ${
               view === "list" || view === "edit"
                 ? "bg-blue-600 text-white"
-                : "text-gray-400 hover:text-[#e5e5e7]"
+                : "text-content-muted hover:text-content-primary"
             }`}
           >
             {t("providers")}
@@ -381,7 +385,7 @@ export default function App() {
             className={`px-3 py-1 text-sm rounded transition-colors ${
               view === "dashboard"
                 ? "bg-blue-600 text-white"
-                : "text-gray-400 hover:text-[#e5e5e7]"
+                : "text-content-muted hover:text-content-primary"
             }`}
           >
             {t("dashboard")}
@@ -392,15 +396,16 @@ export default function App() {
             className={`px-3 py-1 text-sm rounded transition-colors ${
               view === "sessions"
                 ? "bg-blue-600 text-white"
-                : "text-gray-400 hover:text-[#e5e5e7]"
+                : "text-content-muted hover:text-content-primary"
             }`}
           >
             {t("sessions")}
           </button>
         </div>
         <div className="flex items-center gap-2">
+          {/* Language */}
           <select
-            className="bg-[#1f1f23] border border-[#2a2a2e] rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="bg-input border border-border rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
             value={lang}
             onChange={(e) => setLang(e.target.value as typeof lang)}
             title={t("language")}
@@ -408,6 +413,21 @@ export default function App() {
             <option value="zh">{t("zh")}</option>
             <option value="en">{t("en")}</option>
           </select>
+          {/* Settings gear */}
+          <button
+            type="button"
+            onClick={() => setShowSettings(true)}
+            title={t("settings")}
+            className="relative p-1.5 rounded border border-border hover:bg-hover-2 transition-colors"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-content-muted">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+            {updateInfo?.updateAvailable && (
+              <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-green-500 ring-1 ring-panel" />
+            )}
+          </button>
         </div>
       </header>
 
@@ -418,7 +438,7 @@ export default function App() {
       )}
 
       {switchMessage && (
-        <div className="bg-green-900/20 text-green-400 p-2 text-sm border-b border-green-500/20 text-center">
+        <div className="bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400 p-2 text-sm border-b border-green-300 dark:border-green-500/20 text-center">
           {switchMessage}
         </div>
       )}
@@ -488,7 +508,8 @@ export default function App() {
               });
             }}
             onModelAdd={() => {
-              const alias = `新模型[${currentProvider.name}]`;
+              const safeProvider = currentProvider.name.replace(/\//g, "-");
+              const alias = `${safeProvider}/新模型`;
               updateConfig((cfg) => ({
                 ...cfg,
                 models: {
@@ -525,7 +546,7 @@ export default function App() {
             onSave={save}
           />
         ) : (
-          <div className="p-8 text-center text-gray-400">
+          <div className="p-8 text-center text-content-muted">
             <div>{t("providerNotFound")}</div>
             <button
               type="button"
@@ -539,10 +560,10 @@ export default function App() {
       </main>
 
       {view !== "dashboard" && view !== "sessions" && (
-      <footer className="flex items-center justify-between px-4 py-2 border-t border-[#2a2a2e] bg-[#16161a] text-sm">
+      <footer className="flex items-center justify-between px-4 py-2 border-t border-border bg-panel text-sm">
         <div className="flex items-center gap-2 min-w-0">
           {dirty && (
-            <span className="text-orange-400 truncate">● {t("unsavedChanges")}</span>
+            <span className="text-orange-600 dark:text-orange-400 truncate">● {t("unsavedChanges")}</span>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -553,7 +574,7 @@ export default function App() {
             className={`px-3 py-1.5 text-sm rounded focus:ring-2 focus:outline-none disabled:opacity-50 ${
               dirty
                 ? "bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500"
-                : "border border-[#2a2a2e] hover:bg-[#252529] focus:ring-blue-500"
+                : "border border-border hover:bg-hover-2 focus:ring-blue-500"
             }`}
           >
             {dirty ? `● ${t("saveConfig")}` : t("saveConfig")}
@@ -567,7 +588,7 @@ export default function App() {
               refresh();
             }}
             disabled={loading}
-            className="px-3 py-1.5 text-sm border border-[#2a2a2e] rounded hover:bg-[#252529] focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-50"
+            className="px-3 py-1.5 text-sm border border-border rounded hover:bg-hover-2 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-50"
           >
             {t("reloadConfig")}
           </button>
@@ -580,13 +601,22 @@ export default function App() {
                 alert(err instanceof Error ? err.message : String(err));
               }
             }}
-            className="px-3 py-1.5 text-sm border border-[#2a2a2e] rounded hover:bg-[#252529] focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="px-3 py-1.5 text-sm border border-border rounded hover:bg-hover-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
           >
             {t("openConfigDir")}
           </button>
         </div>
       </footer>
       )}
+
+      <SettingsModal
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
+        updateInfo={updateInfo}
+        checking={checking}
+        onCheckUpdate={checkNow}
+        lastChecked={lastChecked}
+      />
     </div>
   );
 }

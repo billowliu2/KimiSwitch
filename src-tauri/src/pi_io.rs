@@ -336,6 +336,8 @@ pub fn pi_file_to_config(file: &PiModelsFile) -> Config {
             managed: false,
             enabled: pi_provider.enabled,
             active: true,
+            icon: None,
+            icon_color: None,
             raw_other: provider_raw,
         };
 

@@ -1,10 +1,14 @@
 import { useEffect, useId, useState } from "react";
+import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "../i18n";
 import type { TranslationKey } from "../i18n/zh";
 import { getDefaultMaxContextSize } from "../lib/model-defaults";
 import { capabilitiesFromRef, getModelRef } from "../lib/models-dev";
+import { getIconMetadata } from "../icons/extracted/metadata";
 import { AgentSettingsPanel } from "./AgentSettingsPanel";
+import { ProviderIcon } from "./ProviderIcon";
+import { IconPicker } from "./IconPicker";
 import type { Agent, DiscoveredModel, Model, Provider, ProviderType } from "../types";
 
 const KNOWN_CAPABILITIES = [
@@ -111,6 +115,7 @@ export function ProviderEdit({
 
   const [activeTab, setActiveTab] = useState<"basic" | "models" | "json">("basic");
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showIconPicker, setShowIconPicker] = useState(false);
 
   useEffect(() => {
     const def = defaultBaseUrl(agent, provider.provider_type);
@@ -121,13 +126,13 @@ export function ProviderEdit({
   }, [provider.provider_type, agent]);
 
   return (
-    <div className="h-full flex flex-col bg-[#0f0f11]">
+    <div className="h-full flex flex-col bg-app">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-[#2a2a2e] bg-[#16161a]">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-panel">
         <button
           type="button"
           onClick={onBack}
-          className="p-2 rounded-lg hover:bg-[#252529] focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          className="p-2 rounded-lg hover:bg-hover-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
         >
           ← {t("back")}
         </button>
@@ -150,7 +155,7 @@ export function ProviderEdit({
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 px-4 border-b border-[#2a2a2e] bg-[#16161a]">
+      <div className="flex items-center gap-1 px-4 border-b border-border bg-panel">
         {[
           { key: "basic", label: t("basicInfo") },
           { key: "models", label: t("modelMapping") },
@@ -163,7 +168,7 @@ export function ProviderEdit({
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none ${
               activeTab === tab.key
                 ? "border-blue-500 text-blue-400"
-                : "border-transparent text-gray-400 hover:text-[#e5e5e7]"
+                : "border-transparent text-content-muted hover:text-content-primary"
             }`}
           >
             {tab.label}
@@ -176,27 +181,56 @@ export function ProviderEdit({
         {activeTab === "basic" && (
           <div className="space-y-6">
             {/* Basic info */}
-            <section className="bg-[#16161a] border border-[#2a2a2e] rounded-xl p-5">
-              <h3 className="font-medium mb-4 text-[#e5e5e7]">{t("basicInfo")}</h3>
+            <section className="bg-panel border border-border rounded-xl p-5">
+              <h3 className="font-medium mb-4 text-content-primary">{t("basicInfo")}</h3>
+
+              {/* Icon selector */}
+              <div className="flex flex-col items-center gap-2 mb-5">
+                <button
+                  type="button"
+                  onClick={() => setShowIconPicker(true)}
+                  className="w-20 h-20 p-3 rounded-xl border-2 border-border hover:border-blue-500 transition-colors cursor-pointer flex items-center justify-center focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  title={provider.icon ? t("clickToChangeIcon") : t("clickToSelectIcon")}
+                >
+                  <ProviderIcon
+                    name={provider.name}
+                    icon={provider.icon}
+                    color={provider.icon_color}
+                    size={48}
+                  />
+                </button>
+                {provider.icon && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onChange({ ...provider, icon: null, icon_color: null })
+                    }
+                    className="text-xs text-content-muted hover:text-content-primary underline"
+                  >
+                    {t("clearIcon")}
+                  </button>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor={nameId} className="block text-sm text-gray-400 mb-1.5">
+                  <label htmlFor={nameId} className="block text-sm text-content-muted mb-1.5">
                     {t("providerName")}
                   </label>
                   <input
                     id={nameId}
-                    className="w-full bg-[#1f1f23] border border-[#2a2a2e] rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     value={provider.name}
                     onChange={(e) => onChange({ ...provider, name: e.target.value })}
                   />
                 </div>
                 <div>
-                  <label htmlFor={noteId} className="block text-sm text-gray-400 mb-1.5">
+                  <label htmlFor={noteId} className="block text-sm text-content-muted mb-1.5">
                     {t("note")}
                   </label>
                   <input
                     id={noteId}
-                    className="w-full bg-[#1f1f23] border border-[#2a2a2e] rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     value={provider.note || ""}
                     placeholder={t("notePlaceholder")}
                     onChange={(e) =>
@@ -205,12 +239,12 @@ export function ProviderEdit({
                   />
                 </div>
                 <div className="col-span-1 md:col-span-2">
-                  <label htmlFor={officialUrlId} className="block text-sm text-gray-400 mb-1.5">
+                  <label htmlFor={officialUrlId} className="block text-sm text-content-muted mb-1.5">
                     {t("officialUrl")}
                   </label>
                   <input
                     id={officialUrlId}
-                    className="w-full bg-[#1f1f23] border border-[#2a2a2e] rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     value={provider.official_url || ""}
                     onChange={(e) =>
                       onChange({ ...provider, official_url: e.target.value || null })
@@ -225,9 +259,9 @@ export function ProviderEdit({
                     onChange={(e) =>
                       onChange({ ...provider, managed: e.target.checked })
                     }
-                    className="w-4 h-4 rounded border-[#2a2a2e] bg-[#1f1f23] text-blue-600 focus:ring-blue-500"
+                    className="w-4 h-4 rounded border-border bg-input text-blue-600 focus:ring-blue-500"
                   />
-                  <label htmlFor="managed" className="text-sm text-gray-400">
+                  <label htmlFor="managed" className="text-sm text-content-muted">
                     {t("managedProvider")}
                   </label>
                 </div>
@@ -235,16 +269,16 @@ export function ProviderEdit({
             </section>
 
             {/* API settings */}
-            <section className="bg-[#16161a] border border-[#2a2a2e] rounded-xl p-5">
-              <h3 className="font-medium mb-4 text-[#e5e5e7]">{t("apiSettings")}</h3>
+            <section className="bg-panel border border-border rounded-xl p-5">
+              <h3 className="font-medium mb-4 text-content-primary">{t("apiSettings")}</h3>
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm text-gray-400 mb-1.5">
+                    <label className="block text-sm text-content-muted mb-1.5">
                       {t("apiFormat")}
                     </label>
                     <select
-                      className="w-full bg-[#1f1f23] border border-[#2a2a2e] rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                       value={provider.provider_type}
                       onChange={(e) =>
                         onChange({ ...provider, provider_type: e.target.value as ProviderType })
@@ -261,14 +295,14 @@ export function ProviderEdit({
 
                 {!provider.managed && (
                   <div>
-                    <label htmlFor={apiKeyId} className="block text-sm text-gray-400 mb-1.5">
+                    <label htmlFor={apiKeyId} className="block text-sm text-content-muted mb-1.5">
                       {t("apiKey")}
                     </label>
                     <div className="relative">
                       <input
                         id={apiKeyId}
                         type={showApiKey ? "text" : "password"}
-                        className="w-full bg-[#1f1f23] border border-[#2a2a2e] rounded-lg px-3 py-2 pr-10 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        className="w-full bg-input border border-border rounded-lg px-3 py-2 pr-10 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         value={provider.api_key || ""}
                         onChange={(e) =>
                           onChange({ ...provider, api_key: e.target.value || null })
@@ -277,7 +311,7 @@ export function ProviderEdit({
                       <button
                         type="button"
                         onClick={() => setShowApiKey((v) => !v)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 text-xs px-1"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-primary text-xs px-1"
                       >
                         {showApiKey ? t("hide") : t("show")}
                       </button>
@@ -286,19 +320,19 @@ export function ProviderEdit({
                 )}
 
                 <div>
-                  <label htmlFor={baseUrlId} className="block text-sm text-gray-400 mb-1.5">
+                  <label htmlFor={baseUrlId} className="block text-sm text-content-muted mb-1.5">
                     {t("requestUrl")}
                   </label>
                   <input
                     id={baseUrlId}
-                    className="w-full bg-[#1f1f23] border border-[#2a2a2e] rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     value={provider.base_url || ""}
                     placeholder={defaultBaseUrl(agent, provider.provider_type)}
                     onChange={(e) =>
                       onChange({ ...provider, base_url: e.target.value || null })
                     }
                   />
-                  <div className="mt-2 text-xs text-orange-400/80 bg-orange-900/20 border border-orange-500/20 rounded-lg px-3 py-2">
+                  <div className="mt-2 text-xs text-orange-600/80 dark:text-orange-600 dark:text-orange-400/80 bg-orange-100 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-500/20 rounded-lg px-3 py-2">
                     {t("baseUrlHint", { type: provider.provider_type })}
                   </div>
                 </div>
@@ -337,6 +371,52 @@ export function ProviderEdit({
           />
         )}
       </div>
+
+      {showIconPicker &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setShowIconPicker(false)}
+            role="dialog"
+            aria-modal="true"
+          >
+            <div
+              className="w-full max-w-4xl rounded-xl border border-border bg-panel shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+                <h2 className="text-lg font-semibold text-content-primary">
+                  {t("selectIcon")}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setShowIconPicker(false)}
+                  className="rounded-md p-1 text-content-muted hover:bg-hover hover:text-content-primary transition-colors"
+                  aria-label={t("close")}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="p-5">
+                <IconPicker
+                  value={provider.icon}
+                  onValueChange={(iconName) => {
+                    const meta = getIconMetadata(iconName);
+                    onChange({
+                      ...provider,
+                      icon: iconName,
+                      icon_color: meta?.defaultColor ?? null,
+                    });
+                    setShowIconPicker(false);
+                  }}
+                />
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
@@ -400,7 +480,9 @@ function ModelMapping({
     const toAdd: Model[] = [];
     for (const dm of discovered) {
       if (!selected.has(dm.id)) continue;
-      const alias = dm.id.replace(/[^a-zA-Z0-9_-]/g, "-");
+      const safeProvider = provider.name.replace(/\//g, "-");
+      const safeModelId = dm.id.replace(/\//g, "-");
+      const alias = `${safeProvider}/${safeModelId}`;
       const ref = getModelRef(dm.id);
       // Priority: API-provided value > models.dev reference > regex fallback
       const max_context_size =
@@ -430,14 +512,14 @@ function ModelMapping({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-medium text-[#e5e5e7]">{t("modelMapping")}</h3>
-          <p className="text-xs text-gray-500 mt-1">{t("modelMappingDesc")}</p>
+          <h3 className="font-medium text-content-primary">{t("modelMapping")}</h3>
+          <p className="text-xs text-content-muted mt-1">{t("modelMappingDesc")}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={onModelAdd}
-            className="px-3 py-1.5 text-sm border border-[#2a2a2e] rounded hover:bg-[#252529] focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="px-3 py-1.5 text-sm border border-border rounded hover:bg-hover-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
           >
             {t("oneClickSetup")}
           </button>
@@ -459,16 +541,16 @@ function ModelMapping({
       )}
 
       {discovered && (
-        <div className="bg-[#16161a] border border-[#2a2a2e] rounded-xl p-4 space-y-3">
+        <div className="bg-panel border border-border rounded-xl p-4 space-y-3">
           <div className="text-sm font-medium">
             {t("discoveredModels", { count: discovered.length })}
           </div>
-          <label className="flex items-center gap-2 text-sm text-[#e5e5e7] cursor-pointer">
+          <label className="flex items-center gap-2 text-sm text-content-primary cursor-pointer">
             <input
               type="checkbox"
               checked={fetchThinking}
               onChange={(e) => setFetchThinking(e.target.checked)}
-              className="w-4 h-4 rounded border-[#2a2a2e] bg-[#1f1f23] text-blue-600 focus:ring-blue-500"
+              className="w-4 h-4 rounded border-border bg-input text-blue-600 focus:ring-blue-500"
             />
             {t("fetchEnableThinking")}
           </label>
@@ -476,16 +558,16 @@ function ModelMapping({
             {discovered.map((m) => (
               <label
                 key={m.id}
-                className="flex items-center gap-2 text-sm cursor-pointer hover:bg-[#1f1f23] p-1.5 rounded"
+                className="flex items-center gap-2 text-sm cursor-pointer hover:bg-input p-1.5 rounded"
               >
                 <input
                   type="checkbox"
                   checked={selected.has(m.id)}
                   onChange={() => toggleSelect(m.id)}
                 />
-                <span className="font-mono text-xs text-gray-300">{m.id}</span>
+                <span className="font-mono text-xs text-content-primary">{m.id}</span>
                 {m.display_name && (
-                  <span className="text-gray-500">({m.display_name})</span>
+                  <span className="text-content-muted">({m.display_name})</span>
                 )}
               </label>
             ))}
@@ -501,9 +583,9 @@ function ModelMapping({
         </div>
       )}
 
-      <div className="bg-[#16161a] border border-[#2a2a2e] rounded-xl overflow-auto">
+      <div className="bg-panel border border-border rounded-xl overflow-auto">
         <table className="w-full min-w-[640px] text-sm">
-          <thead className="bg-[#1f1f23] text-gray-400">
+          <thead className="bg-input text-content-muted">
             <tr>
               <th className="text-left px-4 py-3 font-medium">{t("displayName")}</th>
               <th className="text-left px-4 py-3 font-medium">{t("actualModel")}</th>
@@ -518,15 +600,15 @@ function ModelMapping({
           </thead>
           <tbody className="divide-y divide-[#2a2a2e]">
             {models.map((m) => (
-              <tr key={m.alias} className="hover:bg-[#1c1c20]">
+              <tr key={m.alias} className="hover:bg-hover">
                 <td className="px-4 py-2">
-                  <span className="text-sm text-gray-400">
+                  <span className="text-sm text-content-muted">
                     {m.model ? `${m.model}[${m.provider}]` : m.alias}
                   </span>
                 </td>
                 <td className="px-4 py-2">
                   <input
-                    className="w-full bg-transparent border border-[#2a2a2e] rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full bg-transparent border border-border rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     value={m.model}
                     onChange={(e) =>
                       onModelChange({ ...m, model: e.target.value })
@@ -538,7 +620,7 @@ function ModelMapping({
                     type="number"
                     min={0}
                     step={1024}
-                    className="w-full bg-transparent border border-[#2a2a2e] rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full bg-transparent border border-border rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     value={m.max_context_size}
                     onChange={(e) => {
                       const value = parseInt(e.target.value, 10);
@@ -559,7 +641,7 @@ function ModelMapping({
                         supports_1m: e.target.checked,
                       })
                     }
-                    className="w-4 h-4 rounded border-[#2a2a2e] bg-[#1f1f23] text-blue-600 focus:ring-blue-500"
+                    className="w-4 h-4 rounded border-border bg-input text-blue-600 focus:ring-blue-500"
                   />
                 </td>
                 {agent === "kimi_code" && (
@@ -578,8 +660,8 @@ function ModelMapping({
                     onClick={() => onSetDefault(m.alias)}
                     className={`text-xs px-2 py-1 rounded border ${
                       defaultModel === m.alias
-                        ? "bg-green-900/30 text-green-400 border-green-500/30"
-                        : "border-[#2a2a2e] text-gray-400 hover:bg-[#252529]"
+                        ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-green-300 dark:border-green-500/30"
+                        : "border-border text-content-muted hover:bg-hover-2"
                     }`}
                   >
                     {defaultModel === m.alias ? t("isDefault") : t("setDefault")}
@@ -603,7 +685,7 @@ function ModelMapping({
           </tbody>
         </table>
         {models.length === 0 && (
-          <div className="text-center py-8 text-gray-500 text-sm">
+          <div className="text-center py-8 text-content-muted text-sm">
             {t("noModelMappings")}
           </div>
         )}
@@ -612,7 +694,7 @@ function ModelMapping({
       <button
         type="button"
         onClick={onModelAdd}
-        className="px-4 py-2 border border-[#2a2a2e] rounded-lg hover:bg-[#252529] text-sm"
+        className="px-4 py-2 border border-border rounded-lg hover:bg-hover-2 text-sm"
       >
         {t("addModelMapping")}
       </button>
@@ -659,9 +741,9 @@ function JsonPreview({
   return (
     <div className="w-full h-full flex flex-col">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-medium text-[#e5e5e7]">{t("configJson")}</h3>
+        <h3 className="font-medium text-content-primary">{t("configJson")}</h3>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500">{t("readOnlyPreview")}</span>
+          <span className="text-xs text-content-muted">{t("readOnlyPreview")}</span>
           <button
             type="button"
             onClick={handleApply}
@@ -677,7 +759,7 @@ function JsonPreview({
         </div>
       )}
       <textarea
-        className="flex-1 min-h-[40vh] bg-[#16161a] border border-[#2a2a2e] rounded-xl p-4 overflow-auto text-xs font-mono text-green-400 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"
+        className="flex-1 min-h-[40vh] bg-panel border border-border rounded-xl p-4 overflow-auto text-xs font-mono text-green-600 dark:text-green-400 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"
         value={text}
         onChange={(e) => setText(e.target.value)}
         spellCheck={false}
@@ -710,19 +792,19 @@ function CapabilitiesCell({
       {KNOWN_CAPABILITIES.map((cap) => (
         <label
           key={cap}
-          className="flex items-center gap-1 text-xs text-gray-400 cursor-pointer"
+          className="flex items-center gap-1 text-xs text-content-muted cursor-pointer"
         >
           <input
             type="checkbox"
             checked={capabilities.includes(cap)}
             onChange={(e) => toggle(cap, e.target.checked)}
-            className="w-3.5 h-3.5 rounded border-[#2a2a2e] bg-[#1f1f23] text-blue-600 focus:ring-blue-500"
+            className="w-3.5 h-3.5 rounded border-border bg-input text-blue-600 focus:ring-blue-500"
           />
           {t(CAPABILITY_LABELS[cap])}
         </label>
       ))}
       <input
-        className="w-28 bg-transparent border border-[#2a2a2e] rounded px-1.5 py-1 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        className="w-28 bg-transparent border border-border rounded px-1.5 py-1 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
         value={customs.join(", ")}
         placeholder={t("customCapabilities")}
         onChange={(e) => {

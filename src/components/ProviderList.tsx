@@ -1,4 +1,5 @@
 import { useTranslation } from "../i18n";
+import { ProviderIcon } from "./ProviderIcon";
 import type { Agent, Model, Provider } from "../types";
 
 interface ProviderListProps {
@@ -10,41 +11,6 @@ interface ProviderListProps {
   onAdd: () => void;
   onSwitchProvider: (name: string) => void;
   agent: Agent;
-}
-
-const PROVIDER_ICONS: Record<string, string> = {
-  kimi: "K",
-  anthropic: "A",
-  openai: "O",
-  openai_responses: "R",
-  "google-genai": "G",
-  vertexai: "V",
-};
-
-function getInitial(provider: Provider): string {
-  return (
-    PROVIDER_ICONS[provider.provider_type] ||
-    provider.name.charAt(0).toUpperCase()
-  );
-}
-
-function getProviderColor(type: string): string {
-  switch (type) {
-    case "kimi":
-      return "from-blue-500 to-cyan-400";
-    case "anthropic":
-      return "from-orange-500 to-red-400";
-    case "openai":
-      return "from-green-500 to-emerald-400";
-    case "openai_responses":
-      return "from-teal-500 to-green-400";
-    case "google-genai":
-      return "from-purple-500 to-pink-400";
-    case "vertexai":
-      return "from-indigo-500 to-purple-400";
-    default:
-      return "from-gray-500 to-gray-400";
-  }
 }
 
 export function ProviderList({
@@ -60,8 +26,8 @@ export function ProviderList({
   const { t } = useTranslation();
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2a2e]">
-        <h2 className="font-medium text-[#e5e5e7]">{t("providers")}</h2>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <h2 className="font-medium text-content-primary">{t("providers")}</h2>
         <button
           type="button"
           onClick={onAdd}
@@ -86,7 +52,7 @@ export function ProviderList({
 
       <div className="flex-1 overflow-auto p-4">
         {providers.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">
+          <div className="text-center py-12 text-content-muted">
             <div className="text-4xl mb-3 opacity-30">⊘</div>
             <div>{t("noProviders")}</div>
             <button
@@ -125,40 +91,39 @@ export function ProviderList({
                   key={provider.name}
                   className={`group relative flex items-center gap-4 p-4 rounded-xl border transition-colors cursor-pointer w-full ${
                     isActive
-                      ? "bg-green-900/10 border-green-500/30 hover:border-green-500/50 hover:bg-green-900/20"
-                      : "bg-[#16161a] border-[#2a2a2e] hover:border-[#3a3a42] hover:bg-[#1c1c20]"
+                      ? "bg-green-50 dark:bg-green-900/10 border-green-300 dark:border-green-500/30 hover:border-green-400 dark:border-green-500/50 hover:bg-green-100 dark:bg-green-900/20"
+                      : "bg-panel border-border hover:border-strong hover:bg-hover"
                   }`}
                   onClick={() => onEdit(provider.name)}
                 >
-                  <div
-                    className={`w-11 h-11 rounded-xl bg-gradient-to-br ${getProviderColor(
-                      provider.provider_type
-                    )} flex items-center justify-center text-white font-bold text-lg shadow-lg`}
-                  >
-                    {getInitial(provider)}
-                  </div>
+                  <ProviderIcon
+                    name={provider.name}
+                    icon={provider.icon}
+                    color={provider.icon_color}
+                    size={44}
+                  />
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-[#e5e5e7] truncate">
+                      <h3 className="font-semibold text-content-primary truncate">
                         {provider.name}
                       </h3>
                       {isActive && (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-green-900/30 text-green-400 border border-green-500/30">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 border border-green-300 dark:border-green-500/30">
                           {t("inUse")}
                         </span>
                       )}
                       {provider.note && (
-                        <span className="text-xs text-gray-500 truncate max-w-[200px]">
+                        <span className="text-xs text-content-muted truncate max-w-[200px]">
                           {provider.note}
                         </span>
                       )}
                     </div>
-                    <div className="mt-1 flex items-center gap-3 text-sm text-gray-400 flex-wrap">
+                    <div className="mt-1 flex items-center gap-3 text-sm text-content-muted flex-wrap">
                       <span className="font-mono text-xs">
                         {provider.official_url || provider.base_url || t("noUrl")}
                       </span>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-[#252529] text-gray-400 border border-[#2a2a2e]">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-hover-2 text-content-muted border border-border">
                         {provider.provider_type}
                       </span>
                       <span className="text-xs">
@@ -170,7 +135,7 @@ export function ProviderList({
                   <div className="flex items-center flex-wrap justify-end gap-2">
                     {defaultModel &&
                       models[defaultModel]?.provider === provider.name && (
-                        <span className="text-xs px-2 py-1 rounded-full bg-green-900/30 text-green-400 border border-green-500/20">
+                        <span className="text-xs px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 border border-green-300 dark:border-green-500/20">
                           {t("defaultModel", { name: defaultModelName ?? "" })}
                         </span>
                       )}
@@ -190,7 +155,7 @@ export function ProviderList({
                     </button>
                     {agent === "kimi_code" && (
                       <span
-                        className="text-sm text-gray-500 hover:text-gray-300 cursor-help select-none"
+                        className="text-sm text-content-muted hover:text-content-primary cursor-help select-none"
                         title={t("switchReloadHint")}
                         aria-label={t("switchReloadHint")}
                       >
@@ -203,7 +168,7 @@ export function ProviderList({
                         e.stopPropagation();
                         onEdit(provider.name);
                       }}
-                      className="px-3 py-1.5 text-sm border border-[#2a2a2e] rounded hover:bg-[#252529] focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      className="px-3 py-1.5 text-sm border border-border rounded hover:bg-hover-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     >
                       {t("edit")}
                     </button>
@@ -213,7 +178,7 @@ export function ProviderList({
                         e.stopPropagation();
                         onDelete(provider.name);
                       }}
-                      className="px-3 py-1.5 text-sm border border-[#2a2a2e] rounded hover:bg-red-900/30 hover:border-red-500/30 text-red-400 focus:ring-2 focus:ring-red-500 focus:outline-none"
+                      className="px-3 py-1.5 text-sm border border-border rounded hover:bg-red-900/30 hover:border-red-500/30 text-red-400 focus:ring-2 focus:ring-red-500 focus:outline-none"
                     >
                       {t("delete")}
                     </button>

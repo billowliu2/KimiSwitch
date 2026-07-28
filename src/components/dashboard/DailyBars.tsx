@@ -49,7 +49,7 @@ export function DailyBars({ daily, modelNames }: DailyBarsProps) {
 
   if (!daily?.length) {
     return (
-      <div className="flex h-48 items-center justify-center text-sm text-gray-500">
+      <div className="flex h-48 items-center justify-center text-sm text-content-muted">
         {t("noData")}
       </div>
     );
@@ -58,11 +58,11 @@ export function DailyBars({ daily, modelNames }: DailyBarsProps) {
   const max = Math.max(...daily.map((d) => d.totalTokens || 0), 1);
 
   return (
-    <div className="space-y-3">
+    <div className="flex h-full flex-col gap-3">
       {/* Legend */}
       <div className="flex flex-wrap gap-x-4 gap-y-1">
         {modelNames.map((m) => (
-          <span key={m} className="flex items-center gap-1.5 text-[11px] text-gray-400">
+          <span key={m} className="flex items-center gap-1.5 text-[11px] text-content-muted">
             <span
               className="inline-block h-2.5 w-2.5 rounded-sm"
               style={{ backgroundColor: colorMap[m] }}
@@ -73,7 +73,7 @@ export function DailyBars({ daily, modelNames }: DailyBarsProps) {
       </div>
 
       {/* Bars */}
-      <div className="flex h-52 items-end gap-1 overflow-x-auto px-0.5 pb-1">
+      <div className="flex min-h-[180px] flex-1 items-end gap-1 overflow-x-auto px-0.5 pb-1">
         {daily.map((d) => {
           const h = Math.max(4, Math.round(((d.totalTokens || 0) / max) * 170));
           const total = d.totalTokens || 1;
@@ -121,7 +121,7 @@ export function DailyBars({ daily, modelNames }: DailyBarsProps) {
                   />
                 ))}
               </div>
-              <span className="whitespace-nowrap text-[10px] text-gray-500">
+              <span className="whitespace-nowrap text-[10px] text-content-muted">
                 {d.date.slice(5)}
               </span>
             </button>

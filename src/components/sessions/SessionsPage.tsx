@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useSessions } from "../../hooks/useSessions";
 import { fmtInt, fmtTime } from "../../lib/dashboard-format";
 import { useTranslation } from "../../i18n";
@@ -203,14 +204,14 @@ export function SessionsPage() {
     <div className="flex h-full flex-col overflow-hidden p-4 space-y-3">
       <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-[#e5e5e7]">{t("sessionsTitle")}</h2>
-          <p className="mt-1 max-w-[60ch] text-sm text-gray-500">{t("sessionsSubtitle")}</p>
+          <h2 className="text-lg font-semibold text-content-primary">{t("sessionsTitle")}</h2>
+          <p className="mt-1 max-w-[60ch] text-sm text-content-muted">{t("sessionsSubtitle")}</p>
         </div>
         <button
           type="button"
           onClick={() => refresh()}
           disabled={loading}
-          className="px-3 py-1.5 text-sm rounded border border-[#2a2a2e] hover:bg-[#252529] disabled:opacity-50"
+          className="px-3 py-1.5 text-sm rounded border border-border hover:bg-hover-2 disabled:opacity-50"
         >
           {loading ? t("refreshing") : t("refresh")}
         </button>
@@ -224,10 +225,10 @@ export function SessionsPage() {
 
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[260px_1fr]">
         {/* Workspace rail */}
-        <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-[#2a2a2e] bg-[#16161a]">
-          <div className="shrink-0 border-b border-[#2a2a2e] px-4 py-2.5">
-            <div className="text-sm font-medium text-[#e5e5e7]">{t("workspaces")}</div>
-            <div className="text-xs text-gray-500 mt-0.5">{t("workspaceIsolatedHint")}</div>
+        <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-panel">
+          <div className="shrink-0 border-b border-border px-4 py-2.5">
+            <div className="text-sm font-medium text-content-primary">{t("workspaces")}</div>
+            <div className="text-xs text-content-muted mt-0.5">{t("workspaceIsolatedHint")}</div>
           </div>
           <div className="flex min-h-0 flex-1 flex-col p-2 overflow-hidden">
             <button
@@ -235,8 +236,8 @@ export function SessionsPage() {
               onClick={() => setWorkspace("all")}
               className={`flex w-full shrink-0 items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors ${
                 workspace === "all"
-                  ? "bg-blue-600/20 text-[#e5e5e7]"
-                  : "text-gray-400 hover:bg-[#1f1f23] hover:text-[#e5e5e7]"
+                  ? "bg-blue-600/20 text-content-primary"
+                  : "text-content-muted hover:bg-input hover:text-content-primary"
               }`}
             >
               <span>{t("allWorkspaces")}</span>
@@ -250,14 +251,14 @@ export function SessionsPage() {
                   <div
                     key={w.id}
                     className={`group flex items-start gap-1 rounded-md ${
-                      workspace === w.id ? "bg-blue-600/20" : "hover:bg-[#1f1f23]"
+                      workspace === w.id ? "bg-blue-600/20" : "hover:bg-input"
                     }`}
                   >
                     <button
                       type="button"
                       onClick={() => setWorkspace(w.id)}
                       className={`flex min-w-0 flex-1 flex-col gap-0.5 px-3 py-2 text-left ${
-                        workspace === w.id ? "text-[#e5e5e7]" : "text-gray-400 group-hover:text-[#e5e5e7]"
+                        workspace === w.id ? "text-content-primary" : "text-content-muted group-hover:text-content-primary"
                       }`}
                       title={w.root || w.id}
                     >
@@ -265,7 +266,7 @@ export function SessionsPage() {
                         <span className="truncate text-sm font-medium">{w.name || w.id}</span>
                         <span className="shrink-0 text-[11px] tabular-nums">
                           {isEmpty ? (
-                            <span className="rounded border border-[#2a2a2e] px-1.5 py-0 text-[10px] text-gray-500">
+                            <span className="rounded border border-border px-1.5 py-0 text-[10px] text-content-muted">
                               {t("emptyWorkspace")}
                             </span>
                           ) : (
@@ -297,7 +298,7 @@ export function SessionsPage() {
                 );
               })}
               {!workspaces.length && !loading && (
-                <div className="px-3 py-6 text-center text-xs text-gray-500">{t("noSessions")}</div>
+                <div className="px-3 py-6 text-center text-xs text-content-muted">{t("noSessions")}</div>
               )}
             </div>
           </div>
@@ -306,7 +307,7 @@ export function SessionsPage() {
         {/* Sessions table */}
         <div className="flex min-h-0 flex-col space-y-3 overflow-hidden">
           <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center bg-[#1f1f23] border border-[#2a2a2e] rounded p-0.5">
+            <div className="flex items-center bg-input border border-border rounded p-0.5">
               {(
                 [
                   ["active", t("statusActive")],
@@ -324,7 +325,7 @@ export function SessionsPage() {
                   className={`px-3 py-1 text-sm rounded transition-colors ${
                     status === value
                       ? "bg-blue-600 text-white"
-                      : "text-gray-400 hover:text-[#e5e5e7]"
+                      : "text-content-muted hover:text-content-primary"
                   }`}
                 >
                   {label}
@@ -336,21 +337,21 @@ export function SessionsPage() {
                 <button
                   type="button"
                   onClick={toggleSelectAll}
-                  className="px-2 py-1 text-xs text-gray-400 hover:text-[#e5e5e7]"
+                  className="px-2 py-1 text-xs text-content-muted hover:text-content-primary"
                 >
                   {allSelected ? t("deselectAll") : t("selectAll")}
                 </button>
               )}
               {selected.size > 0 && (
                 <>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-content-muted">
                     {t("selectedCount", { n: String(selected.size) })}
                   </span>
                   {status !== "archived" && (
                     <button
                       type="button"
                       onClick={bulkArchive}
-                      className="px-2 py-1 text-xs rounded border border-[#2a2a2e] hover:bg-[#252529]"
+                      className="px-2 py-1 text-xs rounded border border-border hover:bg-hover-2"
                     >
                       {t("archive")}
                     </button>
@@ -359,7 +360,7 @@ export function SessionsPage() {
                     <button
                       type="button"
                       onClick={bulkUnarchive}
-                      className="px-2 py-1 text-xs rounded border border-[#2a2a2e] hover:bg-[#252529]"
+                      className="px-2 py-1 text-xs rounded border border-border hover:bg-hover-2"
                     >
                       {t("unarchive")}
                     </button>
@@ -379,7 +380,7 @@ export function SessionsPage() {
               <select
                 value={workspace}
                 onChange={(e) => setWorkspace(e.target.value)}
-                className="bg-[#1f1f23] border border-[#2a2a2e] rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none max-w-[200px]"
+                className="bg-input border border-border rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none max-w-[200px]"
               >
                 <option value="all">{t("allWorkspaces")}</option>
                 {workspaces.map((w) => (
@@ -391,21 +392,21 @@ export function SessionsPage() {
             </div>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[#2a2a2e] bg-[#16161a]">
-            <div className="shrink-0 border-b border-[#2a2a2e] px-4 py-2.5">
-              <div className="text-sm font-medium text-[#e5e5e7]">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-panel">
+            <div className="shrink-0 border-b border-border px-4 py-2.5">
+              <div className="text-sm font-medium text-content-primary">
                 {workspace === "all"
                   ? t("allWorkspaces")
                   : workspaceMap.get(workspace)?.name || workspace}
               </div>
-              <div className="text-xs text-gray-500 mt-0.5">
+              <div className="text-xs text-content-muted mt-0.5">
                 {t("sessionsInView", { n: String(sessions.length) })}
                 {workspace !== "all" ? ` · ${t("isolatedToWorkspace")}` : ""}
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-auto">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 z-10 bg-[#16161a] text-left text-gray-500 border-b border-[#2a2a2e]">
+                <thead className="sticky top-0 z-10 bg-panel text-left text-content-muted border-b border-border">
                   <tr>
                     <th className="w-10 px-3 py-2 font-normal">
                       <input
@@ -431,7 +432,7 @@ export function SessionsPage() {
                 <tbody>
                   {sessions.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-10 text-center text-gray-500">
+                      <td colSpan={7} className="py-10 text-center text-content-muted">
                         {loading ? t("scanning") : t("noSessions")}
                       </td>
                     </tr>
@@ -443,7 +444,7 @@ export function SessionsPage() {
                       return (
                         <tr
                           key={key}
-                          className="border-b border-[#2a2a2e]/50 hover:bg-[#1c1c20]"
+                          className="border-b border-border/50 hover:bg-hover"
                         >
                           <td className="px-3 py-2">
                             <input
@@ -457,18 +458,18 @@ export function SessionsPage() {
                             <div className="flex min-w-0 flex-col gap-0.5">
                               <button
                                 type="button"
-                                className="truncate text-left font-medium text-[#e5e5e7] hover:text-blue-400 hover:underline"
+                                className="truncate text-left font-medium text-content-primary hover:text-blue-400 hover:underline"
                                 title={row.title || t("openPreview")}
                                 onClick={() => openPreview(row)}
                               >
                                 {row.title || row.id}
                               </button>
-                              <span className="truncate font-mono text-[10px] text-gray-500" title={row.id}>
+                              <span className="truncate font-mono text-[10px] text-content-muted" title={row.id}>
                                 {row.id}
                               </span>
                               {row.workDir && (
                                 <span
-                                  className="truncate font-mono text-[10px] text-gray-500/80"
+                                  className="truncate font-mono text-[10px] text-content-muted/80"
                                   title={row.workDir}
                                 >
                                   {row.workDir}
@@ -477,25 +478,25 @@ export function SessionsPage() {
                             </div>
                           </td>
                           <td className="px-2 py-2 max-w-[160px]">
-                            <span className="truncate text-sm text-gray-400">
+                            <span className="truncate text-sm text-content-muted">
                               {ws?.name || row.workspaceId}
                             </span>
                           </td>
                           <td className="px-2 py-2 whitespace-nowrap">
                             {row.status === "archived" ? (
-                              <span className="rounded-md bg-amber-900/30 text-amber-300 px-2 py-0.5 text-xs">
+                              <span className="rounded-md bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 text-xs">
                                 {t("statusArchived")}
                               </span>
                             ) : (
-                              <span className="rounded-md bg-emerald-900/30 text-emerald-300 px-2 py-0.5 text-xs">
+                              <span className="rounded-md bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 text-xs">
                                 {t("statusActive")}
                               </span>
                             )}
                           </td>
-                          <td className="px-2 py-2 text-right tabular-nums text-gray-400">
+                          <td className="px-2 py-2 text-right tabular-nums text-content-muted">
                             {fmtBytes(row.bytes)}
                           </td>
-                          <td className="px-2 py-2 whitespace-nowrap tabular-nums text-gray-400">
+                          <td className="px-2 py-2 whitespace-nowrap tabular-nums text-content-muted">
                             {fmtTime(parseTime(row.updatedAt), locale)}
                           </td>
                           <td className="px-2 py-2 text-right">
@@ -506,7 +507,7 @@ export function SessionsPage() {
                                   disabled={busy}
                                   onClick={() => onArchive(row)}
                                   title={t("archive")}
-                                  className="px-2 py-1 text-xs rounded border border-[#2a2a2e] hover:bg-[#252529] disabled:opacity-50"
+                                  className="px-2 py-1 text-xs rounded border border-border hover:bg-hover-2 disabled:opacity-50"
                                 >
                                   {t("archive")}
                                 </button>
@@ -516,7 +517,7 @@ export function SessionsPage() {
                                   disabled={busy}
                                   onClick={() => onUnarchive(row)}
                                   title={t("unarchive")}
-                                  className="px-2 py-1 text-xs rounded border border-[#2a2a2e] hover:bg-[#252529] disabled:opacity-50"
+                                  className="px-2 py-1 text-xs rounded border border-border hover:bg-hover-2 disabled:opacity-50"
                                 >
                                   {t("unarchive")}
                                 </button>
@@ -544,34 +545,33 @@ export function SessionsPage() {
       </div>
 
       {/* Attribution */}
-      <div className="text-xs text-gray-500 pb-2">
+      <div className="text-xs text-content-muted pb-2">
         {data?.home && <>{data.home}</>}
         <br />
         会话管理功能基于{" "}
-        <a
-          href="https://github.com/JochenYang/kimicode-dashboard"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-500 hover:text-blue-400 underline"
+        <button
+          type="button"
+          onClick={() => openUrl("https://github.com/JochenYang/kimicode-dashboard")}
+          className="text-blue-500 hover:text-blue-400 underline bg-transparent p-0 border-0 cursor-pointer"
         >
           kimicode-dashboard
-        </a>{" "}
+        </button>{" "}
         （MIT，© JochenYang）移植
       </div>
 
       {/* Confirm dialog */}
       {confirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-xl border border-[#2a2a2e] bg-[#16161a] shadow-xl">
+          <div className="w-full max-w-md rounded-xl border border-border bg-panel shadow-xl">
             <div className="space-y-3 p-5">
-              <h3 className="text-base font-semibold text-[#e5e5e7]">
+              <h3 className="text-base font-semibold text-content-primary">
                 {confirm.mode === "bulk"
                   ? t("confirmBulkTitle")
                   : confirm.mode === "workspace"
                     ? t("confirmDeleteWorkspaceTitle")
                     : t("confirmDeleteTitle")}
               </h3>
-              <p className="text-sm text-gray-400">
+              <p className="text-sm text-content-muted">
                 {confirm.mode === "bulk"
                   ? t("confirmBulkDelete", { n: String(confirm.rows.length) })
                   : confirm.mode === "workspace"
@@ -579,42 +579,42 @@ export function SessionsPage() {
                     : t("confirmDeleteSession")}
               </p>
               {confirm.mode === "one" && (
-                <div className="rounded-md border border-[#2a2a2e] bg-[#1f1f23] px-3 py-2.5">
+                <div className="rounded-md border border-border bg-input px-3 py-2.5">
                   <div className="truncate text-sm font-medium">
                     {confirm.row.title || confirm.row.id}
                   </div>
-                  <div className="mt-1 break-all font-mono text-[11px] text-gray-500">
+                  <div className="mt-1 break-all font-mono text-[11px] text-content-muted">
                     {confirm.row.id}
                   </div>
                 </div>
               )}
               {confirm.mode === "bulk" && (
-                <div className="rounded-md border border-[#2a2a2e] bg-[#1f1f23] px-3 py-2.5 text-sm text-gray-400">
+                <div className="rounded-md border border-border bg-input px-3 py-2.5 text-sm text-content-muted">
                   {t("selectedCount", { n: String(confirm.rows.length) })}
                 </div>
               )}
               {confirm.mode === "workspace" && (
-                <div className="rounded-md border border-[#2a2a2e] bg-[#1f1f23] px-3 py-2.5">
+                <div className="rounded-md border border-border bg-input px-3 py-2.5">
                   <div className="truncate text-sm font-medium">
                     {confirm.workspace.name || confirm.workspace.id}
                   </div>
                   {confirm.workspace.root && (
-                    <div className="mt-1 break-all font-mono text-[11px] text-gray-500">
+                    <div className="mt-1 break-all font-mono text-[11px] text-content-muted">
                       {confirm.workspace.root}
                     </div>
                   )}
-                  <div className="mt-1 font-mono text-[11px] text-gray-500">
+                  <div className="mt-1 font-mono text-[11px] text-content-muted">
                     {confirm.workspace.id}
                   </div>
                 </div>
               )}
             </div>
-            <div className="flex justify-end gap-2 border-t border-[#2a2a2e] bg-[#121214] px-5 py-3">
+            <div className="flex justify-end gap-2 border-t border-border bg-footer px-5 py-3">
               <button
                 type="button"
                 disabled={confirmBusy}
                 onClick={() => setConfirm(null)}
-                className="px-3 py-1.5 text-sm rounded border border-[#2a2a2e] hover:bg-[#252529] disabled:opacity-50"
+                className="px-3 py-1.5 text-sm rounded border border-border hover:bg-hover-2 disabled:opacity-50"
               >
                 {t("cancel")}
               </button>
@@ -638,12 +638,12 @@ export function SessionsPage() {
       {/* Preview dialog */}
       {preview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="flex w-full max-w-2xl max-h-[min(80vh,36rem)] flex-col overflow-hidden rounded-xl border border-[#2a2a2e] bg-[#16161a] shadow-xl">
-            <div className="shrink-0 space-y-2 border-b border-[#2a2a2e] p-5">
-              <h3 className="text-base font-semibold text-[#e5e5e7]">{t("previewTitle")}</h3>
-              <p className="text-sm text-gray-500">{t("previewHint")}</p>
-              <div className="text-xs text-gray-500">
-                <div className="truncate font-medium text-[#e5e5e7]">
+          <div className="flex w-full max-w-2xl max-h-[min(80vh,36rem)] flex-col overflow-hidden rounded-xl border border-border bg-panel shadow-xl">
+            <div className="shrink-0 space-y-2 border-b border-border p-5">
+              <h3 className="text-base font-semibold text-content-primary">{t("previewTitle")}</h3>
+              <p className="text-sm text-content-muted">{t("previewHint")}</p>
+              <div className="text-xs text-content-muted">
+                <div className="truncate font-medium text-content-primary">
                   {preview.row.title || preview.row.id}
                 </div>
                 <div className="mt-0.5 break-all font-mono opacity-80">{preview.row.id}</div>
@@ -651,7 +651,7 @@ export function SessionsPage() {
             </div>
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-5">
               {preview.loading && (
-                <div className="flex items-center justify-center gap-2 py-10 text-sm text-gray-500">
+                <div className="flex items-center justify-center gap-2 py-10 text-sm text-content-muted">
                   <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />
                   {t("scanning")}
                 </div>
@@ -662,7 +662,7 @@ export function SessionsPage() {
                 </div>
               )}
               {!preview.loading && !preview.error && !preview.messages.length && (
-                <div className="py-10 text-center text-sm text-gray-500">{t("previewEmpty")}</div>
+                <div className="py-10 text-center text-sm text-content-muted">{t("previewEmpty")}</div>
               )}
               {preview.messages.map((m, i) => {
                 const roleLabel =
@@ -685,14 +685,14 @@ export function SessionsPage() {
                 );
               })}
               {preview.truncated && (
-                <div className="text-center text-xs text-gray-500">{t("previewTruncated")}</div>
+                <div className="text-center text-xs text-content-muted">{t("previewTruncated")}</div>
               )}
             </div>
-            <div className="shrink-0 flex justify-end border-t border-[#2a2a2e] bg-[#121214] px-5 py-3">
+            <div className="shrink-0 flex justify-end border-t border-border bg-footer px-5 py-3">
               <button
                 type="button"
                 onClick={() => setPreview(null)}
-                className="px-3 py-1.5 text-sm rounded border border-[#2a2a2e] hover:bg-[#252529]"
+                className="px-3 py-1.5 text-sm rounded border border-border hover:bg-hover-2"
               >
                 {t("cancel")}
               </button>
@@ -727,24 +727,24 @@ function PreviewMessageCard({
 
   return (
     <div
-      className={`rounded-lg border border-[#2a2a2e] px-3 py-2.5 ${
+      className={`rounded-lg border border-border px-3 py-2.5 ${
         role === "user"
           ? "bg-blue-600/10"
           : role === "assistant"
-            ? "bg-[#1f1f23]"
-            : "bg-[#16161a]"
+            ? "bg-input"
+            : "bg-panel"
       }`}
     >
-      <div className="mb-1 flex items-center justify-between gap-2 text-[11px] text-gray-500">
-        <span className="font-medium text-gray-300">{roleLabel}</span>
+      <div className="mb-1 flex items-center justify-between gap-2 text-[11px] text-content-muted">
+        <span className="font-medium text-content-primary">{roleLabel}</span>
         {time ? (
           <span className="tabular-nums">{fmtTime(time, locale)}</span>
         ) : null}
       </div>
-      <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-gray-200">
+      <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-content-primary">
         {visible}
         {!expanded && isLong && (
-          <span className="text-gray-500"> …</span>
+          <span className="text-content-muted"> …</span>
         )}
       </pre>
       {isLong && (

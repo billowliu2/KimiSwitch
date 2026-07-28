@@ -167,6 +167,15 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
                 })
                 .unwrap_or_default();
 
+            let icon = table
+                .get("icon")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let icon_color = table
+                .get("icon_color")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+
             let raw_other = {
                 let mut rest = table.clone();
                 rest.remove("type");
@@ -197,6 +206,8 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
                     managed,
                     enabled,
                     active: active_provider_name == Some(name.as_str()),
+                    icon,
+                    icon_color,
                     raw_other,
                 },
             );
@@ -252,6 +263,12 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
             pt.insert("api_key".to_string(), TomlValue::String(api_key));
         }
         pt.insert("enabled".to_string(), TomlValue::Boolean(provider.enabled));
+        if let Some(icon) = provider.icon.clone().filter(|s| !s.is_empty()) {
+            pt.insert("icon".to_string(), TomlValue::String(icon));
+        }
+        if let Some(icon_color) = provider.icon_color.clone().filter(|s| !s.is_empty()) {
+            pt.insert("icon_color".to_string(), TomlValue::String(icon_color));
+        }
         if !provider.env.is_empty() {
             let mut env_table = Table::new();
             for (k, v) in &provider.env {
@@ -486,6 +503,8 @@ api_key = ""
                 managed: false,
                 enabled: true,
                 active: true,
+                icon: None,
+                icon_color: None,
                 raw_other: Value::Null,
             },
         );
@@ -545,6 +564,8 @@ api_key = ""
                 managed: false,
                 enabled: true,
                 active: true,
+                icon: None,
+                icon_color: None,
                 raw_other: Value::Null,
             },
         );
