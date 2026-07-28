@@ -326,6 +326,10 @@ A: The code doesn't depend on Windows-only APIs, but `tauri.conf.json` only targ
 - [Tauri](https://tauri.app) — the desktop app framework
 - Design specs in `docs/superpowers/specs/`, implementation plans in `docs/superpowers/plans/`
 
+## Credits
+
+The usage dashboard and session manager are ported from [kimicode-dashboard](https://github.com/JochenYang/kimicode-dashboard) (MIT License, © JochenYang). The original project implements local token usage analytics and session management for Kimi Code CLI. The Rust backend (`src-tauri/src/dashboard.rs`), dashboard UI (`src/components/dashboard/`), and sessions page (`src/components/sessions/`) in this project are derived from that work. Many thanks to the original author.
+
 ---
 
 License: MIT, see [LICENSE](./LICENSE). Copyright (c) 2026 CodingPlan.site

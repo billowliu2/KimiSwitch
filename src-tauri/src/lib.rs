@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod config_io;
+pub mod dashboard;
 pub mod db;
 pub mod kimi_code_io;
 pub mod models;
@@ -99,6 +100,15 @@ pub fn run() {
             commands::get_app_version,
             commands::list_provider_models,
             commands::debug_log,
+            dashboard::get_paths,
+            dashboard::get_prices,
+            dashboard::get_summary,
+            dashboard::list_sessions,
+            dashboard::archive_session,
+            dashboard::unarchive_session,
+            dashboard::delete_session,
+            dashboard::delete_workspace,
+            dashboard::get_session_preview,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -4,6 +4,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useConfig } from "./hooks/useConfig";
 import { ProviderList } from "./components/ProviderList";
 import { ProviderEdit } from "./components/ProviderEdit";
+import { DashboardPage } from "./components/dashboard/DashboardPage";
+import { SessionsPage } from "./components/sessions/SessionsPage";
 import { useTranslation } from "./i18n";
 import { getDefaultMaxContextSize } from "./lib/model-defaults";
 import { getModelRef } from "./lib/models-dev";
@@ -35,24 +37,19 @@ function findFirstModelForProvider(models: Record<string, Model>, providerName: 
   return null;
 }
 
-const AGENTS: { key: Agent; label: string }[] = [
-  { key: "kimi_code", label: "Kimi Code" },
-  { key: "pi", label: "Pi" },
-];
-
 function getInitialAgent(): Agent {
   try {
     const stored = localStorage.getItem(AGENT_STORAGE_KEY) as Agent | null;
-    if (stored === "kimi_code" || stored === "pi") return stored;
+    if (stored === "kimi_code") return stored;
   } catch {
     // ignore
   }
-  return "pi";
+  return "kimi_code";
 }
 
 export default function App() {
   const { t, lang, setLang } = useTranslation();
-  const [agent, setAgentState] = useState<Agent>(getInitialAgent);
+  const [agent] = useState<Agent>(getInitialAgent);
   const {
     config,
     dirty,
@@ -63,21 +60,11 @@ export default function App() {
     updateConfig,
   } = useConfig(agent);
 
-  const [view, setView] = useState<"list" | "edit">("list");
+  const [view, setView] = useState<"list" | "edit" | "dashboard" | "sessions">("list");
   const [editingProvider, setEditingProvider] = useState<string>("");
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [switchMessage, setSwitchMessage] = useState<string | null>(null);
 
-  const setAgent = (next: Agent) => {
-    setAgentState(next);
-    try {
-      localStorage.setItem(AGENT_STORAGE_KEY, next);
-    } catch {
-      // ignore
-    }
-    setView("list");
-    setEditingProvider("");
-  };
 
   useEffect(() => {
     if (!loading) {
@@ -377,20 +364,39 @@ export default function App() {
     <div className="flex flex-col h-full bg-[#0f0f11] text-[#e5e5e7]">
       <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-[#2a2a2e] bg-[#16161a]">
         <div className="flex items-center bg-[#1f1f23] border border-[#2a2a2e] rounded p-0.5">
-          {AGENTS.map(({ key, label }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setAgent(key)}
-              className={`px-3 py-1 text-sm rounded transition-colors ${
-                agent === key
-                  ? "bg-blue-600 text-white"
-                  : "text-gray-400 hover:text-[#e5e5e7]"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+          <button
+            type="button"
+            onClick={() => setView("list")}
+            className={`px-3 py-1 text-sm rounded transition-colors ${
+              view === "list" || view === "edit"
+                ? "bg-blue-600 text-white"
+                : "text-gray-400 hover:text-[#e5e5e7]"
+            }`}
+          >
+            {t("providers")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("dashboard")}
+            className={`px-3 py-1 text-sm rounded transition-colors ${
+              view === "dashboard"
+                ? "bg-blue-600 text-white"
+                : "text-gray-400 hover:text-[#e5e5e7]"
+            }`}
+          >
+            {t("dashboard")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("sessions")}
+            className={`px-3 py-1 text-sm rounded transition-colors ${
+              view === "sessions"
+                ? "bg-blue-600 text-white"
+                : "text-gray-400 hover:text-[#e5e5e7]"
+            }`}
+          >
+            {t("sessions")}
+          </button>
         </div>
         <div className="flex items-center gap-2">
           <select
@@ -418,7 +424,11 @@ export default function App() {
       )}
 
       <main className="flex-1 overflow-hidden relative">
-        {view === "list" ? (
+        {view === "dashboard" ? (
+          <DashboardPage />
+        ) : view === "sessions" ? (
+          <SessionsPage />
+        ) : view === "list" ? (
           <ProviderList
             providers={providers}
             defaultModel={config.default_model}
@@ -528,6 +538,7 @@ export default function App() {
         )}
       </main>
 
+      {view !== "dashboard" && view !== "sessions" && (
       <footer className="flex items-center justify-between px-4 py-2 border-t border-[#2a2a2e] bg-[#16161a] text-sm">
         <div className="flex items-center gap-2 min-w-0">
           {dirty && (
@@ -575,6 +586,7 @@ export default function App() {
           </button>
         </div>
       </footer>
+      )}
     </div>
   );
 }

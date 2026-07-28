@@ -326,6 +326,10 @@ A: 代码不依赖 Windows 专属 API，但 `tauri.conf.json` 的 bundle 目标�
 - [Tauri](https://tauri.app) — 桌面应用框架
 - 设计文档见 `docs/superpowers/specs/`，实施计划见 `docs/superpowers/plans/`
 
+## 致谢
+
+用量仪表盘与会话管理功能基于 [kimicode-dashboard](https://github.com/JochenYang/kimicode-dashboard)（MIT 许可证，© JochenYang）移植。原始项目实现了 Kimi Code CLI 的本地 Token 用量统计与会话管理，本项目的 Rust 后端（`src-tauri/src/dashboard.rs`）、前端仪表盘（`src/components/dashboard/`）以及会话管理页（`src/components/sessions/`）均源自该项目，感谢原作者的开源贡献。
+
 ---
 
 许可证：MIT，详见 [LICENSE](./LICENSE)。Copyright (c) 2026 CodingPlan.site
