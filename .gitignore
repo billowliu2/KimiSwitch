@@ -10,3 +10,6 @@ src-tauri/wix314-binaries/
 Thumbs.db
 Snipaste_*.png
 .worktrees/
+
+# 内部设计规范与实施计划，仅供本地查阅，不入版本库
+docs/superpowers/

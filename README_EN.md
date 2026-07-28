@@ -17,6 +17,7 @@
 
 - [What Is This](#what-is-this)
 - [Key Features](#key-features)
+- [Screenshots](#screenshots)
 - [Architecture Overview](#architecture-overview)
 - [Supported Provider Types](#supported-provider-types)
 - [Data Storage Locations](#data-storage-locations)
@@ -62,6 +63,38 @@ Kimi Switch provides a unified GUI:
 | **Shortcuts** | Ctrl+S save, Ctrl+R reload, Ctrl+O open config dir |
 | **Validation (reserved)** | i18n error strings are defined (duplicate names, missing credentials, missing Vertex fields, etc.), but the backend `validators.rs` is a stub and not yet wired |
 | **Unsaved-changes prompt** | Detects unsaved edits before closing the window and prefixes the title bar with `*` |
+
+## Screenshots
+
+**Provider list** (light theme)
+
+![Provider list](docs/screenshots/providers.png)
+
+Shows the active provider, default model, latency and model count at a glance, with quick-switch, copy, open-website, edit and delete actions.
+
+**Edit provider — basic info**
+
+![Edit provider — basic info](docs/screenshots/provider-basic-info.png)
+
+Provider name, notes, official URL, managed-provider toggle, API format, API key and base URL — the essentials in one panel.
+
+**Edit provider — model mapping**
+
+![Edit provider — model mapping](docs/screenshots/provider-model-mapping.png)
+
+A single table for all model mappings: display name, real model ID, context length, 1M-context flag, capability tags (thinking / image / video / tools / other). One-click setup and "fetch model list" actions are available.
+
+**Usage dashboard**
+
+![Usage dashboard](docs/screenshots/dashboard.png)
+
+Eight core KPIs (requests, non-cached input, output, cache read / write / hit, total tokens, estimated cost), a full-year heatmap, a per-model stacked daily usage bar chart, and a per-model usage breakdown (requests, tokens, cache hit, cost).
+
+**Session management**
+
+![Session management](docs/screenshots/sessions.png)
+
+Browse Kimi Code sessions per workspace, filter by active / archived / all, stream-preview contents (20MB byte cap, 500-char collapse), archive or bulk-delete.
 
 ## Architecture Overview
 
@@ -208,7 +241,9 @@ Good for pure UI debugging.
 │
 ├── scripts/generate-icons.py     # Generate all icon sizes from SVG
 ├── public/kimi.svg               # App icon source (blue-purple gradient π)
-└── docs/superpowers/             # Design specs & implementation plans
+├── docs/
+│   ├── screenshots/              # UI screenshots referenced by the README
+│   └── superpowers/              # Design specs & implementation plans
 ```
 
 ### Tauri commands (frontend ↔ backend)
