@@ -8,6 +8,7 @@
 [![React](https://img.shields.io/badge/React-18-61dafb?logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178c6?logo=typescript)](https://www.typescriptlang.org)
 [![Rust](https://img.shields.io/badge/Rust-2021-ed764d?logo=rust)](https://www.rust-lang.org)
+[![Version](https://img.shields.io/badge/release-v0.3.0-brightgreen)](https://git.codingplan.site/admin/KimiCodeSwitch)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 
 ---
@@ -59,7 +60,8 @@ Kimi Switch 提供统一的图形界面：
 | **i18n** | 简体中文 / English，运行时切换 |
 | **自动备份** | 写入 Kimi Code / Pi 原生配置前自动备份，按时间戳命名，保留最近 7 天（见 `src-tauri/src/config_io.rs`） |
 | **快捷键** | Ctrl+S 保存、Ctrl+R 重载、Ctrl+O 打开配置目录 |
-| **校验（预留）** | i18n 已定义错误文案（名称重复、凭证缺失、Vertex 字段缺失等），后端 `validators.rs` 为占位实现，尚未接线 |
+| **用量仪表盘** | Token 用量统计、每日趋势（按模型分色）、全年热力图、最近请求翻页、双击查看模型分布 |
+| **会话管理** | 按工作区浏览、预览、归档、批量删除会话，逐行流式读取防崩溃（20MB 上限 + 500 字符折叠） |
 | **未保存提示** | 关闭窗口前检测未保存修改，标题栏加 `*` 前缀 |
 
 ## 架构总览
@@ -284,9 +286,19 @@ npm run tauri-build
 
 产物位置：
 
-- `src-tauri/target/release/bundle/msi/Kimi Switch_0.1.0_x64_en-US.msi`
+- `src-tauri/target/release/bundle/msi/Kimi Switch_0.3.0_x64_en-US.msi`
 
 Windows 安装包（MSI），含 WebView2 bootstrapper 自动下载。`nsis` 已禁用，目前只产 MSI。
+
+### 发布版本
+
+**v0.3.0** — 新增用量仪表盘与会话管理功能（基于 [kimicode-dashboard](https://github.com/JochenYang/kimicode-dashboard) 移植，感谢原作者 [JochenYang](https://github.com/JochenYang) 的开源贡献）：
+
+- 用量仪表盘：8 项 KPI、每日趋势图（按模型分色堆叠柱状图，双击查看模型分布弹窗）、全年热力图（按 Token 量 5 级着色，鼠标悬浮 tooltip）、最近请求翻页（30 条/页）
+- 会话管理：按工作区隔离浏览、预览会话内容（流式逐行读取防崩溃，20MB 字节上限，500 字符折叠可展开）、归档/取消归档/批量删除
+- 时间线修复：`today` 范围、每日热力图和 `day_key` 分桶改用本地时区日历日，UTC+8 用户跨零点后不再数据错位
+- 隐藏 Pi 选项：左侧导航栏 Pi 入口已移除（代码保留，仅 UI 隐藏）
+- 支持供应商：Kimi / Anthropic / OpenAI / OpenAI Responses / Google GenAI / Vertex AI
 
 ### 首次打包
 

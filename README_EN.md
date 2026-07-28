@@ -8,6 +8,7 @@
 [![React](https://img.shields.io/badge/React-18-61dafb?logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178c6?logo=typescript)](https://www.typescriptlang.org)
 [![Rust](https://img.shields.io/badge/Rust-2021-ed764d?logo=rust)](https://www.rust-lang.org)
+[![Version](https://img.shields.io/badge/release-v0.3.0-brightgreen)](https://git.codingplan.site/admin/KimiCodeSwitch)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 
 ---
@@ -284,9 +285,19 @@ npm run tauri-build
 
 Output:
 
-- `src-tauri/target/release/bundle/msi/Kimi Switch_0.1.0_x64_en-US.msi`
+- `src-tauri/target/release/bundle/msi/Kimi Switch_0.3.0_x64_en-US.msi`
 
 A Windows installer (MSI) with the WebView2 bootstrapper embedded for auto-download. `nsis` is disabled; only MSI is produced.
+
+### v0.3.0 Release Notes
+
+New dashboard and session management features, ported from [kimicode-dashboard](https://github.com/JochenYang/kimicode-dashboard) (MIT, © JochenYang). Many thanks to the original author for their open-source contribution.
+
+- **Dashboard**: 8 KPI cards, daily trend chart (per-model stacked bars, double-click for per-model breakdown modal), full-year heatmap (5-level token coloring with hover tooltip), paginated recent requests (30/page)
+- **Session management**: browse by workspace, preview (streaming line-by-line read, 20MB byte cap, 500-char collapse with expand toggle), archive/unarchive/bulk delete
+- **Timezone fix**: `today` range, heatmap, and `day_key` now use the local calendar day — UTC+8 users no longer see empty data after midnight
+- **Pi option hidden**: the Pi tab has been removed from the navigation bar (code preserved, UI only)
+- **Supported providers**: Kimi / Anthropic / OpenAI / OpenAI Responses / Google GenAI / Vertex AI
 
 ### First build
 
