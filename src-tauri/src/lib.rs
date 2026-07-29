@@ -65,27 +65,23 @@ pub fn run() {
                         if button == MouseButton::Left && button_state == MouseButtonState::Up {
                             let app = tray.app_handle();
                             if let Some(window) = app.get_webview_window("main") {
-                                if window.is_visible().unwrap_or(true) {
-                                    let _ = window.hide();
-                                } else {
-                                    let _ = window.show();
-                                    let _ = window.unminimize();
-                                    let _ = window.set_focus();
-                                }
+                                let _ = window.show();
+                                let _ = window.unminimize();
+                                let _ = window.set_focus();
                             }
                         }
                     }
                 })
                 .build(app)?;
 
-            // Minimize to tray: restore then hide so the taskbar button disappears
+            // Close button -> hide to tray instead of quitting. Minimize keeps
+            // the taskbar button (native behaviour); only an explicit close
+            // (window X) retreats to the tray.
             let window_clone = window.clone();
             window.on_window_event(move |event| match event {
-                tauri::WindowEvent::Resized(_) => {
-                    if window_clone.is_minimized().unwrap_or(false) {
-                        let _ = window_clone.unminimize();
-                        let _ = window_clone.hide();
-                    }
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    api.prevent_close();
+                    let _ = window_clone.hide();
                 }
                 _ => {}
             });

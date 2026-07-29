@@ -598,7 +598,7 @@ function ModelMapping({
               <th className="text-center px-4 py-3 font-medium w-20">{t("operation")}</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#2a2a2e]">
+          <tbody className="divide-y divide-border">
             {models.map((m) => (
               <tr key={m.alias} className="hover:bg-hover">
                 <td className="px-4 py-2">
@@ -776,8 +776,6 @@ function CapabilitiesCell({
   onChange: (next: string[]) => void;
 }) {
   const { t } = useTranslation();
-  const known = new Set<string>(KNOWN_CAPABILITIES);
-  const customs = capabilities.filter((c) => !known.has(c));
 
   const toggle = (cap: string, on: boolean) => {
     if (on) {
@@ -789,7 +787,13 @@ function CapabilitiesCell({
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-      {KNOWN_CAPABILITIES.map((cap) => (
+      {/* Only `thinking` is user-editable. The other capabilities
+          (always_thinking / image_in / video_in / tool_use) are still
+          auto-derived from models.dev via `capabilitiesFromRef` and saved
+          to config.toml — they just aren't exposed for manual editing.
+          To restore the full editor, drop the `.filter(...)` below and
+          re-add the custom-capabilities input (see git history). */}
+      {KNOWN_CAPABILITIES.filter((cap) => cap === "thinking").map((cap) => (
         <label
           key={cap}
           className="flex items-center gap-1 text-xs text-content-muted cursor-pointer"
@@ -803,19 +807,6 @@ function CapabilitiesCell({
           {t(CAPABILITY_LABELS[cap])}
         </label>
       ))}
-      <input
-        className="w-28 bg-transparent border border-border rounded px-1.5 py-1 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
-        value={customs.join(", ")}
-        placeholder={t("customCapabilities")}
-        onChange={(e) => {
-          const newCustoms = e.target.value
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean);
-          const kept = capabilities.filter((c) => known.has(c));
-          onChange([...kept, ...newCustoms]);
-        }}
-      />
     </div>
   );
 }

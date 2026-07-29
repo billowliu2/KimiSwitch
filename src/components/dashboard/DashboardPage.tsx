@@ -228,7 +228,7 @@ export function DashboardPage() {
                             }}
                           />
                           <div className="min-w-0">
-                            <div className="text-content-primary truncate">{m.modelDisplay || m.model}</div>
+                            <div className="text-content-primary whitespace-nowrap">{m.modelDisplay || m.model}</div>
                             {m.costEstimated && (
                               <span className="text-[10px] text-yellow-600">估算</span>
                             )}
