@@ -46,7 +46,7 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - uses: actions/setup-rust@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
           cache: true
 
