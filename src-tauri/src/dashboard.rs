@@ -134,6 +134,11 @@ pub struct DailyRow {
     pub cache_hit_rate: f64,
     /// Per-model token breakdown for stacked-bar rendering
     pub by_model: HashMap<String, u64>,
+    /// Per-provider token breakdown for stacked-bar rendering
+    pub by_provider: HashMap<String, u64>,
+    /// Per-provider, per-model nested token breakdown (provider → model → tokens),
+    /// used by the provider-tab drill-down detail.
+    pub by_provider_model: HashMap<String, HashMap<String, u64>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -353,6 +358,66 @@ fn is_kimi_home(dir: &Path) -> bool {
     dir.join("config.toml").exists() || dir.join("sessions").exists()
 }
 
+/// Build a legacy alias→provider map by merging the current config.toml with every
+/// `config.toml.bak.*` snapshot (home root + backups/). Historical usage records may
+/// reference model aliases that no longer exist in the current config (old bare or
+/// `-N`-suffixed aliases); their provider is recovered from these snapshots.
+fn build_alias_provider_map(home: &Path) -> HashMap<String, String> {
+    let mut map: HashMap<String, String> = HashMap::new();
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    let current = home.join("config.toml");
+    if current.is_file() {
+        candidates.push(current);
+    }
+    for dir in [home.to_path_buf(), home.join("backups")] {
+        if let Ok(rd) = std::fs::read_dir(&dir) {
+            for e in rd.flatten() {
+                let name = e.file_name().to_string_lossy().to_string();
+                if name.starts_with("config.toml.bak.") {
+                    candidates.push(e.path());
+                }
+            }
+        }
+    }
+    for path in candidates {
+        let content = match std::fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let parsed: toml::Value = match toml::from_str(&content) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        if let Some(models) = parsed.get("models").and_then(|m| m.as_table()) {
+            for (alias, m) in models {
+                if let Some(p) = m.get("provider").and_then(|p| p.as_str()) {
+                    // Current config is parsed first and wins on conflict.
+                    map.entry(alias.clone()).or_insert_with(|| p.to_string());
+                }
+            }
+        }
+    }
+    map
+}
+
+/// Resolve the provider for a usage record's raw model key: prefer the `provider/`
+/// prefix, then fall back to the legacy alias→provider map (config + backups).
+fn resolve_provider(model_raw: &str, map: &HashMap<String, String>) -> Option<String> {
+    let p = model_raw
+        .rsplit_once('/')
+        .map(|(prov, _)| prov.to_string())
+        .or_else(|| map.get(model_raw).cloned());
+    p.map(|x| normalize_provider(&x))
+}
+
+/// Normalize historical provider-name variants to the canonical name.
+fn normalize_provider(p: &str) -> String {
+    match p {
+        "CodingPlanSite" => "CodingPlan.site".to_string(),
+        other => other.to_string(),
+    }
+}
+
 fn sessions_root(home: &Path) -> PathBuf {
     home.join("sessions")
 }
@@ -444,6 +509,7 @@ fn cost_for_usage(input_other: u64, output: u64, cache_read: u64, cache_create: 
 
 fn scan_usage(home: &Path) -> (Vec<UsageRecord>, ScanMeta) {
     let root = sessions_root(home);
+    let alias2prov = build_alias_provider_map(home);
     let mut records = Vec::new();
     let mut files_scanned = 0;
     let mut lines_seen = 0;
@@ -500,7 +566,7 @@ fn scan_usage(home: &Path) -> (Vec<UsageRecord>, ScanMeta) {
                 model: model_raw.clone(),
                 model_resolved: bare.to_string(),
                 model_display: model_raw.clone(),
-                provider: model_raw.rsplit_once('/').map(|x| x.0.to_string()),
+                provider: resolve_provider(&model_raw, &alias2prov),
                 from_env: model_raw == "__kimi_env_model__",
                 input_other,
                 output,
@@ -544,16 +610,22 @@ fn aggregate(records: &[UsageRecord], range: &str, now_ms: u64) -> RangeStats {
     }
 
     let mut totals = TotalsRow::default();
-    let mut by_day: HashMap<String, (TotalsRow, HashMap<String, u64>)> = HashMap::new();
+    let mut by_day: HashMap<String, (TotalsRow, HashMap<String, u64>, HashMap<String, HashMap<String, u64>>)> = HashMap::new();
     let mut by_model: HashMap<String, (ModelRow, TotalsRow)> = HashMap::new();
 
     for r in &filtered {
         totals.add(r);
         let dk = day_key(r.time);
-        let (day_totals, day_models) = by_day.entry(dk.clone()).or_default();
+        let (day_totals, day_models, day_prov_models) = by_day.entry(dk.clone()).or_default();
         day_totals.add(r);
         *day_models.entry(r.model.clone()).or_insert(0) +=
             r.input_other + r.output + r.input_cache_read + r.input_cache_creation;
+        let provider_key = r.provider.clone().unwrap_or_else(|| "unknown".to_string());
+        *day_prov_models
+            .entry(provider_key)
+            .or_default()
+            .entry(r.model.clone())
+            .or_insert(0) += r.input_other + r.output + r.input_cache_read + r.input_cache_creation;
 
         let mk = r.model.clone();
         let entry = by_model.entry(mk.clone()).or_insert_with(|| {
@@ -577,7 +649,7 @@ fn aggregate(records: &[UsageRecord], range: &str, now_ms: u64) -> RangeStats {
     totals.cache_hit_rate = if total_input > 0 { totals.input_cache_read as f64 / total_input as f64 } else { 0.0 };
 
     let mut daily: Vec<DailyRow> = by_day.into_iter()
-        .map(|(date, (t, by_model))| {
+        .map(|(date, (t, by_model, by_provider_model))| {
             let ti = t.input_other + t.input_cache_read + t.input_cache_creation;
             let ch = if ti > 0 { t.input_cache_read as f64 / ti as f64 } else { 0.0 };
             DailyRow {
@@ -586,6 +658,11 @@ fn aggregate(records: &[UsageRecord], range: &str, now_ms: u64) -> RangeStats {
                 input_cache_read: t.input_cache_read, input_cache_creation: t.input_cache_creation,
                 cost_usd: t.cost_usd, total_tokens: t.total_tokens, cache_hit_rate: ch,
                 by_model,
+                by_provider: by_provider_model
+                    .iter()
+                    .map(|(p, m)| (p.clone(), m.values().sum::<u64>()))
+                    .collect(),
+                by_provider_model,
             }
         })
         .collect();

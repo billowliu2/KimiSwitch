@@ -204,6 +204,7 @@ export const zhTranslations = {
   totalTokens: "总 Token",
   cost: "费用",
   modelDistribution: "模型用量分布",
+  providerDistribution: "供应商用量分布",
   modalEscHint: "按 Esc 或点击外部关闭",
   doubleClickHint: "双击查看详情",
 
@@ -247,6 +248,69 @@ export const zhTranslations = {
   unknownModelProvider: "模型「{0}」引用了未知供应商「{1}」",
   emptyModelId: "模型「{0}」的模型 ID 为空",
   invalidMaxContextSize: "模型「{0}」的 max_context_size 无效",
+
+  // Dashboard — ranges / status
+  rangeToday: "今天",
+  range7d: "7 天",
+  range30d: "30 天",
+  rangeAll: "全部",
+  dashLoadFailed: "加载失败",
+
+  // Dashboard — KPI labels
+  kpiRequests: "请求数",
+  kpiInputOther: "非缓存输入",
+  kpiOutput: "输出",
+  kpiCacheRead: "缓存读",
+  kpiCacheCreation: "缓存创建",
+  kpiCacheHit: "缓存命中",
+  kpiCost: "预估费用",
+
+  // Dashboard — cards
+  cardHeatmap: "全年热力图",
+  cardHeatmapSub: "按 Token 量着色",
+  cardDailyTrend: "用量趋势",
+  cardDailyTrendSubCapped: "近 30 天 · 共 {n} 天",
+  tabModelTrend: "模型用量趋势",
+  tabProviderTrend: "供应商模型用量趋势",
+  providerUnknown: "未知供应商",
+  cardDailyTrendSub: "共 {n} 天",
+  cardModelUsage: "模型用量",
+  cardModelUsageSub: "{n} 个模型",
+  cardRecent: "最近请求",
+  cardRecentCapped: "显示前 {n} / {m} 条",
+  cardRecentCount: "{n} 条",
+
+  // Dashboard — table columns / units
+  colModel: "模型",
+  colTokens: "Token",
+  colCacheHit: "缓存命中",
+  colTime: "时间",
+  colInput: "输入",
+  colOutput: "输出",
+  colCacheRead: "缓存读",
+  unitTimes: "次",
+  estimate: "估算",
+  collapse: "收起",
+  expandAll: "展开全部 ({n})",
+
+  // Dashboard — pagination
+  paginationPage: "第 {x} / {y} 页",
+  paginationRange: "{x}–{y} 条",
+  paginationPerPage: "每页 {n} 条",
+  pageFirst: "首页",
+  pagePrev: "上一页",
+  pageNext: "下一页",
+  pageLast: "末页",
+
+  // Dashboard — footer / attribution
+  footerScanned: "扫描 {n} 个文件 · {m} 条记录",
+  dashboardAttribution: "仪表盘功能基于",
+  sessionsAttribution: "会话管理功能基于",
+  attributionSuffix: "（MIT，© JochenYang）移植",
+
+  // Sessions — preview
+  previewCollapseChars: "收起 · {n} 字符",
+  previewExpandChars: "展开全文 · {n} 字符",
 } as const;
 
 export type TranslationKey = keyof typeof zhTranslations;

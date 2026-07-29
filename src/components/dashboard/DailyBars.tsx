@@ -5,13 +5,19 @@ import { fmtPct, fmtTokens, fmtUsd } from "../../lib/dashboard-format";
 import type { DailyRow } from "../../types/dashboard";
 import { DailyDetailModal } from "./DailyDetailModal";
 
+type TrendDimension = "model" | "provider";
+
 interface DailyBarsProps {
   daily: DailyRow[];
-  /** Ordered model names for the colour palette & legend */
-  modelNames: string[];
+  /** Which per-day breakdown to render */
+  dimension: TrendDimension;
+  /** Ordered names for the active dimension (colour palette & legend) */
+  names: string[];
+  /** Label for the unresolved-provider bucket */
+  unknownProviderLabel: string;
 }
 
-/** Deterministic colour palette — one hue per model index */
+/** Deterministic colour palette — one hue per index */
 const PALETTE = [
   "#3b82f6", // blue
   "#22c55e", // green
@@ -35,17 +41,24 @@ function shortModel(model: string): string {
   return bare;
 }
 
-export function DailyBars({ daily, modelNames }: DailyBarsProps) {
+export function DailyBars({ daily, dimension, names, unknownProviderLabel }: DailyBarsProps) {
   const { t } = useTranslation();
   const [selected, setSelected] = useState<DailyRow | null>(null);
 
   const colorMap = useMemo(() => {
     const map: Record<string, string> = {};
-    modelNames.forEach((m, i) => {
+    names.forEach((m, i) => {
       map[m] = modelColor(i);
     });
     return map;
-  }, [modelNames]);
+  }, [names]);
+
+  const displayName = (key: string): string => {
+    if (dimension === "provider") {
+      return key === "unknown" ? unknownProviderLabel : key;
+    }
+    return shortModel(key);
+  };
 
   if (!daily?.length) {
     return (
@@ -61,13 +74,13 @@ export function DailyBars({ daily, modelNames }: DailyBarsProps) {
     <div className="flex h-full flex-col gap-3">
       {/* Legend */}
       <div className="flex flex-wrap gap-x-4 gap-y-1">
-        {modelNames.map((m) => (
+        {names.map((m) => (
           <span key={m} className="flex items-center gap-1.5 text-[11px] text-content-muted">
             <span
               className="inline-block h-2.5 w-2.5 rounded-sm"
               style={{ backgroundColor: colorMap[m] }}
             />
-            {shortModel(m)}
+            {displayName(m)}
           </span>
         ))}
       </div>
@@ -78,22 +91,20 @@ export function DailyBars({ daily, modelNames }: DailyBarsProps) {
           const h = Math.max(4, Math.round(((d.totalTokens || 0) / max) * 170));
           const total = d.totalTokens || 1;
 
-          // Build stacked segments sorted by token count (largest at bottom)
-          const segments = Object.entries(d.byModel || {})
-            .map(([model, tokens]) => ({
-              model,
+          const breakdown = dimension === "provider" ? d.byProvider : d.byModel;
+          const segments = Object.entries(breakdown || {})
+            .map(([key, tokens]) => ({
+              key,
               tokens,
-              color: colorMap[model] || "#6b7280",
+              color: colorMap[key] || "#6b7280",
               height: Math.max(1, Math.round((tokens / total) * h)),
             }))
             .sort((a, b) => b.tokens - a.tokens);
 
           const tooltipLines = [
             d.date,
-            `总 Token: ${fmtTokens(d.totalTokens)} · ${fmtUsd(d.costUsd)} · hit ${fmtPct(d.cacheHitRate)}`,
-            ...segments.map(
-              (s) => `${shortModel(s.model)}: ${fmtTokens(s.tokens)}`
-            ),
+            `${t("totalTokens")}: ${fmtTokens(d.totalTokens)} · ${fmtUsd(d.costUsd)} · ${t("colCacheHit")} ${fmtPct(d.cacheHitRate)}`,
+            ...segments.map((s) => `${displayName(s.key)}: ${fmtTokens(s.tokens)}`),
             "",
             t("doubleClickHint"),
           ].join("\n");
@@ -112,7 +123,7 @@ export function DailyBars({ daily, modelNames }: DailyBarsProps) {
               >
                 {segments.map((s) => (
                   <div
-                    key={s.model}
+                    key={s.key}
                     className="w-full transition-opacity group-hover:opacity-80"
                     style={{
                       height: s.height,
@@ -133,7 +144,9 @@ export function DailyBars({ daily, modelNames }: DailyBarsProps) {
         createPortal(
           <DailyDetailModal
             day={selected}
+            dimension={dimension}
             colorMap={colorMap}
+            unknownProviderLabel={unknownProviderLabel}
             onClose={() => setSelected(null)}
           />,
           document.body

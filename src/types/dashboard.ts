@@ -14,6 +14,8 @@ export interface TotalsRow {
 export interface DailyRow extends TotalsRow {
   date: string;
   byModel: Record<string, number>;
+  byProvider: Record<string, number>;
+  byProviderModel: Record<string, Record<string, number>>;
 }
 
 export interface ModelRow extends TotalsRow {

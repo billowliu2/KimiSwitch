@@ -548,7 +548,7 @@ export function SessionsPage() {
       <div className="text-xs text-content-muted pb-2">
         {data?.home && <>{data.home}</>}
         <br />
-        会话管理功能基于{" "}
+        {t("sessionsAttribution")}{" "}
         <button
           type="button"
           onClick={() => openUrl("https://github.com/JochenYang/kimicode-dashboard")}
@@ -556,7 +556,7 @@ export function SessionsPage() {
         >
           kimicode-dashboard
         </button>{" "}
-        （MIT，© JochenYang）移植
+        {t("attributionSuffix")}
       </div>
 
       {/* Confirm dialog */}
@@ -721,6 +721,7 @@ function PreviewMessageCard({
   text: string;
   locale: string;
 }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const isLong = text.length > PREVIEW_TEXT_LIMIT;
   const visible = expanded || !isLong ? text : text.slice(0, PREVIEW_TEXT_LIMIT);
@@ -754,8 +755,8 @@ function PreviewMessageCard({
           className="mt-1 text-[11px] text-blue-400 hover:text-blue-300 hover:underline"
         >
           {expanded
-            ? `收起 · ${text.length.toLocaleString()} 字符`
-            : `展开全文 · ${text.length.toLocaleString()} 字符`}
+            ? t("previewCollapseChars", { n: text.length.toLocaleString() })
+            : t("previewExpandChars", { n: text.length.toLocaleString() })}
         </button>
       )}
     </div>

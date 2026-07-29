@@ -303,7 +303,7 @@ export function SettingsModal({
               )}
               {updateInfo?.updateAvailable && (
                 <div className="pt-1 text-sm text-green-600 dark:text-green-500">
-                  ✦ {t("updateAvailable")}: v{updateInfo.latest}
+                  ✦ {t("updateAvailable")}: {formatVersion(updateInfo.latest)}
                 </div>
               )}
               {updateInfo && !updateInfo.updateAvailable && (

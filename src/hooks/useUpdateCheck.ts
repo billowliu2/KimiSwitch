@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 export interface UpdateInfo {
@@ -10,7 +10,10 @@ export interface UpdateInfo {
 }
 
 const THROTTLE_KEY = "kimi-switch-last-update-check";
-const THROTTLE_MS = 24 * 60 * 60 * 1000; // 24 hours
+// Both the throttle window and the periodic re-check run on an 8h cadence:
+// long-running sessions still pick up new releases without a restart, and the
+// actual backend call is still gated so short windows don't double-fire.
+const CHECK_INTERVAL_MS = 8 * 60 * 60 * 1000; // 8 hours
 
 export function useUpdateCheck() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
@@ -26,7 +29,7 @@ export function useUpdateCheck() {
 
   const doCheck = useCallback(async (force: boolean) => {
     if (!force) {
-      if (lastChecked && Date.now() - lastChecked < THROTTLE_MS) return;
+      if (lastChecked && Date.now() - lastChecked < CHECK_INTERVAL_MS) return;
     }
     setChecking(true);
     try {
@@ -40,16 +43,26 @@ export function useUpdateCheck() {
         // ignore
       }
     } catch {
-      // silently fail — user can retry from Settings
+      // silently fail — network errors, parse errors, etc. should not nag
+      // the user. They can still trigger a manual check from Settings.
     } finally {
       setChecking(false);
     }
   }, [lastChecked]);
 
-  // On mount: throttled auto-check
+  // Keep a ref to the latest doCheck so the periodic interval doesn't need
+  // to be reset on every lastChecked change.
+  const doCheckRef = useRef(doCheck);
   useEffect(() => {
-    doCheck(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    doCheckRef.current = doCheck;
+  }, [doCheck]);
+
+  // On mount: throttled auto-check + periodic re-check while the window
+  // stays open. Errors are silent (handled inside doCheck).
+  useEffect(() => {
+    doCheckRef.current(false);
+    const interval = setInterval(() => doCheckRef.current(false), CHECK_INTERVAL_MS);
+    return () => clearInterval(interval);
   }, []);
 
   const checkNow = useCallback(() => doCheck(true), [doCheck]);

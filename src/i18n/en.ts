@@ -209,6 +209,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   totalTokens: "Total tokens",
   cost: "Cost",
   modelDistribution: "Model distribution",
+  providerDistribution: "Provider distribution",
   modalEscHint: "Press Esc or click outside to close",
   doubleClickHint: "Double-click for details",
 
@@ -252,4 +253,67 @@ export const enTranslations: Record<TranslationKey, string> = {
   unknownModelProvider: "Model '{0}' references unknown provider '{1}'",
   emptyModelId: "Model '{0}' has an empty model ID",
   invalidMaxContextSize: "Model '{0}' has an invalid max_context_size",
+
+  // Dashboard — ranges / status
+  rangeToday: "Today",
+  range7d: "7d",
+  range30d: "30d",
+  rangeAll: "All",
+  dashLoadFailed: "Failed to load",
+
+  // Dashboard — KPI labels
+  kpiRequests: "Requests",
+  kpiInputOther: "Non-cached input",
+  kpiOutput: "Output",
+  kpiCacheRead: "Cache read",
+  kpiCacheCreation: "Cache creation",
+  kpiCacheHit: "Cache hit",
+  kpiCost: "Est. cost",
+
+  // Dashboard — cards
+  cardHeatmap: "Full-year heatmap",
+  cardHeatmapSub: "Coloured by token volume",
+  cardDailyTrend: "Usage trend",
+  cardDailyTrendSubCapped: "Last 30 days · {n} days total",
+  tabModelTrend: "Model usage trend",
+  tabProviderTrend: "Provider–model usage trend",
+  providerUnknown: "Unknown provider",
+  cardDailyTrendSub: "{n} days",
+  cardModelUsage: "Model usage",
+  cardModelUsageSub: "{n} models",
+  cardRecent: "Recent requests",
+  cardRecentCapped: "Showing first {n} / {m}",
+  cardRecentCount: "{n} entries",
+
+  // Dashboard — table columns / units
+  colModel: "Model",
+  colTokens: "Tokens",
+  colCacheHit: "Cache hit",
+  colTime: "Time",
+  colInput: "Input",
+  colOutput: "Output",
+  colCacheRead: "Cache read",
+  unitTimes: "requests",
+  estimate: "est.",
+  collapse: "Collapse",
+  expandAll: "Expand all ({n})",
+
+  // Dashboard — pagination
+  paginationPage: "Page {x} / {y}",
+  paginationRange: "{x}–{y}",
+  paginationPerPage: "{n} per page",
+  pageFirst: "First",
+  pagePrev: "Previous",
+  pageNext: "Next",
+  pageLast: "Last",
+
+  // Dashboard — footer / attribution
+  footerScanned: "Scanned {n} files · {m} records",
+  dashboardAttribution: "Dashboard ported from",
+  sessionsAttribution: "Session manager ported from",
+  attributionSuffix: "(MIT, © JochenYang)",
+
+  // Sessions — preview
+  previewCollapseChars: "Collapse · {n} chars",
+  previewExpandChars: "Expand · {n} chars",
 };
