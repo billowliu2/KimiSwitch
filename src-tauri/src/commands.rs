@@ -740,9 +740,21 @@ fn version_lt(current: &str, latest: &str) -> bool {
 #[tauri::command]
 pub async fn check_for_update() -> Result<UpdateInfo, String> {
     let current = env!("CARGO_PKG_VERSION").to_string();
-    let url = "https://git.codingplan.site/api/v1/repos/admin/KimiCodeSwitch/releases?limit=1";
+    // GitHub Releases API for billowliu2/KimiSwitch. Historical versions
+    // (v0.5.x and earlier) live on git.codingplan.site and are not exposed
+    // here — only v0.6.0+ is published via GitHub.
+    let url = "https://api.github.com/repos/billowliu2/KimiSwitch/releases?per_page=1";
 
-    let resp = reqwest::get(url)
+    // GitHub returns 403 without a User-Agent header. Bundle the app version
+    // so the source is identifiable in any rate-limit / abuse reports.
+    let client = reqwest::Client::builder()
+        .user_agent(concat!("KimiSwitch/", env!("CARGO_PKG_VERSION")))
+        .build()
+        .map_err(|e| format!("client build failed: {e}"))?;
+
+    let resp = client
+        .get(url)
+        .send()
         .await
         .map_err(|e| format!("request failed: {e}"))?;
 
