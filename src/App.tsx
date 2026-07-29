@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useConfig } from "./hooks/useConfig";
@@ -8,9 +8,15 @@ import { ProviderEdit } from "./components/ProviderEdit";
 import { DashboardPage } from "./components/dashboard/DashboardPage";
 import { SessionsPage } from "./components/sessions/SessionsPage";
 import { SettingsModal } from "./components/SettingsModal";
+import { PresetPickerModal } from "./components/PresetPickerModal";
 import { useTranslation } from "./i18n";
 import { getDefaultMaxContextSize } from "./lib/model-defaults";
 import { getModelRef } from "./lib/models-dev";
+import {
+  presetToProviderAndModels,
+  type ProviderPreset,
+} from "./config/providerPresets";
+import { validateProviders } from "./lib/validation";
 import type { Agent, Model, Provider } from "./types";
 
 const AGENT_STORAGE_KEY = "kimi-switch-agent";
@@ -68,6 +74,14 @@ export default function App() {
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [switchMessage, setSwitchMessage] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showPresetPicker, setShowPresetPicker] = useState(false);
+  // Provider names that have been added to the in-memory config but not
+  // yet committed via save(). Pressing "back" in the edit form for one of
+  // these drops it silently (no confirm); all other dirty navigation
+  // keeps the existing unsavedConfirm flow.
+  const [pendingNewProviders, setPendingNewProviders] = useState<Set<string>>(
+    () => new Set(),
+  );
 
 
   useEffect(() => {
@@ -78,35 +92,6 @@ export default function App() {
     const timer = setTimeout(() => setLoadTimeout(true), 5000);
     return () => clearTimeout(timer);
   }, [loading]);
-
-  // Keyboard shortcuts: Ctrl+S save, Ctrl+R reload, Ctrl+O open config dir
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (!e.ctrlKey || e.metaKey) return;
-      switch (e.key) {
-        case "s":
-        case "S":
-          e.preventDefault();
-          save();
-          break;
-        case "r":
-        case "R":
-          e.preventDefault();
-          if (dirty && !confirm(t("unsavedConfirm"))) return;
-          refresh();
-          break;
-        case "o":
-        case "O":
-          e.preventDefault();
-          invoke("open_agent_config_dir", { agent }).catch((err) =>
-            alert(err instanceof Error ? err.message : String(err))
-          );
-          break;
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [save, refresh, dirty, t, agent]);
 
   // Update window title to reflect unsaved changes.
   useEffect(() => {
@@ -138,8 +123,89 @@ export default function App() {
     [config]
   );
 
+  // trySave calls validateProviders, which takes a library-style
+  // `(key: string) => string`; useTranslation's `t` is strictly typed to
+  // the project's i18n key union, so we relax it locally for the call.
+  const tGeneric = t as unknown as (
+    key: string,
+    vars?: Record<string, unknown>,
+  ) => string;
+  // Wraps `save` with a completeness check. Three flavours of caller:
+  //   1. Whole-config save (Ctrl+S, footer button, ProviderEdit onSave):
+  //      no `target` → validate every enabled provider, show a confirm
+  //      dialog listing the incomplete ones.
+  //   2. Switching a specific provider as active: `target` is the
+  //      provider being switched to — only that one needs to be
+  //      complete; sibling providers being merely listed in the config
+  //      must not block the switch.
+  //   3. Programmatic auto-saves (duplicate) call `save` directly with
+  //      no validation — duplicates inherit completeness from their
+  //      source.
+  // Returns `true` when the config was actually persisted, `false` when
+  // the user cancelled the validation confirm (callers can react to this
+  // to roll back in-memory mutations made before the save).
+  const trySave = useCallback(
+    async (target?: string): Promise<boolean> => {
+      if (!config) return false;
+      if (dirty) {
+        const issues = validateProviders(config, config.models, tGeneric, target);
+        if (issues.length > 0) {
+          const summary = issues
+            .map((i) => `• ${i.name}: ${i.reasons.join("; ")}`)
+            .join("\n");
+          if (!confirm(t("saveValidationConfirm", { details: summary }))) {
+            return false;
+          }
+        }
+      }
+      await save();
+      // Successful save: clear the "in-memory only" markers — every
+      // provider is now on disk.
+      setPendingNewProviders(new Set());
+      return true;
+    },
+    [config, dirty, save, t],
+  );
+
+  // Keyboard shortcuts: Ctrl+S save, Ctrl+R reload, Ctrl+O open config dir
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!e.ctrlKey || e.metaKey) return;
+      switch (e.key) {
+        case "s":
+        case "S":
+          e.preventDefault();
+          void trySave();
+          break;
+        case "r":
+        case "R":
+          e.preventDefault();
+          if (dirty && !confirm(t("unsavedConfirm"))) return;
+          refresh();
+          break;
+        case "o":
+        case "O":
+          e.preventDefault();
+          invoke("open_agent_config_dir", { agent }).catch((err) =>
+            alert(err instanceof Error ? err.message : String(err))
+          );
+          break;
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [trySave, refresh, dirty, t, agent]);
+
+  // "Add provider" opens the preset picker; the empty form is reachable via
+  // the picker's "+ custom config" entry (handleAddCustomProvider).
   const handleAddProvider = () => {
     if (!config) return;
+    setShowPresetPicker(true);
+  };
+
+  const handleAddCustomProvider = () => {
+    if (!config) return;
+    setShowPresetPicker(false);
     const name = `provider-${providers.length + 1}`;
     const defaultType = agent === "kimi_code" ? "kimi" : "openai";
     updateConfig((cfg) => ({
@@ -159,7 +225,42 @@ export default function App() {
         },
       },
     }));
+    // Mark as in-memory only — never persisted until the user explicitly
+    // saves a complete config. Pressing "back" in the edit form will
+    // silently drop this entry.
+    setPendingNewProviders((prev) => new Set([...prev, name]));
     setEditingProvider(name);
+    setView("edit");
+  };
+
+  const handleSelectPreset = async (preset: ProviderPreset) => {
+    if (!config) return;
+    setShowPresetPicker(false);
+    const { provider, models, defaultModel } = presetToProviderAndModels(preset, {
+      existingProviderNames: new Set(Object.keys(config.providers)),
+      existingModelAliases: new Set(Object.keys(config.models)),
+    });
+    updateConfig((cfg) => {
+      const providers = { ...cfg.providers, [provider.name]: provider };
+      const updatedModels = { ...cfg.models };
+      for (const m of models) {
+        updatedModels[m.alias] = m;
+      }
+      return {
+        ...cfg,
+        providers,
+        models: updatedModels,
+        default_model: defaultModel || cfg.default_model,
+      };
+    });
+    // Do NOT auto-save: a freshly-picked preset is intentionally
+    // incomplete (no api_key yet). The user lands in the edit form
+    // next; if they fill the key and save, validation passes and the
+    // config lands on disk. If they back out without saving, the
+    // in-memory additions are discarded on the next refresh — config.toml
+    // never receives a half-configured provider.
+    setPendingNewProviders((prev) => new Set([...prev, provider.name]));
+    setEditingProvider(provider.name);
     setView("edit");
   };
 
@@ -227,7 +328,18 @@ export default function App() {
       const models = { ...cfg.models };
       for (const [alias, m] of Object.entries(cfg.models)) {
         if (m.provider === name) {
-          const newAlias = newName + alias.slice(name.length);
+          // The model belongs to this provider by `m.provider === name`. To
+          // re-key it under the new provider, we want a `newName/...`
+          // alias. The original code assumed `alias` is exactly
+          // `${name}/${modelId}` and used `alias.slice(name.length)`; that
+          // breaks for legacy / non-standard aliases (e.g. `kimi-k3` from
+          // pre-v0.6 data) which would produce `newName-k3` — missing the
+          // `/` separator and pointing at the wrong model. Use an explicit
+          // prefix check and fall back to a full re-prefix.
+          const prefix = `${name}/`;
+          const newAlias = alias.startsWith(prefix)
+            ? newName + alias.slice(name.length)
+            : `${newName}/${alias}`;
           models[newAlias] = { ...m, alias: newAlias, provider: newName };
         }
       }
@@ -303,7 +415,13 @@ export default function App() {
     });
 
     // Persist the full config to Kimi Switch's SQLite and activate the selected provider.
-    await save();
+    const saved = await trySave(name);
+    if (!saved) {
+      // Validation was cancelled: undo the in-memory switch by reloading
+      // the on-disk state, and skip the activation + /reload nudge.
+      await refresh();
+      return;
+    }
     await invoke("activate_agent_config_command", { agent });
 
     // /reload is an interactive Kimi Code TUI command with no CLI equivalent,
@@ -315,6 +433,27 @@ export default function App() {
     } catch {
       // Clipboard may be unavailable; ignore silently.
     }
+  };
+
+  const handleEditBack = async () => {
+    const target = editingProvider;
+    if (target && pendingNewProviders.has(target)) {
+      // This provider was added in-memory (via preset or "+ custom config")
+      // but never committed. Drop it silently — no confirm — and reload
+      // from disk so the list reflects the on-disk truth.
+      setPendingNewProviders((prev) => {
+        const next = new Set(prev);
+        next.delete(target);
+        return next;
+      });
+      await refresh();
+    } else if (dirty) {
+      // Real edits to a previously-saved provider — keep the existing
+      // unsaved-changes confirm so the user doesn't lose work by accident.
+      if (!confirm(t("unsavedConfirm"))) return;
+      await refresh();
+    }
+    setView("list");
   };
 
   const handleApplyProviderJson = (provider: Provider, models: Model[]) => {
@@ -508,7 +647,7 @@ export default function App() {
             onRawOtherChange={(nextRawOther) =>
               updateConfig((cfg) => ({ ...cfg, raw_other: nextRawOther }))
             }
-            onBack={() => setView("list")}
+            onBack={handleEditBack}
             onChange={handleUpdateProvider}
             onDelete={() => handleDeleteProvider(currentProvider.name)}
             onModelChange={(model) => {
@@ -577,7 +716,7 @@ export default function App() {
             }}
             onSetDefault={handleSetDefaultModel}
             onApplyJson={handleApplyProviderJson}
-            onSave={save}
+            onSave={trySave}
           />
         ) : (
           <div className="p-8 text-center text-content-muted">
@@ -603,7 +742,7 @@ export default function App() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={save}
+            onClick={() => { void trySave(); }}
             disabled={!dirty || loading}
             className={`px-3 py-1.5 text-sm rounded focus:ring-2 focus:outline-none disabled:opacity-50 ${
               dirty
@@ -650,6 +789,13 @@ export default function App() {
         checking={checking}
         onCheckUpdate={checkNow}
         lastChecked={lastChecked}
+      />
+
+      <PresetPickerModal
+        open={showPresetPicker}
+        onClose={() => setShowPresetPicker(false)}
+        onSelect={handleSelectPreset}
+        onCustom={handleAddCustomProvider}
       />
     </div>
   );

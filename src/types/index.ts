@@ -28,6 +28,12 @@ export interface Provider {
   icon?: string | null;
   /** Custom icon color; falls back to icon metadata defaultColor. */
   icon_color?: string | null;
+  /**
+   * Usage query kinds (e.g. "balance:deepseek", "plan:kimi_coding").
+   * Merged in by the Rust side on load (SQLite settings / base_url detect)
+   * and persisted back to SQLite on save; never written to config.toml.
+   */
+  usageKinds?: string[];
   /** Extra agent-specific provider fields preserved across edits. */
   raw_other?: unknown;
 }

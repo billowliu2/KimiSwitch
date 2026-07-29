@@ -209,6 +209,7 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
                     icon,
                     icon_color,
                     raw_other,
+                    usage_kinds: None,
                 },
             );
         }
@@ -506,6 +507,7 @@ api_key = ""
                 icon: None,
                 icon_color: None,
                 raw_other: Value::Null,
+                usage_kinds: None,
             },
         );
         let mut models = IndexMap::new();
@@ -567,6 +569,7 @@ api_key = ""
                 icon: None,
                 icon_color: None,
                 raw_other: Value::Null,
+                usage_kinds: None,
             },
         );
         let mut models = IndexMap::new();
@@ -669,7 +672,10 @@ max_context_size = 1048576
                 managed: false,
                 enabled: true,
                 active: true,
+                icon: None,
+                icon_color: None,
                 raw_other: Value::Null,
+                usage_kinds: None,
             },
         );
         providers.insert(
@@ -685,7 +691,10 @@ max_context_size = 1048576
                 managed: false,
                 enabled: true,
                 active: false,
+                icon: None,
+                icon_color: None,
                 raw_other: Value::Null,
+                usage_kinds: None,
             },
         );
         let config = Config {
@@ -721,7 +730,10 @@ max_context_size = 1048576
                 managed: false,
                 enabled: true,
                 active: true,
+                icon: None,
+                icon_color: None,
                 raw_other: serde_json::json!({"default_model": "some-alias"}),
+                usage_kinds: None,
             },
         );
         let config = Config {

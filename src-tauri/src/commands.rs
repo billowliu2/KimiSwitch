@@ -1,8 +1,12 @@
 use crate::db;
 use crate::models::{Agent, Config, DiscoveredModel, Model, Provider, ProviderType};
 use crate::pi_io;
+use crate::services::{self, UsageKind, UsageResult};
 use indexmap::IndexMap;
 use serde::Serialize;
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 use tauri_plugin_opener::OpenerExt;
 
 fn fmt_anyhow(err: anyhow::Error) -> String {
@@ -17,12 +21,60 @@ pub fn debug_log(message: String) {
     eprintln!("[frontend] {}", message);
 }
 
+/// SQLite settings key for a provider's billing/usage query kinds
+/// (JSON array of kind strings, e.g. `["balance:deepseek"]`).
+fn usage_kinds_key(provider_name: &str) -> String {
+    format!("usage_kinds:{provider_name}")
+}
+
+/// Merge per-provider `usage_kinds` into a loaded config: explicit SQLite
+/// settings first, host-based detection as fallback so existing installs get
+/// billing support automatically. The field never enters config.toml.
+fn merge_usage_kinds(config: &mut Config) {
+    for p in config.providers.values_mut() {
+        let from_settings = db::get_setting_pub(&usage_kinds_key(&p.name))
+            .ok()
+            .flatten()
+            .and_then(|s| serde_json::from_str::<Vec<String>>(&s).ok())
+            .filter(|v| !v.is_empty());
+        p.usage_kinds = from_settings.or_else(|| {
+            let kinds = services::detect_provider(&resolve_base_url(p));
+            if kinds.is_empty() {
+                None
+            } else {
+                Some(kinds.iter().map(|k| k.as_str().to_string()).collect())
+            }
+        });
+    }
+}
+
+fn load_pi_native_config() -> Result<Config, String> {
+    let file = pi_io::load_pi_models().map_err(fmt_anyhow)?;
+    let mut config = pi_io::pi_file_to_config(&file);
+    if config.default_model.is_none() {
+        if let Ok(settings) = pi_io::load_pi_settings() {
+            if let (Some(provider), Some(model_id)) =
+                (settings.default_provider, settings.default_model)
+            {
+                if let Some(alias) = config
+                    .models
+                    .values()
+                    .find(|m| m.provider == provider && m.model == model_id)
+                {
+                    config.default_model = Some(alias.alias.clone());
+                }
+            }
+        }
+    }
+    Ok(config)
+}
+
 #[tauri::command]
 pub fn load_agent_config_command(agent: Agent) -> Result<Config, String> {
     // Load Kimi Switch's own SQLite database (metadata + migration fallback).
     let db_config = db::load_config(&agent).ok();
 
-    match agent {
+    let mut config = match agent {
         Agent::KimiCode => {
             // config.toml is the authoritative source for provider/model data
             // because the user can add or edit providers at any time via the
@@ -69,33 +121,19 @@ pub fn load_agent_config_command(agent: Agent) -> Result<Config, String> {
                 }
             }
 
-            Ok(config)
+            config
         }
         Agent::Pi => {
             // Pi: SQLite first, fall back to native config on first use.
-            if let Some(config) = db_config {
-                if !config.providers.is_empty() {
-                    return Ok(config);
-                }
+            match db_config {
+                Some(config) if !config.providers.is_empty() => config,
+                _ => load_pi_native_config()?,
             }
-            let file = pi_io::load_pi_models().map_err(fmt_anyhow)?;
-            let mut config = pi_io::pi_file_to_config(&file);
-            if config.default_model.is_none() {
-                if let Ok(settings) = pi_io::load_pi_settings() {
-                    if let (Some(provider), Some(model_id)) =
-                        (settings.default_provider, settings.default_model)
-                    {
-                        if let Some(alias) = config.models.values().find(|m| {
-                            m.provider == provider && m.model == model_id
-                        }) {
-                            config.default_model = Some(alias.alias.clone());
-                        }
-                    }
-                }
-            }
-            Ok(config)
         }
-    }
+    };
+
+    merge_usage_kinds(&mut config);
+    Ok(config)
 }
 
 #[tauri::command]
@@ -107,6 +145,19 @@ pub fn save_agent_config_command(agent: Agent, config: Config) -> Result<(), Str
     // ensures edits (Ctrl+S) survive a restart even without switching.
     if matches!(agent, Agent::KimiCode) {
         crate::kimi_code_io::save_config_as_kimi_code(&config).map_err(fmt_anyhow)?;
+    }
+    // Persist usage_kinds to the SQLite settings table (never config.toml;
+    // the field is skip_serializing and the TOML export is hand-built).
+    // None / empty array → delete the key.
+    for provider in config.providers.values() {
+        let key = usage_kinds_key(&provider.name);
+        match &provider.usage_kinds {
+            Some(kinds) if !kinds.is_empty() => {
+                let json = serde_json::to_string(kinds).map_err(|e| e.to_string())?;
+                db::set_setting_pub(&key, &json).map_err(fmt_anyhow)?;
+            }
+            _ => db::delete_setting_pub(&key).map_err(fmt_anyhow)?,
+        }
     }
     Ok(())
 }
@@ -509,6 +560,144 @@ pub fn get_app_setting(key: String) -> Option<String> {
 #[tauri::command]
 pub fn set_app_setting(key: String, value: String) -> Result<(), String> {
     db::set_setting_pub(&key, &value).map_err(|e| e.to_string())
+}
+
+// ---------------------------------------------------------------------------
+// Provider billing / usage query (cc-switch semantics)
+// ---------------------------------------------------------------------------
+
+/// 5-minute in-memory cache keyed by (agent, provider_name).
+/// Only successful results are cached; failures are always re-queryable.
+const USAGE_CACHE_TTL: Duration = Duration::from_secs(300);
+
+type UsageCache = Mutex<HashMap<(String, String), (Instant, UsageResult)>>;
+
+fn usage_cache() -> &'static UsageCache {
+    static CACHE: OnceLock<UsageCache> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Query a provider's balance / plan quota. The frontend passes only the
+/// provider name — base_url, api_key and usage kinds are all resolved here,
+/// so the API key never crosses IPC and the host routing cannot be spoofed.
+///
+/// Error channel semantics (cc-switch):
+/// - `Err(_)` = transient failure (network/timeout/body read) → frontend
+///   retries and keeps the last good value.
+/// - `Ok(success:false)` = deterministic failure (no key / auth / non-2xx /
+///   bad JSON / unsupported provider) → show the error text directly.
+#[tauri::command]
+pub async fn query_provider_usage(
+    agent: Agent,
+    provider_name: String,
+    force_refresh: Option<bool>,
+) -> Result<UsageResult, String> {
+    let cache_key = (agent.as_str().to_string(), provider_name.clone());
+
+    if !force_refresh.unwrap_or(false) {
+        let cached = usage_cache()
+            .lock()
+            .unwrap()
+            .get(&cache_key)
+            .and_then(|(ts, result)| (ts.elapsed() < USAGE_CACHE_TTL).then(|| result.clone()));
+        if let Some(result) = cached {
+            return Ok(result);
+        }
+    }
+
+    // Load via the same path as load_agent_config_command so usage_kinds
+    // (SQLite merge + host-detect fallback) is already resolved.
+    let config = load_agent_config_command(agent)?;
+    let Some(provider) = config.providers.get(&provider_name) else {
+        return Ok(UsageResult::failure(format!(
+            "provider '{provider_name}' not found"
+        )));
+    };
+
+    // The api_key only ever goes into request headers — never into logs,
+    // error messages, or the cache key.
+    let api_key = provider
+        .api_key
+        .clone()
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| {
+            provider
+                .env
+                .get(expected_api_key_key(&provider.provider_type))
+                .cloned()
+                .filter(|s| !s.is_empty())
+        });
+    let Some(api_key) = api_key else {
+        return Ok(UsageResult::failure(if provider.managed {
+            "provider uses managed OAuth; usage query requires an API key".to_string()
+        } else {
+            "no API key configured".to_string()
+        }));
+    };
+
+    let base_url = resolve_base_url(provider);
+    let kinds: Vec<UsageKind> = provider
+        .usage_kinds
+        .as_ref()
+        .filter(|v| !v.is_empty())
+        .map(|v| {
+            v.iter()
+                .filter_map(|s| s.parse::<UsageKind>().ok())
+                .collect::<Vec<_>>()
+        })
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| services::detect_provider(&base_url));
+    if kinds.is_empty() {
+        return Ok(UsageResult::failure(
+            "unsupported provider: no usage query available for this base URL".to_string(),
+        ));
+    }
+
+    // A failing kind must not take down the others: collect successes,
+    // deterministic failures and transient failures separately.
+    let mut data: Vec<crate::services::UsageData> = Vec::new();
+    let mut errors: Vec<String> = Vec::new();
+    let mut transient: Vec<String> = Vec::new();
+    let mut any_success = false;
+    for kind in kinds {
+        match services::query_kind(kind, &base_url, &api_key).await {
+            Ok(result) if result.success => {
+                any_success = true;
+                if let Some(d) = result.data {
+                    data.extend(d);
+                }
+            }
+            Ok(result) => {
+                if let Some(e) = result.error {
+                    errors.push(format!("{}: {e}", kind.as_str()));
+                }
+            }
+            Err(e) => transient.push(format!("{}: {e}", kind.as_str())),
+        }
+    }
+
+    if any_success {
+        let result = UsageResult {
+            success: true,
+            data: if data.is_empty() { None } else { Some(data) },
+            error: if errors.is_empty() {
+                None
+            } else {
+                Some(errors.join("; "))
+            },
+        };
+        usage_cache()
+            .lock()
+            .unwrap()
+            .insert(cache_key, (Instant::now(), result.clone()));
+        Ok(result)
+    } else if !transient.is_empty() {
+        // All kinds failed transiently → propagate Err so the frontend
+        // rejects and retries (keep-last-good).
+        Err(transient.join("; "))
+    } else {
+        Ok(UsageResult::failure(errors.join("; ")))
+    }
 }
 
 // ---------------------------------------------------------------------------

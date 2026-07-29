@@ -30,6 +30,7 @@
 - [打包发布](#打包发布)
 - [发布历史](#发布历史)
 - [常见问题](#常见问题)
+- [已知限制与后续建议](#已知限制与后续建议)
 - [安全提示](#安全提示)
 - [致谢](#致谢)
 
@@ -467,7 +468,7 @@ cargo test
 - [ ] 切换语言后 UI 文案立即更新
 - [ ] 启动检查更新 → 下载 → 引导安装
 - [ ] 拉取模型时 `max_context_size` 自动填充
-- [ ] 切换供应商后 Kimi Code 会话 `/reload` 立即生效
+- [ ] 切换供应商后 Kimi Code 会话经 `/reload` + `/model` 选回默认（或 `/exit` 重开会话）后生效
 
 ## 打包发布
 
@@ -533,7 +534,11 @@ Windows 安装包（MSI），含 WebView2 bootstrapper 自动下载。`nsis` 已
 ## 常见问题
 
 **Q: 切换供应商后 Kimi Code 没生效？**
-A: 在 Kimi Code 会话里执行 `/reload`（Kimi Code CLI 才会重新读取 `~/.kimi-code/config.toml`）。应用会在 UI 上提示。
+A: 需要分两步：
+1. 在 Kimi Code 会话里执行 `/reload`，让 CLI 重新读取 `~/.kimi-code/config.toml`（此时模型**下拉列表**会刷新）；
+2. **再执行一次 `/model` 选回新的默认模型**，或者直接 `/exit` 重开会话。
+
+仅 `/reload` **不会**把新的 `default_model` 自动套用到当前会话——这是 Kimi Code 的已知行为，详见下方[已知限制与后续建议](#已知限制与后续建议)。应用会在 UI 上提示这两步。
 
 **Q: 切换会覆盖其他供应商吗？**
 A: 不会。Kimi Code 的 `config.toml` 始终写入全部供应商，仅 `default_model` 决定生效项。这与 CLI 原生 `/provider` 行为一致。
@@ -565,6 +570,48 @@ A: 关闭按钮（X）已改为隐藏到托盘。点击托盘图标（菜单栏 
 **Q: 检查更新是怎么触发的？**
 A: 启动时静默检查一次，之后每 8 小时自动检查一次（无网络时静默失败，不弹错）。也可手动：设置弹窗 → 版本 → 检查更新。下载有进度条，下载完成后会有"打开安装包"按钮。
 
+## 已知限制与后续建议
+
+### `/reload` 不会切换当前会话的默认模型（Kimi Code 上游限制）
+
+**现象**：在 Kimi Switch 切换供应商后，`config.toml` 顶层的 `default_model` 已经被正确更新；回到 Kimi Code CLI 执行 `/reload`，模型**下拉列表**能列出新的默认模型，但**当前会话实际仍在使用旧模型**（底部状态栏显示的模型、真正发出的请求都没变）。
+
+**根因**（已对照 Kimi Code 源码确认，不是 Kimi Switch 的 bug）：
+
+- `/reload` 命令（`apps/kimi-code/src/tui/commands/reload.ts`）在刷新 `availableModels / availableProviders` 之后，**没有**把 `config.defaultModel` 重新套用到当前会话的 agent 上。
+- 会话当前的模型（`agent.config.modelAlias`）来自会话创建时的 `options.model ?? config.defaultModel`（`packages/agent-core/src/rpc/core-impl.ts:438-440`），并通过 `records.logRecord` 持久化进会话日志；`Agent.resume()` 调 `records.replay()` 时会**回放这些历史记录**，从而把模型恢复成"上次手动选的"，而不是 `config.defaultModel`。
+- 单元测试（`apps/kimi-code/test/tui/commands/reload.test.ts:87-89`）也只断言"模型列表刷新了"，没有任何"当前会话切到新默认模型"的断言——因为实现层就没做这一步。
+- 全仓检索 `FOLLOW_DEFAULT / reloadDefault / KIMI_CODE_RELOAD` 等关键字**零命中**，说明 Kimi Code 目前**没有**任何"reload 时跟随 default_model"的开关。
+
+**Workaround（当前可用）**：
+
+1. `/reload` 后再执行 `/model`，手动选一次新默认模型；或
+2. `/exit` 退出会话再重开（重新走 `createSession` 路径，会把 `config.defaultModel` 套到新会话）。
+
+**建议反馈给 Kimi Code 上游的修复点**：
+
+- 文件：`apps/kimi-code/src/tui/commands/reload.ts` 的 `handleReloadCommand`。
+- 位置：`applyRuntimeConfig(host, config)` 之后，补一段把 `config.defaultModel` 同步到当前会话 agent 的逻辑，例如：
+  ```ts
+  const newDefault = config.defaultModel;
+  const current = /* host.session 当前 agent 的 modelAlias */;
+  if (newDefault && newDefault !== current) {
+    await host.session.mainAgent.config.update({ modelAlias: newDefault });
+  }
+  ```
+- 配套断言：在 `reload.test.ts` 增加对"reload 后会话当前模型 == 新 `defaultModel`"的测试，防回归。
+- 可选增强：暴露一个会话级"follow default on reload"开关，或当会话旧 alias 已被删除时自动回退到 `default_model`。
+
+> 注：以上建议**尚未提交给官方**，记录于此供后续跟进。Kimi Switch 侧只能保证 `config.toml` 写入正确，无法绕开 Kimi Code 自身的 `/reload` 语义。
+
+### 其它后续建议（按优先级）
+
+- **P1 — 模型别名规范**：早期裸名或 `-1/-2` 后缀的别名（如 `kimi-k3`、`glm-5-2-1`）已批量重命名为 `provider/model` 形式；新增供应商时建议**强制**采用规范命名，避免再出现补全后缀。可在保存前加一层 lint。
+- **P1 — 用量趋势多维度**：用量趋势已支持"模型用量趋势 / 供应商模型用量趋势"两个 Tab；后续可考虑增加"按工作区"或"按 Token / 按费用"的第三维度切换。
+- **P2 — 周期检查更新**：当前为启动 + 每 8 小时一次；后续可考虑做成可配置项（设置面板里设周期 / 关闭）。
+- **P2 — 跨平台**：目前只产 MSI，代码不依赖 Windows 专属 API；待 Tauri v2 的 macOS/Linux bundle 配置后即可验证。
+- **P3 — 配置校验增强**：`validators.rs` 当前偏基础，可补：`base_url` 合法性、`env` 与 `api_key` 互斥、`oauth` 段完整性。
+
 ## 安全提示
 
 - API Key 明文存储在本地 SQLite 和 Agent 原生配置里——**不要在共享电脑上保存**
@@ -578,6 +625,8 @@ A: 启动时静默检查一次，之后每 8 小时自动检查一次（无网�
 用量仪表盘与会话管理功能基于 [kimicode-dashboard](https://github.com/JochenYang/kimicode-dashboard)（MIT 许可证，© JochenYang）移植。Rust 后端（`src-tauri/src/dashboard.rs`）、前端仪表盘（`src/components/dashboard/`）、会话管理页（`src/components/sessions/`）均源自该项目，感谢原作者的开源贡献。
 
 供应商品牌图标资源（`src/icons/extracted/`）与图标选择器（`src/components/IconPicker.tsx`）参考自 [cc-switch](https://github.com/farion1231/cc-switch)（MIT 许可证，© Jason Young），感谢原作者的开源贡献。
+
+供应商预设结构（`src/config/providerPresets.ts`）与余额/套餐查询实现（`src-tauri/src/services/`）同样参考自 [cc-switch](https://github.com/farion1231/cc-switch)（MIT 许可证，© Jason Young）。
 
 ---
 

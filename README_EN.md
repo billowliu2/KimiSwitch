@@ -30,6 +30,7 @@
 - [Build & Release](#build--release)
 - [Release History](#release-history)
 - [FAQ](#faq)
+- [Known Limitations & Next Steps](#known-limitations--next-steps)
 - [Security Notes](#security-notes)
 - [Credits](#credits)
 
@@ -463,7 +464,7 @@ No automated tests yet. Suggested manual checklist:
 - [ ] Language switch updates UI text in place
 - [ ] Update check → download → guided install
 - [ ] `max_context_size` auto-fills on model fetch
-- [ ] Kimi Code `/reload` picks up new config after switching
+- [ ] New default model takes effect after `/reload` + `/model` (or after `/exit` and restart)
 
 ## Build & Release
 
@@ -529,7 +530,11 @@ Ported from [kimicode-dashboard](https://github.com/JochenYang/kimicode-dashboar
 ## FAQ
 
 **Q: Switching providers didn't take effect in Kimi Code?**
-A: Run `/reload` inside the Kimi Code session (the CLI only re-reads `~/.kimi-code/config.toml` on reload). The app shows this hint in the UI.
+A: Two steps are required:
+1. Run `/reload` inside the Kimi Code session so the CLI re-reads `~/.kimi-code/config.toml` (this refreshes the model **dropdown list**);
+2. **Then run `/model` to pick the new default**, or simply `/exit` and restart the session.
+
+Running `/reload` alone **does not** apply the new `default_model` to the current session — this is a known Kimi Code behaviour, see [Known Limitations & Next Steps](#known-limitations--next-steps) below. The app surfaces both steps in its UI.
 
 **Q: Does switching overwrite other providers?**
 A: No. Kimi Code's `config.toml` is always written with all providers, only `default_model` decides which one is active. This matches the CLI's native `/provider` behaviour.
@@ -561,6 +566,48 @@ A: The close X hides to the tray. Click the tray icon (menu bar / system tray) t
 **Q: How is the update check triggered?**
 A: It silently checks once on launch, then automatically every 8 hours (silent failure with no network, no error popup). You can also trigger it manually: Settings modal → Version → Update check. Downloads have a progress bar; once done, an "Open installer" button appears.
 
+## Known Limitations & Next Steps
+
+### `/reload` does not switch the active session's default model (Kimi Code upstream limitation)
+
+**Symptom**: After switching a provider in Kimi Switch, `default_model` at the top level of `config.toml` is correctly updated. Back in Kimi Code CLI you run `/reload`: the model **dropdown** now lists the new default, but the **current session still uses the old model** (status-bar model and the actual outgoing requests haven't changed).
+
+**Root cause** (verified against the Kimi Code source — **not** a Kimi Switch bug):
+
+- The `/reload` command (`apps/kimi-code/src/tui/commands/reload.ts`) refreshes `availableModels / availableProviders` but **never** re-applies `config.defaultModel` to the active session's agent.
+- The session's current model (`agent.config.modelAlias`) comes from `options.model ?? config.defaultModel` at session-create time (`packages/agent-core/src/rpc/core-impl.ts:438-440`) and is persisted to the session log via `records.logRecord`. `Agent.resume()` then calls `records.replay()`, which **replays those records** — so the model snaps back to "what was last picked", not to `config.defaultModel`.
+- The unit test (`apps/kimi-code/test/tui/commands/reload.test.ts:87-89`) only asserts "the model list refreshed"; there is **no** assertion that "the active session switched to the new default" — because the implementation never does that step.
+- A repo-wide search for `FOLLOW_DEFAULT / reloadDefault / KIMI_CODE_RELOAD` yields **zero** hits, so Kimi Code has **no** "follow default on reload" toggle today.
+
+**Workaround (works today)**:
+
+1. After `/reload`, run `/model` and pick the new default manually; or
+2. `/exit` and restart the session (the `createSession` path re-applies `config.defaultModel` to the fresh session).
+
+**Suggested upstream fix for Kimi Code**:
+
+- File: `apps/kimi-code/src/tui/commands/reload.ts`, in `handleReloadCommand`.
+- Spot: right after `applyRuntimeConfig(host, config)`, add a sync of `config.defaultModel` to the active session's agent, e.g.:
+  ```ts
+  const newDefault = config.defaultModel;
+  const current = /* host.session's current agent modelAlias */;
+  if (newDefault && newDefault !== current) {
+    await host.session.mainAgent.config.update({ modelAlias: newDefault });
+  }
+  ```
+- Matching test: add an assertion in `reload.test.ts` that "after reload, the session's active model == new `defaultModel`" to guard against regressions.
+- Optional enhancement: expose a session-level "follow default on reload" toggle, or auto-fall-back to `default_model` when the session's previous alias has been deleted.
+
+> Note: this suggestion has **not** been filed upstream yet; it's recorded here for follow-up. Kimi Switch can only guarantee `config.toml` is written correctly — it cannot work around Kimi Code's own `/reload` semantics.
+
+### Other next-step suggestions (by priority)
+
+- **P1 — Model alias convention**: early bare-name or `-1/-2` suffixed aliases (e.g. `kimi-k3`, `glm-5-2-1`) have been bulk-renamed to the `provider/model` form; when adding a new provider, **force** this convention to prevent re-introducing suffixed fallbacks. Add a save-time lint.
+- **P1 — Multi-dimensional usage trends**: the usage trend already supports two tabs ("model trend" / "provider×model trend"); a future third dimension (per-workspace, or switch the Y axis between tokens and cost) is worth considering.
+- **P2 — Periodic update check**: currently launch + every 8h; consider making the cadence configurable (set period / disable in the settings modal).
+- **P2 — Cross-platform**: only MSI is produced today, but the code has no Windows-only dependencies; once Tauri v2 macOS/Linux bundling is configured, it can be verified.
+- **P3 — Stronger config validation**: `validators.rs` is fairly minimal today; worth adding: `base_url` validity, `env` vs `api_key` mutual-exclusivity, `oauth` block completeness.
+
 ## Security Notes
 
 - API keys are stored in plaintext in local SQLite and agent native configs — **do not store them on shared computers**
@@ -574,6 +621,8 @@ A: It silently checks once on launch, then automatically every 8 hours (silent f
 The usage dashboard and session manager are ported from [kimicode-dashboard](https://github.com/JochenYang/kimicode-dashboard) (MIT License, © JochenYang). The Rust backend (`src-tauri/src/dashboard.rs`), dashboard UI (`src/components/dashboard/`), and sessions page (`src/components/sessions/`) in this project are derived from that work. Many thanks to the original author.
 
 The provider brand icon library (`src/icons/extracted/`) and the icon picker (`src/components/IconPicker.tsx`) are adapted from [cc-switch](https://github.com/farion1231/cc-switch) (MIT License, © Jason Young). Many thanks to the original author.
+
+The provider presets structure (`src/config/providerPresets.ts`) and the balance/plan usage query implementation (`src-tauri/src/services/`) are likewise adapted from [cc-switch](https://github.com/farion1231/cc-switch) (MIT License, © Jason Young).
 
 ---
 

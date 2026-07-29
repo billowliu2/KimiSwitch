@@ -5,6 +5,7 @@ pub mod db;
 pub mod kimi_code_io;
 pub mod models;
 pub mod pi_io;
+pub mod services;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder};
@@ -96,6 +97,7 @@ pub fn run() {
             commands::get_app_version,
             commands::list_provider_models,
             commands::test_connectivity,
+            commands::query_provider_usage,
             commands::debug_log,
             commands::get_app_setting,
             commands::set_app_setting,

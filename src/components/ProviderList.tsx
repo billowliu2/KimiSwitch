@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Pencil, Copy, Activity, Loader2, Trash2 } from "lucide-react";
 import { useTranslation } from "../i18n";
 import { ProviderIcon } from "./ProviderIcon";
+import { UsageFooter } from "./UsageFooter";
 import type { Agent, Model, Provider } from "../types";
 
 interface ConnectivityResult {
@@ -144,13 +145,14 @@ export function ProviderList({
               return (
                 <div
                   key={provider.name}
-                  className={`group relative flex items-center gap-4 p-4 rounded-xl border transition-colors cursor-pointer w-full ${
+                  className={`group relative flex flex-col gap-3 p-4 rounded-xl border transition-colors cursor-pointer w-full ${
                     isActive
                       ? "bg-green-50 dark:bg-green-900/10 border-green-300 dark:border-green-500/30 hover:border-green-400 dark:border-green-500/50 hover:bg-green-100 dark:bg-green-900/20"
                       : "bg-panel border-border hover:border-strong hover:bg-hover"
                   }`}
                   onClick={() => onEdit(provider.name)}
                 >
+                  <div className="flex items-center gap-4 w-full">
                   <ProviderIcon
                     name={provider.name}
                     icon={provider.icon}
@@ -294,6 +296,12 @@ export function ProviderList({
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
+                  </div>
+                  <UsageFooter
+                    agent={agent}
+                    providerName={provider.name}
+                    usageKinds={provider.usageKinds}
+                  />
                 </div>
               );
             })}

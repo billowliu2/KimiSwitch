@@ -157,6 +157,8 @@ pub fn load_config(agent: &Agent) -> DbResult<Config> {
                 raw_other: raw_json
                     .and_then(|s| serde_json::from_str(&s).ok())
                     .unwrap_or(Value::Null),
+                // Merged from the settings table by load_agent_config_command.
+                usage_kinds: None,
             })
         })?;
 
@@ -314,6 +316,13 @@ pub fn set_setting_pub(key: &str, value: &str) -> DbResult<()> {
     let tx = conn.transaction()?;
     set_setting_tx(&tx, key, value)?;
     tx.commit()?;
+    Ok(())
+}
+
+/// Public helper: delete a single setting (no-op if the key does not exist).
+pub fn delete_setting_pub(key: &str) -> DbResult<()> {
+    let conn = init_db()?;
+    conn.execute("DELETE FROM settings WHERE key = ?1", params![key])?;
     Ok(())
 }
 

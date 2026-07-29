@@ -91,6 +91,14 @@ pub struct Provider {
     pub icon_color: Option<String>,
     #[serde(default, skip_serializing_if = "Value::is_null")]
     pub raw_other: Value,
+    /// Billing/usage query kinds for this provider (e.g. "balance:deepseek",
+    /// "plan:kimi_coding"). Persisted in the SQLite settings table under
+    /// `usage_kinds:<provider_name>`, NOT in the agent's config.toml — both
+    /// export paths (kimi_code_io manual TOML, pi_io PiProvider struct) are
+    /// explicit and never serialize this field, while the IPC payload to the
+    /// frontend does carry it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage_kinds: Option<Vec<String>>,
 }
 
 impl PartialEq for Provider {
@@ -108,6 +116,7 @@ impl PartialEq for Provider {
             && self.icon == other.icon
             && self.icon_color == other.icon_color
             && self.raw_other == other.raw_other
+            && self.usage_kinds == other.usage_kinds
     }
 }
 
