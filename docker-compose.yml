@@ -1,0 +1,13 @@
+services:
+  build-linux:
+    build: .
+    container_name: kimiswitch-build-linux
+    volumes:
+      - .:/workspace
+      - cargo-cache:/usr/local/cargo/registry
+      - target-cache:/workspace/src-tauri/target
+    working_dir: /workspace
+
+volumes:
+  cargo-cache:
+  target-cache:
