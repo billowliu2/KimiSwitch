@@ -783,10 +783,7 @@ pub async fn check_for_update() -> Result<UpdateInfo, String> {
     let download_url = first
         .get("assets")
         .and_then(|a| a.as_array())
-        .and_then(|a| a.first())
-        .and_then(|a| a.get("browser_download_url"))
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
+        .and_then(|a| pick_asset_for_current_os(a));
 
     let update_available = version_lt(&current, &latest);
 
@@ -819,7 +816,7 @@ pub async fn download_update(
     let total = resp.content_length().unwrap_or(0);
 
     let temp_dir = std::env::temp_dir();
-    let file_path = temp_dir.join("KimiSwitch_update.msi");
+    let file_path = temp_dir.join(update_temp_filename());
 
     let mut file = std::fs::File::create(&file_path)
         .map_err(|e| format!("create temp file failed: {e}"))?;
