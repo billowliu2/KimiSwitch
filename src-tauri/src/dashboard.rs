@@ -1,0 +1,1419 @@
+use chrono::{DateTime, Datelike, Local, TimeZone};
+use regex::Regex;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs;
+use std::io::{BufRead, BufReader};
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use walkdir::WalkDir;
+
+// ---------------------------------------------------------------------------
+// Types – match the Node API JSON shape exactly
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PathsResult {
+    pub current: String,
+    pub valid: bool,
+    pub candidates: Vec<PathCandidate>,
+    pub env: EnvInfo,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PathCandidate {
+    pub path: String,
+    pub valid: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EnvInfo {
+    #[serde(rename = "KIMI_CODE_HOME")]
+    pub kimi_code_home: Option<String>,
+    #[serde(rename = "KIMI_MODEL_NAME")]
+    pub kimi_model_name: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PriceRow {
+    pub id: String,
+    pub cache_hit: f64,
+    pub input: f64,
+    pub output: f64,
+    pub context: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PricesResult {
+    pub prices: Vec<PriceRow>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SummaryResult {
+    pub home: String,
+    pub valid: bool,
+    pub scanned_at: u64,
+    pub meta: ScanMeta,
+    pub model_map: ModelMapInfo,
+    pub range: String,
+    pub stats: RangeStats,
+    pub heatmap: HeatmapData,
+    pub all_models: Vec<AllModelRow>,
+    pub all_model_count: usize,
+    pub range_totals: HashMap<String, TotalsRow>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanMeta {
+    pub files_scanned: usize,
+    pub lines_seen: usize,
+    pub record_count: usize,
+    pub home: String,
+    pub sessions_root: String,
+    pub errors: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelMapInfo {
+    pub default_model: Option<String>,
+    pub env_model: Option<EnvModelInfo>,
+    pub alias_count: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct EnvModelInfo {
+    pub name: String,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RangeStats {
+    pub range: String,
+    pub totals: TotalsRow,
+    pub daily: Vec<DailyRow>,
+    pub models: Vec<ModelRow>,
+    pub recent: Vec<RecentRow>,
+    pub recent_total: usize,
+    pub recent_limit: usize,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct TotalsRow {
+    pub requests: usize,
+    pub input_other: u64,
+    pub output: u64,
+    pub input_cache_read: u64,
+    pub input_cache_creation: u64,
+    pub cost_usd: f64,
+    pub total_tokens: u64,
+    pub cache_hit_rate: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DailyRow {
+    pub date: String,
+    pub requests: usize,
+    pub input_other: u64,
+    pub output: u64,
+    pub input_cache_read: u64,
+    pub input_cache_creation: u64,
+    pub cost_usd: f64,
+    pub total_tokens: u64,
+    pub cache_hit_rate: f64,
+    /// Per-model token breakdown for stacked-bar rendering
+    pub by_model: HashMap<String, u64>,
+    /// Per-provider token breakdown for stacked-bar rendering
+    pub by_provider: HashMap<String, u64>,
+    /// Per-provider, per-model nested token breakdown (provider → model → tokens),
+    /// used by the provider-tab drill-down detail.
+    pub by_provider_model: HashMap<String, HashMap<String, u64>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelRow {
+    pub model: String,
+    pub model_display: String,
+    pub model_resolved: String,
+    pub price_id: String,
+    pub cost_estimated: bool,
+    pub requests: usize,
+    pub input_other: u64,
+    pub output: u64,
+    pub input_cache_read: u64,
+    pub input_cache_creation: u64,
+    pub cost_usd: f64,
+    pub total_tokens: u64,
+    pub cache_hit_rate: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RecentRow {
+    pub time: u64,
+    pub model: String,
+    pub model_display: String,
+    pub model_resolved: String,
+    pub input_other: u64,
+    pub output: u64,
+    pub input_cache_read: u64,
+    pub input_cache_creation: u64,
+    pub total_tokens: u64,
+    pub cost_usd: f64,
+    pub cost_estimated: bool,
+    pub price_id: String,
+    pub from_env: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AllModelRow {
+    pub model: String,
+    pub model_display: String,
+    pub requests: usize,
+    pub total_tokens: u64,
+    pub cost_usd: f64,
+    pub cost_estimated: bool,
+    pub cache_hit_rate: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct HeatmapData {
+    pub weeks: usize,
+    pub start: String,
+    pub end: String,
+    pub max_tokens: u64,
+    pub cells: Vec<HeatmapCell>,
+    pub month_labels: Vec<MonthLabel>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct HeatmapCell {
+    pub date: String,
+    pub dow: usize,
+    pub week_index: usize,
+    pub requests: usize,
+    pub total_tokens: u64,
+    pub cost_usd: f64,
+    pub cache_hit_rate: f64,
+    pub level: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct MonthLabel {
+    pub week_index: usize,
+    pub label: String,
+}
+
+// Sessions types
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionsResult {
+    pub home: String,
+    pub archive_root: String,
+    pub workspaces: Vec<WorkspaceRow>,
+    pub sessions: Vec<SessionRow>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceRow {
+    pub id: String,
+    pub name: String,
+    pub root: Option<String>,
+    pub created_at: Option<String>,
+    pub last_opened_at: Option<String>,
+    pub active_count: usize,
+    pub archived_count: usize,
+    pub empty: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionRow {
+    pub id: String,
+    pub workspace_id: String,
+    pub status: String,
+    pub title: Option<String>,
+    pub work_dir: Option<String>,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+    pub bytes: u64,
+    pub files: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionResponse {
+    pub ok: bool,
+    pub workspace_id: String,
+    pub session_id: String,
+    pub status: Option<String>,
+    pub path: Option<String>,
+    pub deleted: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewResult {
+    pub workspace_id: String,
+    pub session_id: String,
+    pub status: String,
+    pub title: Option<String>,
+    pub work_dir: Option<String>,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
+    pub message_count: usize,
+    pub truncated: bool,
+    pub messages: Vec<PreviewMessage>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewMessage {
+    pub role: String,
+    pub time: Option<u64>,
+    pub text: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceDeleteBody {
+    pub workspace_id: String,
+    pub confirm: Option<bool>,
+    pub force: Option<bool>,
+}
+
+// ---------------------------------------------------------------------------
+// App state
+// ---------------------------------------------------------------------------
+pub struct AppState {
+    pub scan_cache: Mutex<ScanCache>,
+}
+
+#[derive(Clone)]
+pub struct ScanCache {
+    pub home: String,
+    pub scanned_at: u64,
+    pub records: Vec<UsageRecord>,
+    pub meta: ScanMeta,
+    pub model_map: ModelMapInfo,
+}
+
+#[derive(Debug, Clone)]
+pub struct UsageRecord {
+    pub time: u64,
+    pub model: String,
+    pub input_other: u64,
+    pub output: u64,
+    pub input_cache_read: u64,
+    pub input_cache_creation: u64,
+    pub cost_usd: f64,
+    pub cost_estimated: bool,
+    pub price_id: String,
+    pub model_resolved: String,
+    pub model_display: String,
+    pub provider: Option<String>,
+    pub from_env: bool,
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+fn resolve_kimi_home(override_path: Option<String>) -> PathBuf {
+    if let Some(p) = override_path {
+        if !p.trim().is_empty() {
+            return PathBuf::from(p);
+        }
+    }
+    if let Ok(env_home) = std::env::var("KIMI_CODE_HOME") {
+        if !env_home.trim().is_empty() {
+            return PathBuf::from(env_home);
+        }
+    }
+    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+    home.join(".kimi-code")
+}
+
+fn is_kimi_home(dir: &Path) -> bool {
+    if !dir.exists() || !dir.is_dir() {
+        return false;
+    }
+    dir.join("config.toml").exists() || dir.join("sessions").exists()
+}
+
+/// Build a legacy alias→provider map by merging the current config.toml with every
+/// `config.toml.bak.*` snapshot (home root + backups/). Historical usage records may
+/// reference model aliases that no longer exist in the current config (old bare or
+/// `-N`-suffixed aliases); their provider is recovered from these snapshots.
+fn build_alias_provider_map(home: &Path) -> HashMap<String, String> {
+    let mut map: HashMap<String, String> = HashMap::new();
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    let current = home.join("config.toml");
+    if current.is_file() {
+        candidates.push(current);
+    }
+    for dir in [home.to_path_buf(), home.join("backups")] {
+        if let Ok(rd) = std::fs::read_dir(&dir) {
+            for e in rd.flatten() {
+                let name = e.file_name().to_string_lossy().to_string();
+                if name.starts_with("config.toml.bak.") {
+                    candidates.push(e.path());
+                }
+            }
+        }
+    }
+    for path in candidates {
+        let content = match std::fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let parsed: toml::Value = match toml::from_str(&content) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        if let Some(models) = parsed.get("models").and_then(|m| m.as_table()) {
+            for (alias, m) in models {
+                if let Some(p) = m.get("provider").and_then(|p| p.as_str()) {
+                    // Current config is parsed first and wins on conflict.
+                    map.entry(alias.clone()).or_insert_with(|| p.to_string());
+                }
+            }
+        }
+    }
+    map
+}
+
+/// Resolve the provider for a usage record's raw model key: prefer the `provider/`
+/// prefix, then fall back to the legacy alias→provider map (config + backups).
+fn resolve_provider(model_raw: &str, map: &HashMap<String, String>) -> Option<String> {
+    let p = model_raw
+        .rsplit_once('/')
+        .map(|(prov, _)| prov.to_string())
+        .or_else(|| map.get(model_raw).cloned());
+    p.map(|x| normalize_provider(&x))
+}
+
+/// Normalize historical provider-name variants to the canonical name.
+fn normalize_provider(p: &str) -> String {
+    match p {
+        "CodingPlanSite" => "CodingPlan.site".to_string(),
+        other => other.to_string(),
+    }
+}
+
+fn sessions_root(home: &Path) -> PathBuf {
+    home.join("sessions")
+}
+
+fn workspace_re() -> Regex {
+    Regex::new(r"^wd_[A-Za-z0-9._-]+$").unwrap()
+}
+
+fn session_re() -> Regex {
+    Regex::new(r"^session_[0-9a-fA-F-]{8,}$").unwrap()
+}
+
+fn safe_read_dir(path: &Path) -> Vec<fs::DirEntry> {
+    let mut entries = Vec::new();
+    if let Ok(rd) = fs::read_dir(path) {
+        for e in rd.flatten() {
+            entries.push(e);
+        }
+    }
+    entries
+}
+
+fn file_size_approx(path: &Path) -> (u64, usize) {
+    let mut total_bytes = 0u64;
+    let mut total_files = 0usize;
+    for entry in WalkDir::new(path).into_iter().filter_map(|e| e.ok()) {
+        if entry.file_type().is_file() {
+            if let Ok(meta) = entry.metadata() {
+                total_bytes += meta.len();
+                total_files += 1;
+            }
+        }
+    }
+    (total_bytes, total_files)
+}
+
+fn day_key(ts_ms: u64) -> String {
+    let secs = if ts_ms > 1e12 as u64 { ts_ms / 1000 } else { ts_ms };
+    // Bucket by LOCAL calendar date (not UTC) so records around midnight stay on the correct day.
+    let local = Local
+        .timestamp_opt(secs as i64, 0)
+        .single()
+        .unwrap_or_else(|| DateTime::from_timestamp(secs as i64, 0).unwrap_or_default().with_timezone(&Local));
+    format!("{:04}-{:02}-{:02}", local.year(), local.month(), local.day())
+}
+
+// ---------------------------------------------------------------------------
+// Pricing
+// ---------------------------------------------------------------------------
+
+fn list_prices() -> Vec<PriceRow> {
+    vec![
+        PriceRow { id: "kimi-k3".into(), cache_hit: 0.30, input: 3.00, output: 15.00, context: 1_048_576 },
+        PriceRow { id: "kimi-k2.7-code".into(), cache_hit: 0.19, input: 0.95, output: 4.00, context: 262_144 },
+        PriceRow { id: "kimi-k2.6".into(), cache_hit: 0.16, input: 0.95, output: 4.00, context: 262_144 },
+        PriceRow { id: "kimi-k2.5".into(), cache_hit: 0.10, input: 0.60, output: 3.00, context: 262_144 },
+        PriceRow { id: "kimi-k2-turbo".into(), cache_hit: 0.15, input: 1.15, output: 8.00, context: 262_144 },
+        PriceRow { id: "kimi-k2".into(), cache_hit: 0.15, input: 0.60, output: 2.50, context: 262_144 },
+    ]
+}
+
+fn match_price(model_name: &str) -> (String, f64, f64, f64, bool) {
+    let bare = match model_name.rsplit_once('/') {
+        Some((_, b)) => b,
+        None => model_name,
+    };
+    let bare_l = bare.to_ascii_lowercase();
+    for p in &list_prices() {
+        let id_l = p.id.to_ascii_lowercase();
+        if bare_l == id_l || bare_l.contains(&id_l) || id_l.contains(&bare_l) {
+            return (p.id.clone(), p.cache_hit, p.input, p.output, false);
+        }
+    }
+    ("kimi-k2.6".into(), 0.16, 0.95, 4.00, true)
+}
+
+fn cost_for_usage(input_other: u64, output: u64, cache_read: u64, cache_create: u64, model: &str) -> (f64, bool) {
+    let (_price_id, cache_hit, input_price, output_price, est) = match_price(model);
+    let cost = (input_other as f64 / 1e6) * input_price
+        + (cache_read as f64 / 1e6) * cache_hit
+        + (cache_create as f64 / 1e6) * input_price
+        + (output as f64 / 1e6) * output_price;
+    (cost, est)
+}
+
+// ---------------------------------------------------------------------------
+// Scanner
+// ---------------------------------------------------------------------------
+
+fn scan_usage(home: &Path) -> (Vec<UsageRecord>, ScanMeta) {
+    let root = sessions_root(home);
+    let alias2prov = build_alias_provider_map(home);
+    let mut records = Vec::new();
+    let mut files_scanned = 0;
+    let mut lines_seen = 0;
+    let errors = Vec::new();
+
+    if !root.exists() {
+        return (records, ScanMeta {
+            files_scanned: 0, lines_seen: 0, record_count: 0,
+            home: home.to_string_lossy().to_string(),
+            sessions_root: root.to_string_lossy().to_string(),
+            errors: vec!["sessions directory not found".into()],
+        });
+    }
+
+    for entry in WalkDir::new(&root).into_iter().filter_map(|e| e.ok()) {
+        if entry.file_name() != "wire.jsonl" { continue; }
+        if !entry.file_type().is_file() { continue; }
+        // Skip blob/task directories
+        let p = entry.path();
+        if p.to_string_lossy().contains("blobs") || p.to_string_lossy().contains("tasks") {
+            continue;
+        }
+        files_scanned += 1;
+        let content = match fs::read_to_string(entry.path()) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        for line in content.lines() {
+            lines_seen += 1;
+            if !line.contains("\"usage.record\"") { continue; }
+            let obj: serde_json::Value = match serde_json::from_str(line) {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+            if obj.get("type").and_then(|v| v.as_str()) != Some("usage.record") { continue; }
+            let scope = obj.get("usageScope").and_then(|v| v.as_str()).unwrap_or("turn");
+            if scope != "turn" { continue; }
+
+            let model_raw = obj.get("model").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
+            let time = obj.get("time").and_then(|v| v.as_u64()).unwrap_or(0);
+            let usage = &obj["usage"];
+            let input_other = usage.get("inputOther").and_then(|v| v.as_u64()).unwrap_or(0);
+            let output = usage.get("output").and_then(|v| v.as_u64()).unwrap_or(0);
+            let cache_read = usage.get("inputCacheRead").and_then(|v| v.as_u64()).unwrap_or(0);
+            let cache_create = usage.get("inputCacheCreation").and_then(|v| v.as_u64()).unwrap_or(0);
+
+            // Resolve model display
+            let bare = model_raw.rsplit_once('/').map(|x| x.1).unwrap_or(&model_raw);
+            let (cost, est) = cost_for_usage(input_other, output, cache_read, cache_create, &model_raw);
+            let (pid, _ch, _ip, _op, _) = match_price(&model_raw);
+
+            records.push(UsageRecord {
+                time,
+                model: model_raw.clone(),
+                model_resolved: bare.to_string(),
+                model_display: model_raw.clone(),
+                provider: resolve_provider(&model_raw, &alias2prov),
+                from_env: model_raw == "__kimi_env_model__",
+                input_other,
+                output,
+                input_cache_read: cache_read,
+                input_cache_creation: cache_create,
+                cost_usd: cost,
+                cost_estimated: est,
+                price_id: pid,
+            });
+        }
+    }
+
+    records.sort_by(|a, b| b.time.cmp(&a.time));
+    let count = records.len();
+    (records, ScanMeta {
+        files_scanned, lines_seen, record_count: count,
+        home: home.to_string_lossy().to_string(),
+        sessions_root: root.to_string_lossy().to_string(),
+        errors: errors.into_iter().take(20).collect(),
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Aggregate
+// ---------------------------------------------------------------------------
+
+fn aggregate(records: &[UsageRecord], range: &str, now_ms: u64) -> RangeStats {
+    let filtered: Vec<&UsageRecord> = filter_by_range(records, range, now_ms);
+    let range_label = range.to_string();
+
+    if filtered.is_empty() {
+        return RangeStats {
+            range: range_label,
+            totals: TotalsRow::default(),
+            daily: vec![],
+            models: vec![],
+            recent: vec![],
+            recent_total: 0,
+            recent_limit: 500,
+        };
+    }
+
+    let mut totals = TotalsRow::default();
+    let mut by_day: HashMap<String, (TotalsRow, HashMap<String, u64>, HashMap<String, HashMap<String, u64>>)> = HashMap::new();
+    let mut by_model: HashMap<String, (ModelRow, TotalsRow)> = HashMap::new();
+
+    for r in &filtered {
+        totals.add(r);
+        let dk = day_key(r.time);
+        let (day_totals, day_models, day_prov_models) = by_day.entry(dk.clone()).or_default();
+        day_totals.add(r);
+        *day_models.entry(r.model.clone()).or_insert(0) +=
+            r.input_other + r.output + r.input_cache_read + r.input_cache_creation;
+        let provider_key = r.provider.clone().unwrap_or_else(|| "unknown".to_string());
+        *day_prov_models
+            .entry(provider_key)
+            .or_default()
+            .entry(r.model.clone())
+            .or_insert(0) += r.input_other + r.output + r.input_cache_read + r.input_cache_creation;
+
+        let mk = r.model.clone();
+        let entry = by_model.entry(mk.clone()).or_insert_with(|| {
+            let m = ModelRow {
+                model: mk.clone(),
+                model_display: r.model_display.clone(),
+                model_resolved: r.model_resolved.clone(),
+                price_id: r.price_id.clone(),
+                cost_estimated: r.cost_estimated,
+                requests: 0, input_other: 0, output: 0,
+                input_cache_read: 0, input_cache_creation: 0,
+                cost_usd: 0.0, total_tokens: 0, cache_hit_rate: 0.0,
+            };
+            (m, TotalsRow::default())
+        });
+        entry.1.add(r);
+        entry.0.cost_estimated = entry.0.cost_estimated || r.cost_estimated;
+    }
+
+    let total_input = totals.input_other + totals.input_cache_read + totals.input_cache_creation;
+    totals.cache_hit_rate = if total_input > 0 { totals.input_cache_read as f64 / total_input as f64 } else { 0.0 };
+
+    let mut daily: Vec<DailyRow> = by_day.into_iter()
+        .map(|(date, (t, by_model, by_provider_model))| {
+            let ti = t.input_other + t.input_cache_read + t.input_cache_creation;
+            let ch = if ti > 0 { t.input_cache_read as f64 / ti as f64 } else { 0.0 };
+            DailyRow {
+                date, requests: t.requests,
+                input_other: t.input_other, output: t.output,
+                input_cache_read: t.input_cache_read, input_cache_creation: t.input_cache_creation,
+                cost_usd: t.cost_usd, total_tokens: t.total_tokens, cache_hit_rate: ch,
+                by_model,
+                by_provider: by_provider_model
+                    .iter()
+                    .map(|(p, m)| (p.clone(), m.values().sum::<u64>()))
+                    .collect(),
+                by_provider_model,
+            }
+        })
+        .collect();
+    daily.sort_by(|a, b| a.date.cmp(&b.date));
+
+    let mut models: Vec<ModelRow> = by_model.into_iter().map(|(_, (mut m, t))| {
+        let ti = t.input_other + t.input_cache_read + t.input_cache_creation;
+        m.cache_hit_rate = if ti > 0 { t.input_cache_read as f64 / ti as f64 } else { 0.0 };
+        m.requests = t.requests;
+        m.input_other = t.input_other; m.output = t.output;
+        m.input_cache_read = t.input_cache_read; m.input_cache_creation = t.input_cache_creation;
+        m.cost_usd = t.cost_usd; m.total_tokens = t.total_tokens;
+        m
+    }).collect();
+    models.sort_by(|a, b| b.total_tokens.cmp(&a.total_tokens));
+
+    let recent_total = filtered.len();
+    let recent_limit = 500;
+    let recent: Vec<RecentRow> = filtered.iter().take(recent_limit).map(|r| RecentRow {
+        time: r.time, model: r.model.clone(), model_display: r.model_display.clone(),
+        model_resolved: r.model_resolved.clone(),
+        input_other: r.input_other, output: r.output,
+        input_cache_read: r.input_cache_read, input_cache_creation: r.input_cache_creation,
+        total_tokens: r.input_other + r.output + r.input_cache_read + r.input_cache_creation,
+        cost_usd: r.cost_usd, cost_estimated: r.cost_estimated,
+        price_id: r.price_id.clone(), from_env: r.from_env,
+    }).collect();
+
+    RangeStats {
+        range: range_label,
+        totals,
+        daily,
+        models,
+        recent,
+        recent_total,
+        recent_limit,
+    }
+}
+
+impl TotalsRow {
+    fn default() -> Self {
+        TotalsRow {
+            requests: 0, input_other: 0, output: 0,
+            input_cache_read: 0, input_cache_creation: 0,
+            cost_usd: 0.0, total_tokens: 0, cache_hit_rate: 0.0,
+        }
+    }
+    fn add(&mut self, r: &UsageRecord) {
+        self.requests += 1;
+        self.input_other += r.input_other;
+        self.output += r.output;
+        self.input_cache_read += r.input_cache_read;
+        self.input_cache_creation += r.input_cache_creation;
+        self.cost_usd += r.cost_usd;
+        self.total_tokens = self.input_other + self.output + self.input_cache_read + self.input_cache_creation;
+    }
+}
+
+fn filter_by_range<'a>(records: &'a [UsageRecord], range: &str, now_ms: u64) -> Vec<&'a UsageRecord> {
+    if range == "all" { return records.iter().collect(); }
+    let start = range_start(range, now_ms);
+    records.iter().filter(|r| r.time >= start).collect()
+}
+
+fn range_start(range: &str, now_ms: u64) -> u64 {
+    match range {
+        "today" => {
+            // LOCAL midnight today — not UTC midnight. Without this, users east of UTC see
+            // "today" begin at the wrong hour (e.g. UTC+8 users get cutoff at local 08:00).
+            let now_utc = DateTime::from_timestamp((now_ms / 1000) as i64, 0).unwrap_or_default();
+            let now_local = now_utc.with_timezone(&Local);
+            let today_date = now_local.date_naive();
+            let today_start = today_date.and_hms_opt(0, 0, 0).unwrap_or_default();
+            Local
+                .from_local_datetime(&today_start)
+                .single()
+                .map(|dt| dt.timestamp() as u64 * 1000)
+                .unwrap_or_else(|| today_start.and_utc().timestamp() as u64 * 1000)
+        }
+        "7d" => now_ms - 7 * 24 * 3600 * 1000,
+        "30d" => now_ms - 30 * 24 * 3600 * 1000,
+        _ => now_ms - 30 * 24 * 3600 * 1000,
+    }
+}
+
+fn build_heatmap(records: &[UsageRecord], now_ms: u64) -> HeatmapData {
+    let weeks = 53;
+    // Use LOCAL today for the heatmap's right edge so the current day's cell lights up correctly.
+    let now_utc = DateTime::from_timestamp((now_ms / 1000) as i64, 0).unwrap_or_default();
+    let now_local = now_utc.with_timezone(&Local);
+    let end_date = now_local.date_naive();
+    let start_date = end_date - chrono::Duration::days(weeks * 7 - 1);
+    let start_date = start_date - chrono::Duration::days(start_date.weekday().num_days_from_sunday() as i64);
+
+    let mut by_day: HashMap<String, TotalsRow> = HashMap::new();
+    for r in records {
+        let dk = day_key(r.time);
+        let t = by_day.entry(dk).or_default();
+        t.add(r);
+    }
+
+    let mut cursor = start_date;
+    let mut cells = Vec::new();
+    let mut max_tokens = 0u64;
+
+    while cursor <= end_date {
+        let key = format!("{:04}-{:02}-{:02}", cursor.year(), cursor.month(), cursor.day());
+        let t = by_day.get(&key).cloned().unwrap_or_else(TotalsRow::default);
+        let tok = t.total_tokens;
+        if tok > max_tokens { max_tokens = tok; }
+        let dow = cursor.weekday().num_days_from_sunday() as usize;
+        let week_idx = ((cursor - start_date).num_days() / 7) as usize;
+        let ti = t.input_other + t.input_cache_read + t.input_cache_creation;
+        let ch = if ti > 0 { t.input_cache_read as f64 / ti as f64 } else { 0.0 };
+        cells.push(HeatmapCell {
+            date: key, dow, week_index: week_idx,
+            requests: t.requests, total_tokens: tok, cost_usd: t.cost_usd,
+            cache_hit_rate: ch, level: 0,
+        });
+        cursor += chrono::Duration::days(1);
+        if cells.len() > (weeks * 7 + 7) as usize { break; }
+    }
+    for c in &mut cells {
+        c.level = if max_tokens == 0 || c.total_tokens == 0 {
+            0
+        } else {
+            let r = c.total_tokens as f64 / max_tokens as f64;
+            if r > 0.75 { 4 } else if r > 0.5 { 3 } else if r > 0.25 { 2 } else { 1 }
+        };
+    }
+
+    let mut month_labels = Vec::new();
+    let mut last_month = String::new();
+    for c in &cells {
+        let m = c.date[..7].to_string();
+        if m != last_month {
+            month_labels.push(MonthLabel { week_index: c.week_index, label: c.date[5..7].to_string() });
+            last_month = m;
+        }
+    }
+
+    HeatmapData {
+        weeks: weeks as usize,
+        start: start_date.format("%Y-%m-%d").to_string(),
+        end: end_date.format("%Y-%m-%d").to_string(),
+        max_tokens,
+        cells,
+        month_labels,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Sessions
+// ---------------------------------------------------------------------------
+
+fn list_workspace_dirs(home: &Path) -> Vec<String> {
+    let root = sessions_root(home);
+    if !root.exists() { return vec![]; }
+    let mut out = Vec::new();
+    let re = workspace_re();
+    for entry in safe_read_dir(&root) {
+        if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) { continue; }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name == ".kcd-archive" { continue; }
+        if !re.is_match(&name) { continue; }
+        out.push(name);
+    }
+    out.sort();
+    out
+}
+
+fn read_state_safe(session_dir: &Path) -> (Option<String>, Option<String>, Option<String>, Option<String>) {
+    let sp = session_dir.join("state.json");
+    if !sp.exists() { return (None, None, None, None); }
+    if let Ok(content) = fs::read_to_string(&sp) {
+        if let Ok(obj) = serde_json::from_str::<serde_json::Value>(&content) {
+            let title = obj.get("title").and_then(|v| v.as_str().map(|s| s.to_string()));
+            let work_dir = obj.get("workDir").and_then(|v| v.as_str().map(|s| s.to_string()));
+            let created_at = obj.get("createdAt").and_then(|v| v.as_str().map(|s| s.to_string()));
+            let updated_at = obj.get("updatedAt").and_then(|v| v.as_str().map(|s| s.to_string()));
+            return (title, work_dir, created_at, updated_at);
+        }
+    }
+    (None, None, None, None)
+}
+
+fn humanize_workspace(id: &str) -> String {
+    let re = Regex::new(r"^wd_(.+)_[0-9a-fA-F]{8,}$").unwrap();
+    if let Some(caps) = re.captures(id) {
+        caps.get(1).map(|m| m.as_str().to_string()).unwrap_or_else(|| id.to_string())
+    } else {
+        id.to_string()
+    }
+}
+
+fn list_sessions_in_dir(dir: &Path, workspace_id: &str, status: &str) -> Vec<SessionRow> {
+    let mut sessions = Vec::new();
+    if !dir.exists() { return sessions; }
+    let re = session_re();
+    for entry in safe_read_dir(dir) {
+        if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) { continue; }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !re.is_match(&name) { continue; }
+        let (title, work_dir, created_at, updated_at) = read_state_safe(&entry.path());
+        let (bytes, files) = file_size_approx(&entry.path());
+        let mtime = entry.path().metadata().ok().and_then(|m| m.modified().ok())
+            .map(|t| t.duration_since(std::time::UNIX_EPOCH).ok().map(|d| d.as_millis() as u64)).flatten();
+        sessions.push(SessionRow {
+            id: name, workspace_id: workspace_id.to_string(), status: status.to_string(),
+            title, work_dir, created_at,
+            updated_at: updated_at.or_else(|| mtime.map(|m| {
+                let secs = if m > 1e12 as u64 { m / 1000 } else { m };
+                let dt = DateTime::from_timestamp(secs as i64, 0).unwrap_or_default().naive_utc();
+                dt.to_string()
+            })),
+            bytes, files,
+        });
+    }
+    sessions
+}
+
+fn list_sessions_cmd(home: &Path, status: &str, workspace_filter: Option<String>) -> SessionsResult {
+    let root = sessions_root(home);
+    let archive_root = root.join(".kcd-archive");
+    let mut ws_ids: Vec<String> = list_workspace_dirs(home);
+    // Also include archive-only workspaces
+    if archive_root.exists() {
+        for entry in safe_read_dir(&archive_root) {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if workspace_re().is_match(&name) && !ws_ids.contains(&name) {
+                ws_ids.push(name);
+            }
+        }
+    }
+    ws_ids.sort();
+
+    // Load workspaces.json
+    let wp = home.join("workspaces.json");
+    let mut ws_meta: HashMap<String, serde_json::Value> = HashMap::new();
+    if let Ok(content) = fs::read_to_string(&wp) {
+        if let Ok(obj) = serde_json::from_str::<serde_json::Value>(&content) {
+            if let Some(ws) = obj.get("workspaces").and_then(|v| v.as_object()) {
+                for (k, v) in ws {
+                    ws_meta.insert(k.clone(), v.clone());
+                }
+            }
+        }
+    }
+
+    let mut workspaces = Vec::new();
+    let mut all_sessions = Vec::new();
+
+    for wid in &ws_ids {
+        if let Some(ref filter) = workspace_filter {
+            if wid != filter { continue; }
+        }
+        let meta = ws_meta.get(wid);
+        let name = meta.and_then(|m| m.get("name").and_then(|v| v.as_str()))
+            .map(|s| s.to_string()).unwrap_or_else(|| humanize_workspace(wid));
+        let root_path = meta.and_then(|m| m.get("root").and_then(|v| v.as_str()).map(|s| s.to_string()));
+
+        let active_dir = root.join(wid);
+        let arch_dir = archive_root.join(wid);
+        let active_all = list_sessions_in_dir(&active_dir, wid, "active");
+        let arch_all = list_sessions_in_dir(&arch_dir, wid, "archived");
+        let active_list = if status == "archived" { vec![] } else { active_all.clone() };
+        let arch_list = if status == "active" { vec![] } else { arch_all.clone() };
+
+        let empty = active_all.is_empty() && arch_all.is_empty();
+        workspaces.push(WorkspaceRow {
+            id: wid.clone(), name, root: root_path,
+            created_at: None, last_opened_at: None,
+            active_count: active_all.len(), archived_count: arch_all.len(), empty,
+        });
+        all_sessions.extend(active_list);
+        all_sessions.extend(arch_list);
+    }
+
+    all_sessions.sort_by(|a, b| {
+        let ta = a.updated_at.as_deref().or(a.created_at.as_deref()).unwrap_or("").to_string();
+        let tb = b.updated_at.as_deref().or(b.created_at.as_deref()).unwrap_or("").to_string();
+        tb.cmp(&ta)
+    });
+
+    SessionsResult {
+        home: home.to_string_lossy().to_string(),
+        archive_root: ".kcd-archive".into(),
+        workspaces,
+        sessions: all_sessions,
+    }
+}
+
+fn assert_safe_path(home: &Path, workspace_id: &str, session_id: &str) -> Result<PathBuf, String> {
+    if !workspace_re().is_match(workspace_id) {
+        return Err("invalid workspace id".into());
+    }
+    if !session_re().is_match(session_id) {
+        return Err("invalid session id".into());
+    }
+    let root = sessions_root(home).canonicalize().unwrap_or_else(|_| sessions_root(home));
+    let candidate = root.join(workspace_id).join(session_id).canonicalize().unwrap_or_else(|_| root.join(workspace_id).join(session_id));
+    if !candidate.starts_with(&root) {
+        return Err("path escape blocked".into());
+    }
+    Ok(candidate)
+}
+
+fn archive_session_cmd(home: &Path, workspace_id: &str, session_id: &str) -> Result<ActionResponse, String> {
+    let src = assert_safe_path(home, workspace_id, session_id)?;
+    let dest = sessions_root(home).join(".kcd-archive").join(workspace_id).join(session_id);
+    if !src.exists() { return Err("session not found".into()); }
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("mkdir: {}", e))?;
+    }
+    fs::rename(&src, &dest).or_else(|_| {
+        // cross-device fallback
+        fs_extra::dir::copy(&src, dest.parent().unwrap(), &Default::default()).ok();
+        fs::remove_dir_all(&src).ok();
+        Ok::<(), String>(())
+    }).map_err(|e: String| format!("move: {}", e))?;
+    scrub_session_index(home, session_id);
+    Ok(ActionResponse {
+        ok: true, workspace_id: workspace_id.to_string(),
+        session_id: session_id.to_string(), status: Some("archived".into()),
+        path: Some(dest.to_string_lossy().to_string()), deleted: None,
+    })
+}
+
+fn unarchive_session_cmd(home: &Path, workspace_id: &str, session_id: &str) -> Result<ActionResponse, String> {
+    let src = sessions_root(home).join(".kcd-archive").join(workspace_id).join(session_id);
+    let dest = assert_safe_path(home, workspace_id, session_id)?;
+    if !src.exists() { return Err("archived session not found".into()); }
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("mkdir: {}", e))?;
+    }
+    fs::rename(&src, &dest).or_else(|_| {
+        fs_extra::dir::copy(&src, dest.parent().unwrap(), &Default::default()).ok();
+        fs::remove_dir_all(&src).ok();
+        Ok::<(), String>(())
+    }).map_err(|e: String| format!("move: {}", e))?;
+    Ok(ActionResponse {
+        ok: true, workspace_id: workspace_id.to_string(),
+        session_id: session_id.to_string(), status: Some("active".into()),
+        path: Some(dest.to_string_lossy().to_string()), deleted: None,
+    })
+}
+
+fn delete_session_cmd(home: &Path, workspace_id: &str, session_id: &str, status_hint: Option<&str>) -> Result<ActionResponse, String> {
+    let active = assert_safe_path(home, workspace_id, session_id)?;
+    let archived = sessions_root(home).join(".kcd-archive").join(workspace_id).join(session_id);
+    let target = match status_hint {
+        Some("archived") if archived.exists() => archived,
+        Some("active") if active.exists() => active,
+        _ => {
+            if active.exists() { active } else if archived.exists() { archived }
+            else { return Err("session not found".into()); }
+        }
+    };
+    fs::remove_dir_all(&target).map_err(|e| format!("delete: {}", e))?;
+    scrub_session_index(home, session_id);
+    Ok(ActionResponse {
+        ok: true, workspace_id: workspace_id.to_string(),
+        session_id: session_id.to_string(), status: None,
+        path: Some(target.to_string_lossy().to_string()), deleted: Some(true),
+    })
+}
+
+fn scrub_session_index(home: &Path, session_id: &str) {
+    let ip = home.join("session_index.jsonl");
+    if !ip.exists() { return; }
+    if let Ok(content) = fs::read_to_string(&ip) {
+        let lines: Vec<&str> = content.lines().filter(|l| {
+            let sid = format!("\"sessionId\":\"{}\"", session_id);
+            let sid2 = format!("\"sessionId\": \"{}\"", session_id);
+            let path_match = format!("/{}\"", session_id);
+            !l.contains(&sid) && !l.contains(&sid2) && !l.contains(&path_match)
+        }).collect();
+        if lines.len() < content.lines().count() {
+            let _ = fs::write(&ip, lines.join("\n") + "\n");
+        }
+    }
+}
+
+fn delete_workspace_cmd(home: &Path, workspace_id: &str, _confirm: bool, _force: bool) -> Result<ActionResponse, String> {
+    if !workspace_re().is_match(workspace_id) {
+        return Err("invalid workspace id".into());
+    }
+    let root = sessions_root(home);
+    let active_dir = root.join(workspace_id);
+    let arch_dir = root.join(".kcd-archive").join(workspace_id);
+
+    if active_dir.exists() {
+        let active_list = list_sessions_in_dir(&active_dir, workspace_id, "active");
+        if !active_list.is_empty() { return Err("workspace is not empty; archive/delete sessions first".into()); }
+    }
+    if arch_dir.exists() {
+        let arch_list = list_sessions_in_dir(&arch_dir, workspace_id, "archived");
+        if !arch_list.is_empty() { return Err("workspace is not empty; archive/delete sessions first".into()); }
+    }
+
+    if active_dir.exists() { fs::remove_dir_all(&active_dir).ok(); }
+    if arch_dir.exists() { fs::remove_dir_all(&arch_dir).ok(); }
+
+    // Update workspaces.json
+    let wp = home.join("workspaces.json");
+    if let Ok(content) = fs::read_to_string(&wp) {
+        if let Ok(mut obj) = serde_json::from_str::<serde_json::Value>(&content) {
+            if let Some(ws) = obj.get_mut("workspaces").and_then(|v| v.as_object_mut()) {
+                ws.remove(workspace_id);
+            }
+            let deleted = obj.get_mut("deleted_workspace_ids")
+                .and_then(|v| v.as_array_mut());
+            if let Some(arr) = deleted {
+                if !arr.iter().any(|v| v.as_str() == Some(workspace_id)) {
+                    arr.push(serde_json::Value::String(workspace_id.to_string()));
+                }
+            }
+            let _ = fs::write(&wp, serde_json::to_string_pretty(&obj).unwrap() + "\n");
+        }
+    }
+
+    Ok(ActionResponse {
+        ok: true, workspace_id: workspace_id.to_string(),
+        session_id: String::new(), status: None, path: None, deleted: Some(true),
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Preview
+// ---------------------------------------------------------------------------
+
+fn clip_text(s: &str, max: usize) -> String {
+    // Only walk the first `max` bytes — earlier version filtered the whole string,
+    // which was fine for short text but blew up when previewing big turns.
+    let (end, trunc) = if s.len() <= max {
+        (s.len(), false)
+    } else {
+        let mut e = max;
+        while e < s.len() && !s.is_char_boundary(e) { e += 1; }
+        (e, true)
+    };
+    let head = &s[..end];
+    let cleaned: String = head.chars().filter(|&c| c != '\0').collect();
+    if trunc { format!("{}…", cleaned) } else { cleaned }
+}
+
+fn extract_text_parts(content: &serde_json::Value) -> String {
+    if let Some(s) = content.as_str() { return s.to_string(); }
+    if let Some(arr) = content.as_array() {
+        let mut parts = Vec::new();
+        for p in arr {
+            if let Some(obj) = p.as_object() {
+                if let Some(t) = obj.get("text").and_then(|v| v.as_str()) {
+                    parts.push(t.to_string());
+                }
+            }
+        }
+        return parts.join("\n");
+    }
+    String::new()
+}
+
+fn push_user_msg(msgs: &mut Vec<PreviewMessage>, role: &str, text: &str, time: u64) {
+    let norm: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if norm.is_empty() { return; }
+    if let Some(last) = msgs.last() {
+        if last.role == role {
+            let last_norm: String = last.text.split_whitespace().collect::<Vec<_>>().join(" ");
+            if last_norm == norm { return; }
+        }
+    }
+    let text = if looks_like_secret(text) { "[redacted: possible secret content]".into() } else { clip_text(text, 2500) };
+    msgs.push(PreviewMessage { role: role.into(), time: Some(time), text });
+}
+
+fn flush_assistant_msg(msgs: &mut Vec<PreviewMessage>, bucket: &Option<(Vec<String>, u64)>) {
+    if let Some((texts, _)) = bucket {
+        let combined = texts.join("");
+        if !combined.trim().is_empty() {
+            let text = if looks_like_secret(&combined) { "[redacted: possible secret content]".into() } else { clip_text(&combined, 2500) };
+            if let Some(last) = msgs.last() {
+                if last.role == "assistant" {
+                    let last_norm: String = last.text.split_whitespace().collect::<Vec<_>>().join(" ");
+                    let this_norm: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
+                    if last_norm == this_norm { return; }
+                }
+            }
+            msgs.push(PreviewMessage { role: "assistant".into(), time: None, text });
+        }
+    }
+}
+
+fn get_session_preview_cmd(home: &Path, workspace_id: &str, session_id: &str, status_hint: Option<&str>) -> Result<PreviewResult, String> {
+    let root = sessions_root(home);
+    let active = assert_safe_path(home, workspace_id, session_id)?;
+    let archived = root.join(".kcd-archive").join(workspace_id).join(session_id);
+    let session_dir = match status_hint {
+        Some("archived") if archived.exists() => archived,
+        _ => if active.exists() { active } else if archived.exists() { archived }
+            else { return Err("session not found".into()); }
+    };
+
+    let (title, work_dir, created_at, updated_at) = read_state_safe(&session_dir);
+    let api_dir = session_dir.join("agents").join("main");
+    let mut wire_path = api_dir.join("wire.jsonl");
+    if !wire_path.exists() {
+        wire_path = session_dir.join("wire.jsonl");
+    }
+    if !wire_path.exists() {
+        // try first agent wire
+        let agents_dir = session_dir.join("agents");
+        if agents_dir.exists() {
+            for entry in safe_read_dir(&agents_dir) {
+                let w = entry.path().join("wire.jsonl");
+                if w.exists() { wire_path = w; break; }
+            }
+        }
+    }
+
+    let mut messages: Vec<PreviewMessage> = Vec::new();
+    let mut truncated = false;
+    let max_msgs = 80;
+    let _max_chars = 2500usize;
+    // Hard byte cap: refuse to stream more than this from a single wire.jsonl.
+    // Typical heavy sessions are 5–30 MB; anything larger risks OOM in the WebView.
+    const MAX_WIRE_BYTES: usize = 20 * 1024 * 1024; // 20 MB
+
+    if wire_path.exists() {
+        let file = match fs::File::open(&wire_path) {
+            Ok(f) => f,
+            Err(e) => return Err(format!("open wire: {e}")),
+        };
+        let reader = BufReader::new(file);
+        let mut bytes_read = 0usize;
+        let mut line_count = 0usize;
+        let mut current_assistant: Option<(Vec<String>, u64)> = None;
+        let mut current_step_key: Option<String> = None;
+
+        for line_res in reader.lines() {
+            let line = match line_res {
+                Ok(l) => l,
+                Err(_) => break,
+            };
+            bytes_read += line.len() + 1; // +1 for the stripped newline
+            line_count += 1;
+            if bytes_read > MAX_WIRE_BYTES { truncated = true; break; }
+            if messages.len() >= max_msgs { truncated = true; break; }
+            if !line.contains("\"context.append_message\"") && !line.contains("\"turn.steer\"")
+                && !line.contains("\"turn.prompt\"") && !line.contains("\"content.part\"")
+                && !line.contains("\"step.end\"") { continue; }
+            let obj: serde_json::Value = match serde_json::from_str(&line) {
+                Ok(v) => v, Err(_) => continue,
+            };
+            let typ = obj.get("type").and_then(|v| v.as_str()).unwrap_or("");
+
+            if typ == "context.append_message" {
+                flush_assistant_msg(&mut messages, &current_assistant);
+                current_assistant = None;
+                current_step_key = None;
+                let msg = &obj["message"];
+                let role = msg.get("role").and_then(|v| v.as_str()).unwrap_or("unknown");
+                if role == "tool" { continue; }
+                let raw = extract_text_parts(&msg["content"]);
+                if raw.trim().is_empty() { continue; }
+                push_user_msg(&mut messages, role, &raw, obj.get("time").and_then(|v| v.as_u64()).unwrap_or(0));
+                continue;
+            }
+
+            if typ == "turn.steer" || typ == "turn.prompt" {
+                let input = &obj["input"];
+                let raw = if let Some(s) = input.as_str() { s.to_string() }
+                    else if let Some(arr) = input.as_array() {
+                        arr.iter().filter_map(|x| x.get("text").and_then(|v| v.as_str())).collect::<Vec<_>>().join("\n")
+                    } else { String::new() };
+                if raw.trim().is_empty() { continue; }
+                push_user_msg(&mut messages, "user", &raw, obj.get("time").and_then(|v| v.as_u64()).unwrap_or(0));
+                continue;
+            }
+
+            if typ == "context.append_loop_event" {
+                let ev = &obj["event"];
+                let ev_type = ev.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                if ev_type == "content.part" {
+                    let part = &ev["part"];
+                    if part.get("type").and_then(|v| v.as_str()) == Some("text") {
+                        let text = part.get("text").and_then(|v| v.as_str()).unwrap_or("");
+                        if !text.is_empty() {
+                            let step_key = ev.get("stepUuid").and_then(|v| v.as_str())
+                                .map(|s| s.to_string()).unwrap_or_else(|| format!("{}:{}", ev["turnId"], ev["step"]));
+                            // flush if step changed
+                            if current_step_key.as_deref() != Some(&step_key) {
+                                flush_assistant_msg(&mut messages, &current_assistant);
+                                current_assistant = Some((Vec::new(), obj.get("time").and_then(|v| v.as_u64()).unwrap_or(0)));
+                                current_step_key = Some(step_key.clone());
+                            } else if current_assistant.is_none() {
+                                current_assistant = Some((Vec::new(), obj.get("time").and_then(|v| v.as_u64()).unwrap_or(0)));
+                            }
+                            current_assistant.as_mut().unwrap().0.push(text.to_string());
+                        }
+                    }
+                    continue;
+                }
+                if ev_type == "step.end" {
+                    flush_assistant_msg(&mut messages, &current_assistant);
+                    current_assistant = None;
+                    current_step_key = None;
+                }
+            }
+        }
+        flush_assistant_msg(&mut messages, &current_assistant);
+        if line_count > 8000 { truncated = true; }
+        if messages.len() >= max_msgs { truncated = true; }
+        if bytes_read > MAX_WIRE_BYTES { truncated = true; }
+    }
+
+    Ok(PreviewResult {
+        workspace_id: workspace_id.to_string(),
+        session_id: session_id.to_string(),
+        status: if session_dir.to_string_lossy().contains(".kcd-archive") { "archived".into() } else { "active".into() },
+        title, work_dir, created_at, updated_at,
+        message_count: messages.len(),
+        truncated,
+        messages,
+    })
+}
+
+fn looks_like_secret(s: &str) -> bool {
+    let re = regex::Regex::new(r"(?i)api[_-]?key|sk-[a-zA-Z0-9]{12,}|BEGIN (RSA |OPENSSH )?PRIVATE KEY").unwrap();
+    re.is_match(s)
+}
+
+// ---------------------------------------------------------------------------
+// Tauri commands
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn get_paths() -> PathsResult {
+    let home = resolve_kimi_home(None);
+    let valid = is_kimi_home(&home);
+    let mut candidates = Vec::new();
+    if let Ok(env_home) = std::env::var("KIMI_CODE_HOME") {
+        let p = PathBuf::from(&env_home);
+        candidates.push(PathCandidate { path: env_home, valid: is_kimi_home(&p) });
+    }
+    if let Some(hd) = dirs::home_dir() {
+        let p = hd.join(".kimi-code");
+        candidates.push(PathCandidate { path: p.to_string_lossy().to_string(), valid: is_kimi_home(&p) });
+        if let Ok(up) = std::env::var("USERPROFILE") {
+            let p2 = PathBuf::from(&up).join(".kimi-code");
+            if !candidates.iter().any(|c| c.path == p2.to_string_lossy()) {
+                candidates.push(PathCandidate { path: p2.to_string_lossy().to_string(), valid: is_kimi_home(&p2) });
+            }
+        }
+    }
+    PathsResult {
+        current: home.to_string_lossy().to_string(),
+        valid,
+        candidates,
+        env: EnvInfo {
+            kimi_code_home: std::env::var("KIMI_CODE_HOME").ok(),
+            kimi_model_name: std::env::var("KIMI_MODEL_NAME").ok(),
+        },
+    }
+}
+
+#[tauri::command]
+pub fn get_prices() -> PricesResult {
+    PricesResult { prices: list_prices() }
+}
+
+#[tauri::command]
+pub fn get_summary(home_override: Option<String>, range: Option<String>, refresh: Option<bool>) -> SummaryResult {
+    let _refresh = refresh.unwrap_or(false);
+    let home = resolve_kimi_home(home_override);
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+    let r = range.unwrap_or_else(|| "30d".into());
+
+    let (records, meta) = scan_usage(&home);
+    let stats = aggregate(&records, &r, now_ms);
+    let all_stats = aggregate(&records, "all", now_ms);
+    let heatmap = build_heatmap(&records, now_ms);
+
+    let all_models: Vec<AllModelRow> = all_stats.models.into_iter().map(|m| {
+        AllModelRow {
+            model: m.model, model_display: m.model_display, requests: m.requests,
+            total_tokens: m.total_tokens, cost_usd: m.cost_usd, cost_estimated: m.cost_estimated,
+            cache_hit_rate: m.cache_hit_rate,
+        }
+    }).collect();
+
+    let all_model_count = all_models.len();
+    let mut range_totals = HashMap::new();
+    for r_k in ["today", "7d", "30d", "all"] {
+        let s = aggregate(&records, r_k, now_ms);
+        range_totals.insert(r_k.to_string(), s.totals);
+    }
+
+    let default_model = None;
+    let env_model = std::env::var("KIMI_MODEL_NAME").ok().map(|name| EnvModelInfo {
+        name, provider: std::env::var("KIMI_MODEL_PROVIDER").ok(), model: std::env::var("KIMI_MODEL_ID").ok(),
+    });
+
+    SummaryResult {
+        home: home.to_string_lossy().to_string(),
+        valid: is_kimi_home(&home),
+        scanned_at: now_ms,
+        meta,
+        model_map: ModelMapInfo { default_model, env_model, alias_count: 0 },
+        range: r,
+        stats,
+        heatmap,
+        all_models,
+        all_model_count,
+        range_totals,
+    }
+}
+
+#[tauri::command]
+pub fn list_sessions(home_override: Option<String>, status: Option<String>, workspace: Option<String>) -> SessionsResult {
+    let home = resolve_kimi_home(home_override);
+    list_sessions_cmd(&home, &status.unwrap_or_else(|| "active".into()), workspace)
+}
+
+#[tauri::command]
+pub fn archive_session(home_override: Option<String>, workspace_id: String, session_id: String) -> Result<ActionResponse, String> {
+    let home = resolve_kimi_home(home_override);
+    archive_session_cmd(&home, &workspace_id, &session_id)
+}
+
+#[tauri::command]
+pub fn unarchive_session(home_override: Option<String>, workspace_id: String, session_id: String) -> Result<ActionResponse, String> {
+    let home = resolve_kimi_home(home_override);
+    unarchive_session_cmd(&home, &workspace_id, &session_id)
+}
+
+#[tauri::command]
+pub fn delete_session(home_override: Option<String>, workspace_id: String, session_id: String, status: Option<String>) -> Result<ActionResponse, String> {
+    let home = resolve_kimi_home(home_override);
+    delete_session_cmd(&home, &workspace_id, &session_id, status.as_deref())
+}
+
+#[tauri::command]
+pub fn delete_workspace(home_override: Option<String>, workspace_id: String, confirm: bool, force: Option<bool>) -> Result<ActionResponse, String> {
+    if !confirm { return Err("confirm_required: Pass confirm:true to delete an empty workspace".into()); }
+    let home = resolve_kimi_home(home_override);
+    delete_workspace_cmd(&home, &workspace_id, confirm, force.unwrap_or(false))
+}
+
+#[tauri::command]
+pub fn get_session_preview(home_override: Option<String>, workspace_id: String, session_id: String, status: Option<String>) -> Result<PreviewResult, String> {
+    let home = resolve_kimi_home(home_override);
+    get_session_preview_cmd(&home, &workspace_id, &session_id, status.as_deref())
+}

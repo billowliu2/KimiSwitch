@@ -1,0 +1,15 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/wix314-binaries/
+.vscode/
+*.log
+.env*
+.DS_Store
+Thumbs.db
+Snipaste_*.png
+.worktrees/
+
+# 内部设计规范与实施计划，仅供本地查阅，不入版本库
+docs/superpowers/
