@@ -13,3 +13,4 @@ Snipaste_*.png
 
 # 内部设计规范与实施计划，仅供本地查阅，不入版本库
 docs/superpowers/
+.release*

@@ -8,7 +8,7 @@
 [![React](https://img.shields.io/badge/React-18-61dafb?logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178c6?logo=typescript)](https://www.typescriptlang.org)
 [![Rust](https://img.shields.io/badge/Rust-2021-ed764d?logo=rust)](https://www.rust-lang.org)
-[![Version](https://img.shields.io/badge/release-v0.5.2-brightgreen)](https://git.codingplan.site/admin/KimiCodeSwitch/releases)
+[![Version](https://img.shields.io/badge/release-v0.6.0-brightgreen)](https://github.com/billowliu2/KimiSwitch/releases/tag/v0.6.0)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 
 ---
@@ -494,38 +494,24 @@ The first run downloads:
 
 ## Release History
 
-### v0.5.1 (latest)
+### v0.6.0 (latest)
 
-- Window / tray: minimize keeps the taskbar button; close X hides to tray; tray left-click always shows + focuses
-- Usage table: model column auto-width, long names no longer truncated
-- Capability editor: only `thinking` exposed; other capabilities still auto-derived from models.dev
-- Model mapping table: theme-aware row divider, no more harsh line in light mode
+- **15 mainstream provider presets**: Kimi Coding / Moonshot / Anthropic / DeepSeek / Zhipu GLM / z.ai / Alibaba Bailian / MiniMax / StepFun / SiliconFlow / Novita / OpenRouter / OpenAI / Google AI Studio / Volcengine Ark — one-click form fill via `PresetPickerModal`
+- **Provider balance / plan usage query** (per-card `UsageFooter`):
+  - Balance: DeepSeek / SiliconFlow / OpenRouter / StepFun / Novita
+  - Plan: Kimi For Coding / Zhipu GLM / MiniMax
+  - 5-min stale TTL + `force_refresh` + concurrency ≤ 3
+- **Rust `services/` module** (`balance` / `coding_plan` / `usage_types`), adapted from cc-switch (MIT, © Jason Young)
+- `query_provider_usage` command: loads API key from config in Rust, never serialized over IPC
+- `usageKinds` persisted in SQLite `settings` (JSON array), merged back into config on load, omitted from `config.toml` export
+- `detect_provider` heuristic: existing users automatically gain balance/plan support after upgrade
+- Save-time validation: incomplete providers (missing `api_key` / `base_url` / models) trigger a confirm dialog listing the reasons; uncommitted `add` is silently dropped on back
+- Fixes: `handleDuplicateProvider` `alias.slice` bug; `handleSelectPreset` no longer auto-saves; `handleSwitchProvider` auto-refresh rollback when validation is cancelled
+- New docs: [`docs/PROPOSAL-presets-and-usage.md`](./docs/PROPOSAL-presets-and-usage.md) (v0.4-draft implementation), [`docs/VERIFICATION-CHECKLIST.md`](./docs/VERIFICATION-CHECKLIST.md) (70+ manual checks)
 
-### v0.5.0
+### Historical versions
 
-- Iconified actions (lucide-react): activate / edit / duplicate / test / delete
-- Duplicate provider (deep-copy a provider + all its models)
-- Connectivity test (green / orange / red bubble + 6s auto-dismiss)
-- Daily trend bars anchored to the panel bottom
-
-### v0.4.1
-
-- Model discovery pagination (OpenAI / Anthropic / Google), fewer large-list limits hit
-
-### v0.4.0
-
-- Polished icon system (library adapted from cc-switch)
-- Settings modal (theme / language)
-- Launch-time update check
-
-### v0.3.0
-
-Ported from [kimicode-dashboard](https://github.com/JochenYang/kimicode-dashboard):
-
-- Dashboard: 8 KPIs, daily trend, full-year heatmap, paginated recent requests
-- Session manager: per-workspace browsing, preview, archive, bulk delete
-- Timezone fix: `today` / heatmap / `day_key` now use local calendar day
-- Pi option hidden from the UI
+Versions v0.5.x and earlier (v0.5.1 / v0.5.0 / v0.4.1 / v0.4.0 / v0.3.0) live on the [git.codingplan.site repository](https://git.codingplan.site/admin/KimiCodeSwitch/releases). The GitHub repo is the release channel from v0.6.0 onward.
 
 ## FAQ
 

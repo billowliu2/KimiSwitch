@@ -8,7 +8,7 @@
 [![React](https://img.shields.io/badge/React-18-61dafb?logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178c6?logo=typescript)](https://www.typescriptlang.org)
 [![Rust](https://img.shields.io/badge/Rust-2021-ed764d?logo=rust)](https://www.rust-lang.org)
-[![Version](https://img.shields.io/badge/release-v0.5.2-brightgreen)](https://git.codingplan.site/admin/KimiCodeSwitch/releases)
+[![Version](https://img.shields.io/badge/release-v0.6.0-brightgreen)](https://github.com/billowliu2/KimiSwitch/releases/tag/v0.6.0)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 
 ---
@@ -498,38 +498,21 @@ Windows 安装包（MSI），含 WebView2 bootstrapper 自动下载。`nsis` 已
 
 ## 发布历史
 
-### v0.5.1（最新）
+### v0.6.0（最新）
 
-- 窗口/托盘：最小化保留任务栏；关闭 X 隐藏到托盘；托盘左键始终显示并聚焦
-- 模型用量表：模型列宽度自适应，长模型名完整显示不再截断
-- 模型能力编辑：只保留"思考"，其余能力仍由 models.dev 自动推导
-- 模型映射表格：行分隔线改为主题感知，修复浅色模式突兀问题
+- **15 条主流供应商预设**：Kimi Coding / Moonshot / Anthropic / DeepSeek / 智谱 GLM / z.ai / 阿里百炼 / MiniMax / StepFun / SiliconFlow / Novita / OpenRouter / OpenAI / Google AI Studio / 火山方舟，通过 `PresetPickerModal` 一键填表
+- **供应商余额 / 套餐查询**（卡片底部 `UsageFooter`）：余额类（DeepSeek / SiliconFlow / OpenRouter / StepFun / Novita）+ 套餐类（Kimi For Coding / 智谱 GLM / MiniMax），5min stale TTL + `force_refresh` + 并发 ≤3
+- **Rust 端 `services/` 模块**（`balance` / `coding_plan` / `usage_types`），参考 cc-switch（MIT，© Jason Young）实现
+- `query_provider_usage` 命令：Rust 端从 config 加载 key，不经 IPC 序列化 API key
+- `usageKinds` 持久化到 SQLite settings（JSON 数组），load 时合并回 config，导出 `config.toml` 时不写
+- `detect_provider` 启发式：旧用户升级后自动获得账单支持
+- save-time 校验：未完成供应商（缺 api_key / base_url / 模型）保存时弹 confirm 列出原因；新增未提交 back 时静默 drop
+- 修复：`handleDuplicateProvider` 的 `alias.slice` 漏洞；`handleSelectPreset` 不再 auto-save；`handleSwitchProvider` 校验取消时自动 refresh 回滚
+- 新增文档：[`docs/PROPOSAL-presets-and-usage.md`](./docs/PROPOSAL-presets-and-usage.md)（v0.4-draft 实施档）、[`docs/VERIFICATION-CHECKLIST.md`](./docs/VERIFICATION-CHECKLIST.md)（70+ 项手动验证清单）
 
-### v0.5.0
+### 历史版本
 
-- 供应商操作图标化（lucide-react）：启用 / 编辑 / 复制 / 测试连通 / 删除
-- 重复供应商（深拷贝供应商 + 全部模型）
-- 连通性测试（绿/橙/红气泡 + 6 秒自动消失）
-- 每日趋势柱状图锚定到面板底部
-
-### v0.4.1
-
-- 模型发现分页（OpenAI / Anthropic / Google），减少大列表命中限制
-
-### v0.4.0
-
-- 完善的图标系统（移植自 cc-switch 图标库）
-- 设置面板（主题、语言）
-- 启动版本检查
-
-### v0.3.0
-
-[移植自 kimicode-dashboard](https://github.com/JochenYang/kimicode-dashboard)：
-
-- 用量仪表盘：8 KPI、每日趋势、全年热力图、最近请求翻页
-- 会话管理：按工作区浏览、预览、归档、批量删除
-- 时区修复：`today` / 热力图 / `day_key` 改用本地日历日
-- Pi 选项隐藏
+v0.5.x 及之前版本（含 v0.5.1 / v0.5.0 / v0.4.1 / v0.4.0 / v0.3.0）请前往 [git.codingplan.site 仓库](https://git.codingplan.site/admin/KimiCodeSwitch/releases) 查看。GitHub 仓库仅作为 v0.6.0 及以后版本的发布渠道。
 
 ## 常见问题
 
