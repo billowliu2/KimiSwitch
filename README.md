@@ -10,6 +10,7 @@
 [![Rust](https://img.shields.io/badge/Rust-2021-ed764d?logo=rust)](https://www.rust-lang.org)
 [![Version](https://img.shields.io/badge/release-v0.6.0-brightgreen)](https://github.com/billowliu2/KimiSwitch/releases/tag/v0.6.0)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
+[![Release](https://github.com/billowliu2/KimiSwitch/actions/workflows/release.yml/badge.svg)](https://github.com/billowliu2/KimiSwitch/releases/latest)
 
 ---
 
@@ -50,6 +51,16 @@
 - **版本更新**：进入应用时自动检测（可关闭），并支持一键下载安装
 - **主题/语言切换**：设置面板中切换深色/浅色/跟随系统，简体中文/English
 - **Windows 友好**：单实例；最小化保留任务栏按钮；关闭按钮隐藏到托盘
+
+## 下载
+
+- **Windows**: [GitHub Releases](https://github.com/billowliu2/KimiSwitch/releases/latest) → `.msi`
+- **macOS**: [GitHub Releases](https://github.com/billowliu2/KimiSwitch/releases/latest) → `.dmg`（**未签名** —— 首次启动请右键 → 打开绕过 Gatekeeper）
+- **Linux**: [GitHub Releases](https://github.com/billowliu2/KimiSwitch/releases/latest) → `.deb` / `.AppImage` / `.rpm`
+
+历史版本（v0.5.x 及之前）请前往 [git.codingplan.site 仓库](https://git.codingplan.site/admin/KimiCodeSwitch/releases)。
+
+构建说明请见 [`docs/BUILD.md`](./docs/BUILD.md)。
 
 ## 核心特性
 

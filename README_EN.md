@@ -10,6 +10,7 @@
 [![Rust](https://img.shields.io/badge/Rust-2021-ed764d?logo=rust)](https://www.rust-lang.org)
 [![Version](https://img.shields.io/badge/release-v0.6.0-brightgreen)](https://github.com/billowliu2/KimiSwitch/releases/tag/v0.6.0)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
+[![Release](https://github.com/billowliu2/KimiSwitch/actions/workflows/release.yml/badge.svg)](https://github.com/billowliu2/KimiSwitch/releases/latest)
 
 ---
 
@@ -50,6 +51,16 @@
 - **Update check** — auto-check on launch (toggleable) and one-click download + install
 - **Theme / language** — dark / light / follow-system themes; Simplified Chinese / English
 - **Windows polish** — single instance; minimize keeps the taskbar button; close hides to tray
+
+## Downloads
+
+- **Windows**: [GitHub Releases](https://github.com/billowliu2/KimiSwitch/releases/latest) → `.msi`
+- **macOS**: [GitHub Releases](https://github.com/billowliu2/KimiSwitch/releases/latest) → `.dmg` (**unsigned** — first launch needs right-click → Open to bypass Gatekeeper)
+- **Linux**: [GitHub Releases](https://github.com/billowliu2/KimiSwitch/releases/latest) → `.deb` / `.AppImage` / `.rpm`
+
+Historical versions (v0.5.x and earlier) live on the [git.codingplan.site repository](https://git.codingplan.site/admin/KimiCodeSwitch/releases).
+
+Build instructions: [`docs/BUILD.md`](./docs/BUILD.md).
 
 ## Key Features
 
