@@ -869,3 +869,102 @@ pub fn open_installer(app: tauri::AppHandle, path: String) -> Result<(), String>
         .open_path(&path, None::<&str>)
         .map_err(|e| e.to_string())
 }
+
+/// Pick the GitHub release asset matching the given OS by file extension.
+/// Preference for Linux is AppImage (portable, no install). If the preferred
+/// extension is not present, returns None so the UI can fall back to
+/// "open release page" instead of guessing a less-preferred format.
+fn pick_asset_for_os(assets: &[serde_json::Value], os: &str) -> Option<String> {
+    let target_ext = match os {
+        "macos" => "dmg",
+        "linux" => "AppImage",
+        "windows" => "msi",
+        _ => return None,
+    };
+    assets
+        .iter()
+        .find(|a| {
+            a.get("name")
+                .and_then(|n| n.as_str())
+                .map(|n| n.ends_with(target_ext))
+                .unwrap_or(false)
+        })
+        .and_then(|a| a.get("browser_download_url"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+}
+
+/// Pick the GitHub release asset for the current OS (runtime target).
+fn pick_asset_for_current_os(assets: &[serde_json::Value]) -> Option<String> {
+    pick_asset_for_os(assets, std::env::consts::OS)
+}
+
+/// Build the platform-specific temp filename for the downloaded installer.
+fn update_temp_filename() -> String {
+    let ext = match std::env::consts::OS {
+        "macos" => "dmg",
+        "linux" => "AppImage",
+        "windows" => "msi",
+        _ => "bin",
+    };
+    format!("KimiSwitch_update.{ext}")
+}
+
+#[cfg(test)]
+mod asset_picker_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn assets(names: &[&str]) -> Vec<serde_json::Value> {
+        names
+            .iter()
+            .map(|n| {
+                json!({
+                    "name": n,
+                    "browser_download_url": format!("https://example.com/{n}"),
+                })
+            })
+            .collect()
+    }
+
+    #[test]
+    fn windows_picks_msi() {
+        let assets = assets(&["KimiSwitch_0.7.0_x64_en-US.msi", "KimiSwitch_0.7.0_aarch64.dmg", "KimiSwitch_0.7.0_amd64.AppImage"]);
+        let url = pick_asset_for_os(&assets, "windows");
+        assert_eq!(url.as_deref(), Some("https://example.com/KimiSwitch_0.7.0_x64_en-US.msi"));
+    }
+
+    #[test]
+    fn macos_picks_dmg() {
+        let assets = assets(&["KimiSwitch_0.7.0_x64_en-US.msi", "KimiSwitch_0.7.0_aarch64.dmg", "KimiSwitch_0.7.0_amd64.AppImage"]);
+        let url = pick_asset_for_os(&assets, "macos");
+        assert_eq!(url.as_deref(), Some("https://example.com/KimiSwitch_0.7.0_aarch64.dmg"));
+    }
+
+    #[test]
+    fn linux_picks_appimage() {
+        let assets = assets(&["KimiSwitch_0.7.0_x64_en-US.msi", "KimiSwitch_0.7.0_aarch64.dmg", "KimiSwitch_0.7.0_amd64.AppImage"]);
+        let url = pick_asset_for_os(&assets, "linux");
+        assert_eq!(url.as_deref(), Some("https://example.com/KimiSwitch_0.7.0_amd64.AppImage"));
+    }
+
+    #[test]
+    fn missing_target_returns_none() {
+        let assets = assets(&["KimiSwitch_0.7.0_x64_en-US.msi"]);
+        let url = pick_asset_for_os(&assets, "macos");
+        assert_eq!(url, None);
+    }
+
+    #[test]
+    fn empty_assets_returns_none() {
+        let url = pick_asset_for_os(&[], "linux");
+        assert_eq!(url, None);
+    }
+
+    #[test]
+    fn unknown_os_returns_none() {
+        let assets = assets(&["KimiSwitch_0.7.0_x64_en-US.msi"]);
+        let url = pick_asset_for_os(&assets, "freebsd");
+        assert_eq!(url, None);
+    }
+}
