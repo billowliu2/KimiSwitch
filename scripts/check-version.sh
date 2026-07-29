@@ -16,6 +16,11 @@ fi
 
 # Strip leading 'v' for comparison (we expect semver without v)
 EXPECTED_BARE="${EXPECTED#v}"
+# Strip common prerelease suffixes (-rc1, -beta.2, -alpha.3, etc.) so a
+# v0.6.0-rc1 tag can reuse the existing 0.6.0 versions in the project files.
+# If the project does want a separate prerelease version, it must be
+# committed explicitly to the three version files.
+EXPECTED_BARE="${EXPECTED_BARE%%-*}"
 
 PKG_VERSION=$(node -p "require('./package.json').version")
 CARGO_VERSION=$(grep -E '^version\s*=' src-tauri/Cargo.toml | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
