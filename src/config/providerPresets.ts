@@ -48,6 +48,7 @@ export interface ProviderPreset {
   nameKey?: string;
   /** Official website / console URL. */
   websiteUrl?: string;
+  /** Where to create / fetch an API key; shown as a link under the key input. */
   apiKeyUrl?: string;
   /** Category: sorting & badge. */
   category: PresetCategory;
@@ -111,6 +112,7 @@ export const providerPresets: ProviderPreset[] = [
     name: "Kimi For Coding",
     nameKey: "presetNameKimiCoding",
     websiteUrl: "https://www.kimi.com/code",
+    apiKeyUrl: "https://kimi-bot.com/activities/zh-cn/invite/share?scenario=invite&from=share_poster&invitation_code=6UJX7J",
     category: "official",
     providerType: "kimi",
     baseUrl: "https://api.kimi.com/coding/v1",
@@ -248,6 +250,7 @@ export const providerPresets: ProviderPreset[] = [
     name: "MiniMax Token Plan",
     nameKey: "presetNameMinimaxTokenPlan",
     websiteUrl: "https://platform.minimaxi.com",
+    apiKeyUrl: "https://platform.minimaxi.com/subscribe/token-plan?code=GmmZA629b5&source=link",
     category: "cn_official",
     providerType: "openai",
     // Token Plan is sold against the same platform endpoint as the
@@ -273,6 +276,21 @@ export const providerPresets: ProviderPreset[] = [
     models: [{ model: "step-3.7-flash" }, { model: "step-3.5-flash" }],
     billingMode: "pay_as_you_go",
     usageKinds: ["balance:stepfun"],
+  },
+  {
+    id: "stepfun-plan",
+    name: "StepFun Plan",
+    nameKey: "presetNameStepfunPlan",
+    websiteUrl: "https://platform.stepfun.com/step-plan",
+    apiKeyUrl: "https://platform.stepfun.com/?invite_code=HSIGHTPS",
+    category: "cn_official",
+    providerType: "openai",
+    // Step Plan endpoint — same host, different path prefix than the
+    // pay-as-you-go API (/v1). Serves both OpenAI and Anthropic protocols.
+    baseUrl: "https://api.stepfun.com/step_plan/v1",
+    icon: "stepfun",
+    models: [{ model: "step-3.7-flash" }, { model: "step-3.5-flash" }],
+    billingMode: "subscription",
   },
   {
     id: "siliconflow",
@@ -401,7 +419,7 @@ export const providerPresets: ProviderPreset[] = [
     nameKey: "presetNameOpencodeGo",
     // Referral link — supports the OpenCode project
     websiteUrl: "https://opencode.ai/go?ref=DFCNADQCEM",
-    apiKeyUrl: "https://opencode.ai/zen/",
+    apiKeyUrl: "https://opencode.ai/go?ref=DFCNADQCEM",
     category: "third_party",
     providerType: "openai",
     baseUrl: "https://opencode.ai/zen/go/v1",
@@ -519,6 +537,21 @@ export function presetToProviderAndModels(
     defaultModel: models[0]?.alias ?? "",
     usageKinds: preset.usageKinds,
   };
+}
+
+/**
+ * Best-effort reverse lookup: which preset (if any) a Provider was created
+ * from. Matches the provider name with any "-2"/"-3" dedup suffix stripped,
+ * falling back to an exact official_url match. Used to surface preset-only
+ * metadata (apiKeyUrl / referralUrl) in the edit form without persisting
+ * extra fields on Provider.
+ */
+export function findPresetForProvider(provider: Provider): ProviderPreset | undefined {
+  const base = provider.name.replace(/-\d+$/, "");
+  return (
+    providerPresets.find((p) => p.id === base) ??
+    providerPresets.find((p) => p.websiteUrl != null && p.websiteUrl === provider.official_url)
+  );
 }
 
 // Dev-only cross-end drift check: assert that every usage kind referenced by
