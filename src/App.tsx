@@ -703,6 +703,11 @@ export default function App() {
               updateConfig((cfg) => {
                 const updated = { ...cfg.models };
                 for (const m of models) {
+                  // Skip if this model id already exists for the same provider
+                  const dup = Object.values(updated).some(
+                    (mm) => mm.provider === m.provider && mm.model === m.model && m.model !== ""
+                  );
+                  if (dup) continue;
                   let alias = m.alias;
                   let n = 1;
                   while (alias in updated) {

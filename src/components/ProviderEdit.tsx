@@ -459,6 +459,9 @@ function ModelMapping({
         provider,
       });
       setDiscovered(result);
+      // Auto-select models that already exist in the current provider's list
+      const existingIds = new Set(models.filter((m) => m.model).map((m) => m.model));
+      setSelected(new Set(result.filter((dm) => existingIds.has(dm.id)).map((dm) => dm.id)));
     } catch (err) {
       setDiscoverError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -477,9 +480,11 @@ function ModelMapping({
 
   const handleAddSelected = () => {
     if (!discovered || selected.size === 0) return;
+    const existingIds = new Set(models.filter((m) => m.model).map((m) => m.model));
     const toAdd: Model[] = [];
     for (const dm of discovered) {
       if (!selected.has(dm.id)) continue;
+      if (existingIds.has(dm.id)) continue; // skip models already in this provider
       const safeProvider = provider.name.replace(/\//g, "-");
       const safeModelId = dm.id.replace(/\//g, "-");
       const alias = `${safeProvider}/${safeModelId}`;
@@ -555,7 +560,9 @@ function ModelMapping({
             {t("fetchEnableThinking")}
           </label>
           <div className="max-h-48 overflow-auto space-y-1">
-            {discovered.map((m) => (
+            {discovered.map((m) => {
+              const exists = models.some((mm) => mm.model === m.id);
+              return (
               <label
                 key={m.id}
                 className="flex items-center gap-2 text-sm cursor-pointer hover:bg-input p-1.5 rounded"
@@ -569,8 +576,12 @@ function ModelMapping({
                 {m.display_name && (
                   <span className="text-content-muted">({m.display_name})</span>
                 )}
+                {exists && (
+                  <span className="ml-auto text-[10px] text-emerald-500 shrink-0">{t("alreadyAdded")}</span>
+                )}
               </label>
-            ))}
+              );
+            })}
           </div>
           <button
             type="button"

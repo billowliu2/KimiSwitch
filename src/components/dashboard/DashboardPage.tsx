@@ -5,6 +5,7 @@ import { useTranslation } from "../../i18n";
 import { fmtInt, fmtPct, fmtTime, fmtTokens, fmtUsd } from "../../lib/dashboard-format";
 import { DailyBars } from "./DailyBars";
 import { Heatmap } from "./Heatmap";
+import { TrendLineChart } from "./TrendLineChart";
 
 const RANGES: DashboardRange[] = ["today", "7d", "30d", "all"];
 
@@ -12,18 +13,20 @@ function Card({
   title,
   subtitle,
   children,
+  className,
 }: {
   title: string;
   subtitle?: string;
   children: ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="flex flex-col rounded-xl border border-border bg-panel">
+    <div className={`flex flex-col rounded-xl border border-border bg-panel ${className ?? ""}`}>
       <div className="border-b border-border px-4 py-2.5 flex items-baseline justify-between">
         <h3 className="text-sm font-medium text-content-primary">{title}</h3>
         {subtitle && <span className="text-xs text-content-muted">{subtitle}</span>}
       </div>
-      <div className="flex-1 p-4">{children}</div>
+      <div className="flex flex-1 flex-col p-4">{children}</div>
     </div>
   );
 }
@@ -45,7 +48,7 @@ export function DashboardPage() {
   const { range, changeRange, data, loading, error, refresh } = useDashboard();
   const [showAllModels, setShowAllModels] = useState(false);
   const [recentPage, setRecentPage] = useState(1);
-  const [trendTab, setTrendTab] = useState<"model" | "provider">("model");
+  const [trendTab, setTrendTab] = useState<"daily" | "model" | "provider">("daily");
 
   const RANGE_LABELS: Record<DashboardRange, string> = {
     today: t("rangeToday"),
@@ -187,18 +190,29 @@ export function DashboardPage() {
         ))}
       </div>
 
-      {/* Heatmap — full-year strip, fixed-size cells, centered */}
+      {/* Heatmap — full row */}
       <Card title={t("cardHeatmap")} subtitle={t("cardHeatmapSub")}>
         <Heatmap heatmap={heatmap} />
       </Card>
 
-      {/* Charts + Model side table */}
-      <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+      {/* Usage-trend tabs + Model table side by side */}
+      <div className="grid items-stretch gap-4 lg:grid-cols-[1.2fr_1fr]">
         {/* Usage-trend tab container */}
         <div className="flex flex-col rounded-xl border border-border bg-panel">
           {/* Tab bar header */}
           <div className="flex items-end justify-between border-b border-border px-2">
             <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => setTrendTab("daily")}
+                className={`px-3 py-2 -mb-px border-b-2 text-sm font-medium transition-colors ${
+                  trendTab === "daily"
+                    ? "border-blue-500 text-content-primary"
+                    : "border-transparent text-content-muted hover:text-content-primary"
+                }`}
+              >
+                {t("tabDailyTrend")}
+              </button>
               <button
                 type="button"
                 onClick={() => setTrendTab("model")}
@@ -223,21 +237,29 @@ export function DashboardPage() {
               </button>
             </div>
             <span className="pb-2 text-xs text-content-muted">
-              {daily.length > 30
-                ? t("cardDailyTrendSubCapped", { n: daily.length })
-                : t("cardDailyTrendSub", { n: daily.length })}
+              {trendTab === "daily"
+                ? t("trendLineSub", { n: trendDaily.length })
+                : daily.length > 30
+                  ? t("cardDailyTrendSubCapped", { n: daily.length })
+                  : t("cardDailyTrendSub", { n: daily.length })}
             </span>
           </div>
           {/* Active tab content */}
-          <div className="flex-1 p-4">
-            <div className="h-full min-h-[240px]">
-              <DailyBars
-                daily={trendDaily}
-                dimension={trendTab}
-                names={trendTab === "model" ? modelNames : providerNames}
-                unknownProviderLabel={t("providerUnknown")}
-              />
-            </div>
+          <div className="flex flex-1 flex-col p-4">
+            {trendTab === "daily" ? (
+              <div className="flex-1 min-h-[240px]">
+                <TrendLineChart daily={trendDaily} />
+              </div>
+            ) : (
+              <div className="flex-1 min-h-[240px]">
+                <DailyBars
+                  daily={trendDaily}
+                  dimension={trendTab}
+                  names={trendTab === "model" ? modelNames : providerNames}
+                  unknownProviderLabel={t("providerUnknown")}
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -246,7 +268,7 @@ export function DashboardPage() {
             <div className="py-8 text-center text-sm text-content-muted">{t("noData")}</div>
           ) : (
             <div className="max-h-[360px] overflow-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm border-collapse">
                 <thead className="sticky top-0 bg-panel">
                   <tr className="text-left text-xs text-content-muted border-b border-border">
                     <th className="pb-2 pr-3 font-normal">{t("colModel")}</th>
@@ -260,7 +282,7 @@ export function DashboardPage() {
                   {visibleModels.map((m) => (
                     <tr
                       key={m.model}
-                      className="border-b border-border/50 hover:bg-hover"
+                      className="border-b border-border hover:bg-hover"
                     >
                       <td className="py-2 pr-3">
                         <div className="flex items-center gap-2">
@@ -273,10 +295,10 @@ export function DashboardPage() {
                                   : "#6b7280",
                             }}
                           />
-                          <div className="min-w-0">
-                            <div className="text-content-primary whitespace-nowrap">{m.modelDisplay || m.model}</div>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-content-primary whitespace-nowrap truncate">{m.modelDisplay || m.model}</span>
                             {m.costEstimated && (
-                              <span className="text-[10px] text-yellow-600">{t("estimate")}</span>
+                              <span className="text-[10px] text-yellow-600 shrink-0">({t("estimate")})</span>
                             )}
                           </div>
                         </div>
@@ -316,8 +338,8 @@ export function DashboardPage() {
           <div className="py-8 text-center text-sm text-content-muted">{t("noData")}</div>
         ) : (
           <>
-            <div className="overflow-auto">
-              <table className="w-full text-sm">
+            <div className="overflow-auto max-h-[860px]">
+              <table className="w-full text-sm border-collapse">
                 <thead className="sticky top-0 bg-panel">
                   <tr className="text-left text-xs text-content-muted border-b border-border">
                     <th className="pb-2 pr-4 font-normal">{t("colTime")}</th>
@@ -330,7 +352,7 @@ export function DashboardPage() {
                 </thead>
                 <tbody>
                   {recentPageRows.map((r, i) => (
-                    <tr key={recentStart + i} className="border-b border-border/50 hover:bg-hover">
+                    <tr key={recentStart + i} className="border-b border-border hover:bg-hover">
                       <td className="py-1.5 pr-4 text-content-muted whitespace-nowrap">
                         {fmtTime(r.time)}
                       </td>
@@ -398,20 +420,23 @@ export function DashboardPage() {
         )}
       </Card>
 
-      {/* Attribution footer */}
+      {/* Footer — meta + attribution at the end of the content flow */}
       <div className="text-xs text-content-muted pb-2">
-        {t("footerScanned", { n: data.meta.filesScanned, m: fmtInt(data.meta.recordCount) })} ·{" "}
-        {data.meta.home}
-        <br />
-        {t("dashboardAttribution")}{" "}
-        <button
-          type="button"
-          onClick={() => openUrl("https://github.com/JochenYang/kimicode-dashboard")}
-          className="text-blue-500 hover:text-blue-400 underline bg-transparent p-0 border-0 cursor-pointer"
-        >
-          kimicode-dashboard
-        </button>{" "}
-        {t("attributionSuffix")}
+        <div>
+          {t("footerScanned", { n: data.meta.filesScanned, m: fmtInt(data.meta.recordCount) })} ·{" "}
+          {data.meta.home}
+        </div>
+        <div className="mt-0.5">
+          {t("dashboardAttribution")}{" "}
+          <button
+            type="button"
+            onClick={() => openUrl("https://github.com/JochenYang/kimicode-dashboard")}
+            className="text-blue-500 hover:text-blue-400 underline bg-transparent p-0 border-0 cursor-pointer"
+          >
+            kimicode-dashboard
+          </button>{" "}
+          {t("attributionSuffix")}
+        </div>
       </div>
     </div>
   );
