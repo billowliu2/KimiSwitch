@@ -866,8 +866,6 @@ pub fn open_installer(app: tauri::AppHandle, path: String) -> Result<(), String>
         .open_path(&path, None::<&str>)
         .map_err(|e| e.to_string())
 }
-
-/// Pick the GitHub release asset matching the given OS by file extension.
 /// Preference for Linux is AppImage (portable, no install). If the preferred
 /// extension is not present, returns None so the UI can fall back to
 /// "open release page" instead of guessing a less-preferred format.
@@ -964,4 +962,15 @@ mod asset_picker_tests {
         let url = pick_asset_for_os(&assets, "freebsd");
         assert_eq!(url, None);
     }
+}
+
+/// Open an external https/http URL in the system default browser.
+/// Uses the Rust opener directly (bypassing the JS plugin scope) so it
+/// works regardless of capability scope configuration.
+#[tauri::command]
+pub fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| e.to_string())
 }

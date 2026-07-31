@@ -19,7 +19,7 @@ const LEVEL_BG = [
 const DOW_LABELS_ZH = ["日", "一", "二", "三", "四", "五", "六"];
 const DOW_LABELS_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const CELL = 12; // px
+const CELL = 16; // px
 const GAP = 3; // px
 const LABEL_W = 28; // dow label column width
 

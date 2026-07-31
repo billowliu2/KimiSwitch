@@ -1,6 +1,6 @@
 {
   "productName": "Kimi Switch",
-  "version": "0.6.0",
+  "version": "0.6.3",
   "identifier": "com.kimiswitch.app",
   "build": {
     "beforeDevCommand": "npm run dev",

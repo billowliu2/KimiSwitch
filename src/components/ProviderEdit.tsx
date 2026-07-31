@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "../i18n";
 import type { TranslationKey } from "../i18n/zh";
+import { findPresetForProvider } from "../config/providerPresets";
 import { getDefaultMaxContextSize } from "../lib/model-defaults";
 import { capabilitiesFromRef, getModelRef } from "../lib/models-dev";
 import { getIconMetadata } from "../icons/extracted/metadata";
@@ -117,6 +118,10 @@ export function ProviderEdit({
   const [showApiKey, setShowApiKey] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
 
+  // Preset this provider was created from (if any) — provides the
+  // "Get API Key" / referral links shown under the key input.
+  const preset = findPresetForProvider(provider);
+
   useEffect(() => {
     const def = defaultBaseUrl(agent, provider.provider_type);
     if (!def) return;
@@ -215,7 +220,7 @@ export function ProviderEdit({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor={nameId} className="block text-sm text-content-muted mb-1.5">
-                    {t("providerName")}
+                    {t("providerName")} <span className="text-red-500">*</span>
                   </label>
                   <input
                     id={nameId}
@@ -296,7 +301,7 @@ export function ProviderEdit({
                 {!provider.managed && (
                   <div>
                     <label htmlFor={apiKeyId} className="block text-sm text-content-muted mb-1.5">
-                      {t("apiKey")}
+                      {t("apiKey")} <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
                       <input
@@ -316,12 +321,29 @@ export function ProviderEdit({
                         {showApiKey ? t("hide") : t("show")}
                       </button>
                     </div>
+                    {(() => {
+                      const linkUrl = preset?.apiKeyUrl ?? provider.official_url ?? null;
+                      if (!linkUrl) return null;
+                      return (
+                        <div className="mt-1.5 flex items-center gap-4 text-xs">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              invoke("open_external_url", { url: linkUrl }).catch(() => {})
+                            }
+                            className="text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            {preset?.apiKeyUrl ? t("getApiKeyLink") : t("officialUrl")}
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
 
                 <div>
                   <label htmlFor={baseUrlId} className="block text-sm text-content-muted mb-1.5">
-                    {t("requestUrl")}
+                    {t("requestUrl")} <span className="text-red-500">*</span>
                   </label>
                   <input
                     id={baseUrlId}
@@ -459,6 +481,9 @@ function ModelMapping({
         provider,
       });
       setDiscovered(result);
+      // Auto-select models that already exist in the current provider's list
+      const existingIds = new Set(models.filter((m) => m.model).map((m) => m.model));
+      setSelected(new Set(result.filter((dm) => existingIds.has(dm.id)).map((dm) => dm.id)));
     } catch (err) {
       setDiscoverError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -477,9 +502,11 @@ function ModelMapping({
 
   const handleAddSelected = () => {
     if (!discovered || selected.size === 0) return;
+    const existingIds = new Set(models.filter((m) => m.model).map((m) => m.model));
     const toAdd: Model[] = [];
     for (const dm of discovered) {
       if (!selected.has(dm.id)) continue;
+      if (existingIds.has(dm.id)) continue; // skip models already in this provider
       const safeProvider = provider.name.replace(/\//g, "-");
       const safeModelId = dm.id.replace(/\//g, "-");
       const alias = `${safeProvider}/${safeModelId}`;
@@ -555,7 +582,9 @@ function ModelMapping({
             {t("fetchEnableThinking")}
           </label>
           <div className="max-h-48 overflow-auto space-y-1">
-            {discovered.map((m) => (
+            {discovered.map((m) => {
+              const exists = models.some((mm) => mm.model === m.id);
+              return (
               <label
                 key={m.id}
                 className="flex items-center gap-2 text-sm cursor-pointer hover:bg-input p-1.5 rounded"
@@ -569,8 +598,12 @@ function ModelMapping({
                 {m.display_name && (
                   <span className="text-content-muted">({m.display_name})</span>
                 )}
+                {exists && (
+                  <span className="ml-auto text-[10px] text-emerald-500 shrink-0">{t("alreadyAdded")}</span>
+                )}
               </label>
-            ))}
+              );
+            })}
           </div>
           <button
             type="button"

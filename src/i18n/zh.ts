@@ -58,6 +58,7 @@ export const zhTranslations = {
   apiFormat: "API 格式",
   authField: "认证字段",
   apiKey: "API Key",
+  getApiKeyLink: "获取 API Key",
   show: "显示",
   hide: "隐藏",
   requestUrl: "请求地址",
@@ -71,6 +72,7 @@ export const zhTranslations = {
   fetchingModels: "获取中...",
   discoveredModels: "发现 {count} 个模型",
   addSelected: "添加选中的",
+  alreadyAdded: "已添加",
   displayName: "显示名称",
   actualModel: "实际请求模型",
   contextSize: "上下文长度",
@@ -278,6 +280,7 @@ export const zhTranslations = {
   cardDailyTrendSubCapped: "近 30 天 · 共 {n} 天",
   tabModelTrend: "模型用量趋势",
   tabProviderTrend: "供应商模型用量趋势",
+  tabDailyTrend: "每日用量趋势",
   providerUnknown: "未知供应商",
   cardDailyTrendSub: "共 {n} 天",
   cardModelUsage: "模型用量",
@@ -334,17 +337,23 @@ export const zhTranslations = {
   presetNameKimiCoding: "Kimi For Coding",
   presetNameMoonshot: "Moonshot 平台",
   presetNameDeepseek: "DeepSeek",
-  presetNameZhipu: "智谱 GLM",
-  presetNameZai: "z.ai（智谱海外）",
+  presetNameZhipuApi: "智谱 GLM（按量）",
+  presetNameZhipuCoding: "智谱 GLM Coding Plan",
+  presetNameZaiApi: "z.ai（按量）",
+  presetNameZaiCoding: "z.ai Coding Plan",
   presetNameBailian: "阿里百炼",
   presetNameMinimax: "MiniMax",
+  presetNameMinimaxTokenPlan: "MiniMax Token Plan",
   presetNameStepfun: "阶跃星辰",
+  presetNameStepfunPlan: "阶跃星辰 Step Plan",
   presetNameSiliconflow: "硅基流动",
   presetNameNovita: "Novita AI",
   presetNameOpenrouter: "OpenRouter",
   presetNameOpenai: "OpenAI 官方",
   presetNameGoogleGenai: "Google AI Studio",
   presetNameVolcengine: "火山方舟",
+  presetNameOpencodeGo: "OpenCode Go",
+  presetNameOpencodeZen: "OpenCode Zen",
 
   // Provider usage
   usageBalance: "余额",
@@ -358,6 +367,23 @@ export const zhTranslations = {
   usageResetIn: "{time} 后重置",
   usageResetDone: "已重置",
   usageLoading: "查询中…",
+
+  // Billing mode (套餐 / 按量)
+  billingTabSubscription: "套餐",
+  billingTabPayAsYouGo: "按量",
+  billingTabAll: "全部",
+  billingBadgeSubscription: "套餐",
+  billingBadgePayAsYouGo: "按量",
+
+  // Usage trend line chart
+  trendLineTitle: "用量趋势",
+  trendLineSub: "最近 {n} 天",
+  trendLineLegendTokens: "Token 用量",
+  trendLineLegendCacheHit: "缓存命中率",
+  trendLineLegendRequests: "请求数",
+  trendLineShowRequests: "显示请求数",
+  trendLineTooltip: "{date}\nToken: {tokens}\n命中率: {cache}\n请求: {req}",
+  trendLineNoData: "暂无数据",
 } as const;
 
 export type TranslationKey = keyof typeof zhTranslations;

@@ -2,7 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "../i18n";
 import type { TranslationKey } from "../i18n/zh";
-import { providerPresets, type PresetCategory, type ProviderPreset } from "../config/providerPresets";
+import {
+  providerPresets,
+  type BillingMode,
+  type PresetCategory,
+  type ProviderPreset,
+} from "../config/providerPresets";
 import { ProviderIcon } from "./ProviderIcon";
 
 interface PresetPickerModalProps {
@@ -26,12 +31,26 @@ const CATEGORY_LABEL: Record<Exclude<PresetCategory, "custom">, TranslationKey> 
   aggregator: "presetCategoryAggregator",
 };
 
+const BILLING_BADGE: Record<BillingMode, string> = {
+  subscription: "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400",
+  pay_as_you_go: "bg-slate-200 text-slate-600 dark:bg-slate-500/15 dark:text-slate-400",
+};
+
+const BILLING_LABEL: Record<BillingMode, TranslationKey> = {
+  subscription: "billingBadgeSubscription",
+  pay_as_you_go: "billingBadgePayAsYouGo",
+};
+
 type SortMode = "original" | "alpha";
+type BillingTab = "all" | BillingMode;
+
+const BILLING_TAB_ORDER: BillingTab[] = ["subscription", "pay_as_you_go", "all"];
 
 export function PresetPickerModal({ open, onClose, onSelect, onCustom }: PresetPickerModalProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortMode>("original");
+  const [billingTab, setBillingTab] = useState<BillingTab>("all");
 
   // Esc to close
   useEffect(() => {
@@ -58,8 +77,21 @@ export function PresetPickerModal({ open, onClose, onSelect, onCustom }: PresetP
     if (open) {
       setQuery("");
       setSort("original");
+      setBillingTab("all");
     }
   }, [open]);
+
+  // Counts per billing tab — shown in the tab labels so users see how many
+  // presets are in each bucket without having to click through.
+  const billingCounts = useMemo(() => {
+    let sub = 0;
+    let payg = 0;
+    for (const p of providerPresets) {
+      if (p.billingMode === "subscription") sub++;
+      else payg++;
+    }
+    return { subscription: sub, pay_as_you_go: payg, all: sub + payg };
+  }, []);
 
   const presetName = (p: ProviderPreset) =>
     p.nameKey ? t(p.nameKey as TranslationKey) : p.name;
@@ -67,6 +99,9 @@ export function PresetPickerModal({ open, onClose, onSelect, onCustom }: PresetP
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = providerPresets;
+    if (billingTab !== "all") {
+      list = list.filter((p) => p.billingMode === billingTab);
+    }
     if (q) {
       list = list.filter(
         (p) => p.id.toLowerCase().includes(q) || presetName(p).toLowerCase().includes(q)
@@ -77,7 +112,7 @@ export function PresetPickerModal({ open, onClose, onSelect, onCustom }: PresetP
     }
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, sort, t]);
+  }, [query, sort, billingTab, t]);
 
   if (!open) return null;
 
@@ -110,39 +145,67 @@ export function PresetPickerModal({ open, onClose, onSelect, onCustom }: PresetP
           </button>
         </div>
 
-        {/* Search + sort */}
-        <div className="flex items-center gap-2 border-b border-border px-5 py-3">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("presetSearchPlaceholder")}
-            autoFocus
-            className="h-8 flex-1 rounded border border-border bg-input px-2 text-sm text-content-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <div className="flex items-center rounded border border-border bg-input p-0.5">
-            <button
-              type="button"
-              onClick={() => setSort("original")}
-              className={`px-2 py-1 text-xs rounded transition-colors ${
-                sort === "original"
-                  ? "bg-blue-600 text-white"
-                  : "text-content-muted hover:text-content-primary"
-              }`}
-            >
-              {t("presetSortOriginal")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setSort("alpha")}
-              className={`px-2 py-1 text-xs rounded transition-colors ${
-                sort === "alpha"
-                  ? "bg-blue-600 text-white"
-                  : "text-content-muted hover:text-content-primary"
-              }`}
-            >
-              {t("presetSortAlpha")}
-            </button>
+        {/* Billing-mode tabs + search + sort */}
+        <div className="flex flex-col gap-2 border-b border-border px-5 py-3">
+          <div className="flex items-center bg-input border border-border rounded p-0.5 self-start">
+            {BILLING_TAB_ORDER.map((tab) => {
+              const labelKey: TranslationKey =
+                tab === "all"
+                  ? "billingTabAll"
+                  : tab === "subscription"
+                    ? "billingTabSubscription"
+                    : "billingTabPayAsYouGo";
+              const count = billingCounts[tab];
+              const active = billingTab === tab;
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setBillingTab(tab)}
+                  className={`px-2.5 py-1 text-xs rounded transition-colors ${
+                    active
+                      ? "bg-blue-600 text-white"
+                      : "text-content-muted hover:text-content-primary"
+                  }`}
+                >
+                  {t(labelKey)} ({count})
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("presetSearchPlaceholder")}
+              autoFocus
+              className="h-8 flex-1 rounded border border-border bg-input px-2 text-sm text-content-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <div className="flex items-center rounded border border-border bg-input p-0.5">
+              <button
+                type="button"
+                onClick={() => setSort("original")}
+                className={`px-2 py-1 text-xs rounded transition-colors ${
+                  sort === "original"
+                    ? "bg-blue-600 text-white"
+                    : "text-content-muted hover:text-content-primary"
+                }`}
+              >
+                {t("presetSortOriginal")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSort("alpha")}
+                className={`px-2 py-1 text-xs rounded transition-colors ${
+                  sort === "alpha"
+                    ? "bg-blue-600 text-white"
+                    : "text-content-muted hover:text-content-primary"
+                }`}
+              >
+                {t("presetSortAlpha")}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -168,13 +231,20 @@ export function PresetPickerModal({ open, onClose, onSelect, onCustom }: PresetP
                   <div className="w-full truncate text-sm font-medium text-content-primary">
                     {presetName(p)}
                   </div>
-                  {p.category !== "custom" && (
+                  <div className="flex flex-wrap gap-1">
+                    {p.category !== "custom" && (
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${CATEGORY_BADGE[p.category]}`}
+                      >
+                        {t(CATEGORY_LABEL[p.category])}
+                      </span>
+                    )}
                     <span
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${CATEGORY_BADGE[p.category]}`}
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${BILLING_BADGE[p.billingMode]}`}
                     >
-                      {t(CATEGORY_LABEL[p.category])}
+                      {t(BILLING_LABEL[p.billingMode])}
                     </span>
-                  )}
+                  </div>
                 </button>
               ))}
             </div>

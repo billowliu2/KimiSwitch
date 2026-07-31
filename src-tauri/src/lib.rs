@@ -104,6 +104,7 @@ pub fn run() {
             commands::check_for_update,
             commands::download_update,
             commands::open_installer,
+            commands::open_external_url,
             dashboard::get_paths,
             dashboard::get_prices,
             dashboard::get_summary,
