@@ -441,7 +441,10 @@ export const providerPresets: ProviderPreset[] = [
     name: "OpenCode Zen",
     nameKey: "presetNameOpencodeZen",
     websiteUrl: "https://opencode.ai/zen/",
-    apiKeyUrl: "https://opencode.ai/zen/",
+    // Referral program only exists on the /go landing page; the Zen console
+    // page itself carries no ref parameter, so point the "get API key" action
+    // at the referral link.
+    apiKeyUrl: "https://opencode.ai/go?ref=DFCNADQCEM",
     category: "third_party",
     providerType: "openai",
     baseUrl: "https://opencode.ai/zen/v1",
