@@ -252,6 +252,28 @@ const zh = {
     download: "免费下载",
     source: "GitHub 源码",
   },
+  seo: {
+    home: {
+      title: "Kimi Switch — 多 LLM 供应商统一管理 · 用量监控 · 账单一目了然",
+      description:
+        "Kimi Switch / KimiCodeSwitch — Windows 桌面端多 LLM 供应商统一管理器，一键切换 Kimi / 智谱 GLM / MiniMax / DeepSeek / OpenRouter / 基元律动，用量账单实时监控，开源 MIT。",
+    },
+    features: {
+      title: "核心功能 - Kimi Switch",
+      description:
+        "Kimi Switch 核心功能：多供应商管理、用量与账单监控、Kimi 一键授权登录、智能模型发现与自动更新，22 个预设开箱即用。",
+    },
+    changelog: {
+      title: "更新日志 - Kimi Switch",
+      description:
+        "Kimi Switch 更新日志：每个版本的重要变更记录，同步自 GitHub Releases。",
+    },
+    download: {
+      title: "下载 - Kimi Switch",
+      description:
+        "下载 Kimi Switch：Windows .msi、macOS .dmg、Linux .deb / .AppImage / .rpm，免费开源 MIT。",
+    },
+  },
   footer: {
     recommend: "推荐供应商",
     mirror: "国内镜像",
@@ -515,6 +537,28 @@ const en: Dict = {
     subtitle: "Free · Open source MIT · One-minute install",
     download: "Free Download",
     source: "GitHub Source",
+  },
+  seo: {
+    home: {
+      title: "Kimi Switch — Unified Management for AI Providers · Usage & Billing",
+      description:
+        "Kimi Switch / KimiCodeSwitch — a Windows desktop manager for multiple LLM providers. Switch between Kimi, Zhipu GLM, MiniMax, DeepSeek, OpenRouter and TokenRhythm in one click, with usage and billing at a glance. Open source MIT.",
+    },
+    features: {
+      title: "Core Features - Kimi Switch",
+      description:
+        "Kimi Switch core features: multi-provider management, usage & billing, one-click Kimi login, smart model discovery and auto updates. 22 presets out of the box.",
+    },
+    changelog: {
+      title: "Changelog - Kimi Switch",
+      description:
+        "Kimi Switch changelog: notable changes in every release, synced from GitHub Releases.",
+    },
+    download: {
+      title: "Download - Kimi Switch",
+      description:
+        "Download Kimi Switch: Windows .msi, macOS .dmg, Linux .deb / .AppImage / .rpm. Free and open source under MIT.",
+    },
   },
   footer: {
     recommend: "Recommended Providers",
