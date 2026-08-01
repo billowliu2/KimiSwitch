@@ -6,27 +6,17 @@
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://billowliu2.github.io/KimiSwitch/#/features</loc>
+    <loc>https://billowliu2.github.io/KimiSwitch/features</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://billowliu2.github.io/KimiSwitch/#/showcase</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://billowliu2.github.io/KimiSwitch/#/performance</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://billowliu2.github.io/KimiSwitch/#/changelog</loc>
+    <loc>https://billowliu2.github.io/KimiSwitch/changelog</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://billowliu2.github.io/KimiSwitch/#/download</loc>
+    <loc>https://billowliu2.github.io/KimiSwitch/download</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
