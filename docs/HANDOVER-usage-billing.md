@@ -4,8 +4,14 @@
 
 ## 一、当前进度总览
 
-**已提交（1 个 commit，分支 `Dev_20260801`）**：
-- `12dcb17` — docs: 账单查询适配调研 + OpenCode Zen 预设补推荐链接
+**已提交并发布 v0.6.4**：
+- `ace9842` — feat: 新增部分套餐账单查询（v0.6.4）（26 文件 +1822/-60，含以下全部 6 个批次 + 版本号三处 0.6.4）
+- 已推送 origin（git.codingplan.site）：分支 `Dev_20260801` + tag `v0.6.4`
+- 已推送 GitHub（billowliu2/KimiSwitch）：tag `v0.6.4`（走 127.0.0.1:7897 代理；git 全局配置 `http.proxy` 指向它，代理关闭时 push 会报 schannel SSL 握手错误，可用 `git -c http.proxy= push` 绕过硬连 origin）
+- GitHub Actions Release workflow 已触发（三平台构建 → Release draft 自动上传 msi/dmg/AppImage/deb/rpm）
+- 本地 0.6.4 安装包：`src-tauri/target/release/bundle/{nsis,msi}/`
+
+**历史提交**：`12dcb17` — docs: 账单查询适配调研 + OpenCode Zen 预设补推荐链接
 
 **工作区未提交改动**——用户硬约束：**实现完成不提交，等用户逐批测试确认后才提交**。
 `git status` 实测清单（注意：`src-tauri/Cargo.toml` 现含**真实改动**——批次 4 新增 tokio 依赖行，另混有用户自己的行尾差异，提交时只保留 tokio 行）：
