@@ -16,7 +16,7 @@ const zh = {
     performance: "性能",
     changelog: "更新日志",
     download: "下载",
-    downloadBtn: "下载 v0.6.7",
+    downloadBtn: "下载 v0.6.8",
   },
   hero: {
     badge: "开源 MIT · Windows 10 / 11",
@@ -141,6 +141,16 @@ const zh = {
     fallbackNote: "内置版本记录",
     entries: [
       {
+        version: "v0.6.8",
+        date: "2026-08-01",
+        items: [
+          "仪表盘加载提速：models.dev 快照移出主 bundle，异步加载不阻塞首帧",
+          "Rust 价格索引启动时后台预热；get_summary 扫描结果 8 秒缓存",
+          "k3-256k 按 k3 牌价计费",
+          "官网更新：Kimi 风格重设计、中英文切换、更新日志同步 GitHub Releases、三平台下载",
+        ],
+      },
+      {
         version: "v0.6.7",
         date: "2026-08-01",
         items: [
@@ -234,7 +244,7 @@ const zh = {
   },
   download: {
     title: "下载 Kimi Switch",
-    subtitle: "当前版本 v0.6.7 · Windows 10 / 11 主推，macOS 与 Linux 路线图上。",
+    subtitle: "当前版本 v0.6.8 · Windows / macOS / Linux 三平台已发布",
     autoUpdate: "应用内置自动检测更新，新版本发布后在设置页一键升级。",
     ready: "已发布",
     wip: "开发中",
@@ -302,7 +312,7 @@ const en: Dict = {
     performance: "Performance",
     changelog: "Changelog",
     download: "Download",
-    downloadBtn: "Download v0.6.7",
+    downloadBtn: "Download v0.6.8",
   },
   hero: {
     badge: "Open source MIT · Windows 10 / 11",
@@ -427,6 +437,16 @@ const en: Dict = {
     fallbackNote: "Built-in release notes",
     entries: [
       {
+        version: "v0.6.8",
+        date: "2026-08-01",
+        items: [
+          "Dashboard speedup: models.dev snapshot moved out of the main bundle, async load without blocking first paint",
+          "Rust price index warmed in the background at startup; get_summary scan cached for 8s",
+          "k3-256k billed at the k3 list price",
+          "Website refresh: Kimi-style redesign, zh/en switch, changelog synced from GitHub Releases, downloads for all three platforms",
+        ],
+      },
+      {
         version: "v0.6.7",
         date: "2026-08-01",
         items: [
@@ -520,7 +540,7 @@ const en: Dict = {
   },
   download: {
     title: "Download Kimi Switch",
-    subtitle: "Current version v0.6.7 · Windows 10 / 11 first, macOS and Linux on the roadmap.",
+    subtitle: "Current version v0.6.8 · Windows, macOS and Linux now released",
     autoUpdate: "Built-in update detection: upgrade in one click from Settings when a new version ships.",
     ready: "Available",
     wip: "In development",
