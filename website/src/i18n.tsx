@@ -16,10 +16,10 @@ const zh = {
     performance: "性能",
     changelog: "更新日志",
     download: "下载",
-    downloadBtn: "下载 v0.6.8",
+    downloadBtn: "下载 v0.6.9",
   },
   hero: {
-    badge: "开源 MIT · Windows 10 / 11",
+    badge: "v0.6.9 · 开源 MIT · Windows / macOS / Linux",
     titleBefore: "统一管理你的",
     titleAccent: "AI 供应商",
     titleAfter: "",
@@ -141,6 +141,15 @@ const zh = {
     fallbackNote: "内置版本记录",
     entries: [
       {
+        version: "v0.6.9",
+        date: "2026-08-01",
+        items: [
+          "最近请求新增缓存命中率列，每次请求命中一目了然",
+          "中文模式费用按最新汇率换算人民币（¥）显示，英文模式保持美元",
+          "仪表盘性能再优化：价格解析记忆化缓存，扫描从秒级降到百毫秒级；右上角新增加载耗时/数据量跟踪",
+        ],
+      },
+      {
         version: "v0.6.8",
         date: "2026-08-01",
         items: [
@@ -148,14 +157,6 @@ const zh = {
           "Rust 价格索引启动时后台预热；get_summary 扫描结果 8 秒缓存",
           "k3-256k 按 k3 牌价计费",
           "官网更新：Kimi 风格重设计、中英文切换、更新日志同步 GitHub Releases、三平台下载",
-        ],
-      },
-      {
-        version: "v0.6.7",
-        date: "2026-08-01",
-        items: [
-          "应用内置 Kimi 设备授权登录（等同 kimi login），浏览器授权即用，过期自动续期",
-          "外链打开统一走 Rust 命令，修复部分链接无法跳转",
         ],
       },
       {
@@ -244,7 +245,7 @@ const zh = {
   },
   download: {
     title: "下载 Kimi Switch",
-    subtitle: "当前版本 v0.6.8 · Windows / macOS / Linux 三平台已发布",
+    subtitle: "当前版本 v0.6.9 · Windows / macOS / Linux 三平台已发布",
     autoUpdate: "应用内置自动检测更新，新版本发布后在设置页一键升级。",
     ready: "已发布",
     wip: "开发中",
@@ -312,10 +313,10 @@ const en: Dict = {
     performance: "Performance",
     changelog: "Changelog",
     download: "Download",
-    downloadBtn: "Download v0.6.8",
+    downloadBtn: "Download v0.6.9",
   },
   hero: {
-    badge: "Open source MIT · Windows 10 / 11",
+    badge: "v0.6.9 · Open source MIT · Windows / macOS / Linux",
     titleBefore: "One app for all your ",
     titleAccent: "AI providers",
     titleAfter: "",
@@ -437,6 +438,15 @@ const en: Dict = {
     fallbackNote: "Built-in release notes",
     entries: [
       {
+        version: "v0.6.9",
+        date: "2026-08-01",
+        items: [
+          "Recent requests gain a cache-hit-rate column, per request at a glance",
+          "Chinese UI now shows costs in CNY (latest exchange rate); English keeps USD",
+          "Dashboard speedup: memoized price resolution drops the scan from seconds to milliseconds; load time / payload tracking in the top-right corner",
+        ],
+      },
+      {
         version: "v0.6.8",
         date: "2026-08-01",
         items: [
@@ -540,7 +550,7 @@ const en: Dict = {
   },
   download: {
     title: "Download Kimi Switch",
-    subtitle: "Current version v0.6.8 · Windows, macOS and Linux now released",
+    subtitle: "Current version v0.6.9 · Windows, macOS and Linux now released",
     autoUpdate: "Built-in update detection: upgrade in one click from Settings when a new version ships.",
     ready: "Available",
     wip: "In development",

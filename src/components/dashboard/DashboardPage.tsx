@@ -1,12 +1,19 @@
 import { useState, type ReactNode } from "react";
 import { useDashboard, type DashboardRange } from "../../hooks/useDashboard";
+import { useCurrency } from "../../hooks/useCurrency";
 import { useTranslation } from "../../i18n";
-import { fmtInt, fmtPct, fmtTime, fmtTokens, fmtUsd } from "../../lib/dashboard-format";
+import { fmtInt, fmtPct, fmtTime, fmtTokens } from "../../lib/dashboard-format";
 import { DailyBars } from "./DailyBars";
 import { Heatmap } from "./Heatmap";
 import { TrendLineChart } from "./TrendLineChart";
 
 const RANGES: DashboardRange[] = ["today", "7d", "30d", "all"];
+
+/** Per-request cache hit rate: cached tokens / total input tokens. */
+function cacheHitOf(r: { inputOther: number; inputCacheRead: number }): number {
+  const denom = r.inputOther + r.inputCacheRead;
+  return denom > 0 ? r.inputCacheRead / denom : 0;
+}
 
 function Card({
   title,
@@ -44,7 +51,8 @@ function KpiCard({ label, value, sub }: { label: string; value: string; sub?: st
 
 export function DashboardPage() {
   const { t } = useTranslation();
-  const { range, changeRange, data, loading, error, refresh } = useDashboard();
+  const { money } = useCurrency();
+  const { range, changeRange, data, loading, error, refresh, loadStats } = useDashboard();
   const [showAllModels, setShowAllModels] = useState(false);
   const [recentPage, setRecentPage] = useState(1);
   const [trendTab, setTrendTab] = useState<"daily" | "model" | "provider">("daily");
@@ -120,28 +128,35 @@ export function DashboardPage() {
     { label: t("kpiCacheCreation"), value: fmtTokens(totals.inputCacheCreation), sub: fmtInt(totals.inputCacheCreation) },
     { label: t("kpiCacheHit"), value: fmtPct(totals.cacheHitRate) },
     { label: t("totalTokens"), value: fmtTokens(totals.totalTokens), sub: fmtInt(totals.totalTokens) },
-    { label: t("kpiCost"), value: fmtUsd(totals.costUsd) },
+    { label: t("kpiCost"), value: money(totals.costUsd) },
   ];
 
   return (
     <div className="h-full overflow-auto p-4 space-y-4">
       {/* Range tabs + refresh */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center bg-input border border-border rounded p-0.5">
-          {RANGES.map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => changeRange(r)}
-              className={`px-3 py-1 text-sm rounded transition-colors ${
-                range === r
-                  ? "bg-blue-600 text-white"
-                  : "text-content-muted hover:text-content-primary"
-              }`}
-            >
-              {RANGE_LABELS[r]}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center bg-input border border-border rounded p-0.5">
+            {RANGES.map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => changeRange(r)}
+                className={`px-3 py-1 text-sm rounded transition-colors ${
+                  range === r
+                    ? "bg-blue-600 text-white"
+                    : "text-content-muted hover:text-content-primary"
+                }`}
+              >
+                {RANGE_LABELS[r]}
+              </button>
+            ))}
+          </div>
+          {loadStats && !loading && (
+            <span className="hidden text-[10px] text-content-muted sm:inline">
+              {t("loadStats", { ms: loadStats.ms, kb: loadStats.kb })}
+            </span>
+          )}
         </div>
         <button
           type="button"
@@ -175,7 +190,7 @@ export function DashboardPage() {
                 {fmtTokens(tot.totalTokens)}
               </div>
               <div className="mt-1 text-[11px] text-content-muted">
-                {fmtInt(tot.requests)} {t("unitTimes")} · {fmtUsd(tot.costUsd)} · {fmtPct(tot.cacheHitRate)}
+                {fmtInt(tot.requests)} {t("unitTimes")} · {money(tot.costUsd)} · {fmtPct(tot.cacheHitRate)}
               </div>
             </button>
           );
@@ -305,7 +320,7 @@ export function DashboardPage() {
                       <td className="py-2 pr-3 text-right text-content-muted">{fmtInt(m.requests)}</td>
                       <td className="py-2 pr-3 text-right text-content-muted">{fmtTokens(m.totalTokens)}</td>
                       <td className="py-2 pr-3 text-right text-content-muted">{fmtPct(m.cacheHitRate)}</td>
-                      <td className="py-2 text-right text-orange-600 dark:text-orange-400">{fmtUsd(m.costUsd)}</td>
+                      <td className="py-2 text-right text-orange-600 dark:text-orange-400">{money(m.costUsd)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -346,6 +361,7 @@ export function DashboardPage() {
                     <th className="pb-2 pr-4 font-normal text-right">{t("colInput")}</th>
                     <th className="pb-2 pr-4 font-normal text-right">{t("colOutput")}</th>
                     <th className="pb-2 pr-4 font-normal text-right">{t("colCacheRead")}</th>
+                    <th className="pb-2 pr-4 font-normal text-right">{t("colCacheHit")}</th>
                     <th className="pb-2 font-normal text-right">{t("cost")}</th>
                   </tr>
                 </thead>
@@ -359,7 +375,8 @@ export function DashboardPage() {
                       <td className="py-1.5 pr-4 text-right text-content-muted">{fmtTokens(r.inputOther)}</td>
                       <td className="py-1.5 pr-4 text-right text-content-muted">{fmtTokens(r.output)}</td>
                       <td className="py-1.5 pr-4 text-right text-content-muted">{fmtTokens(r.inputCacheRead)}</td>
-                      <td className="py-1.5 text-right text-orange-600 dark:text-orange-400">{fmtUsd(r.costUsd)}</td>
+                      <td className="py-1.5 pr-4 text-right text-content-muted">{fmtPct(cacheHitOf(r))}</td>
+                      <td className="py-1.5 text-right text-orange-600 dark:text-orange-400">{money(r.costUsd)}</td>
                     </tr>
                   ))}
                 </tbody>

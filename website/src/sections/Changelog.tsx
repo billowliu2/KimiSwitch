@@ -10,8 +10,13 @@ interface ChangelogEntry {
 
 const API_URL =
   "https://api.github.com/repos/billowliu2/KimiSwitch/releases?per_page=20";
-const CACHE_KEY = "kimi-switch-changelog";
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
+/** Cache key is versioned by the newest embedded release so redeploys
+ *  invalidate stale caches in the browser immediately. */
+function cacheKey(embedded: ChangelogEntry[]) {
+  return `kimi-switch-changelog-${embedded[0]?.version ?? "v1"}`;
+}
 
 /** Parse a GitHub release body into bullet items. */
 function parseBody(body: string): string[] {
@@ -36,9 +41,9 @@ async function fetchReleases(): Promise<ChangelogEntry[]> {
   }));
 }
 
-function readCache(): ChangelogEntry[] | null {
+function readCache(embedded: ChangelogEntry[]): ChangelogEntry[] | null {
   try {
-    const raw = localStorage.getItem(CACHE_KEY);
+    const raw = localStorage.getItem(cacheKey(embedded));
     if (!raw) return null;
     const { ts, data } = JSON.parse(raw) as { ts: number; data: ChangelogEntry[] };
     if (Date.now() - ts > CACHE_TTL) return null;
@@ -48,10 +53,10 @@ function readCache(): ChangelogEntry[] | null {
   }
 }
 
-function writeCache(data: ChangelogEntry[]) {
+function writeCache(data: ChangelogEntry[], embedded: ChangelogEntry[]) {
   try {
     localStorage.setItem(
-      CACHE_KEY,
+      cacheKey(embedded),
       JSON.stringify({ ts: Date.now(), data }),
     );
   } catch {
@@ -67,7 +72,7 @@ export default function Changelog() {
 
   useEffect(() => {
     let cancelled = false;
-    const cached = readCache();
+    const cached = readCache(embedded);
     if (cached) {
       setRemote(cached);
       setSynced(true);
@@ -78,7 +83,7 @@ export default function Changelog() {
         if (cancelled) return;
         setRemote(data);
         setSynced(true);
-        writeCache(data);
+        writeCache(data, embedded);
       })
       .catch(() => {
         /* 网络不通时使用内置列表兜底 */

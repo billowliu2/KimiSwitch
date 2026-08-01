@@ -5,7 +5,7 @@ import { asset } from "../lib/asset";
 /** Map recommendLink.name → logo file in public/logos (only when we have one). */
 const logoFor: Record<string, string> = {
   "Kimi": "logos/kimi.svg",
-  "智谱 GLM": "logos/glm.svg",
+  "智谱 GLM": "logos/zhipu.svg",
   "DeepSeek": "logos/deepseek.svg",
   "OpenCodeGo": "logos/opencode.svg",
   "MiniMax": "logos/minimax.svg",

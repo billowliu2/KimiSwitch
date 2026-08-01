@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "../../i18n";
-import { fmtPct, fmtTokens, fmtUsd } from "../../lib/dashboard-format";
+import { useCurrency } from "../../hooks/useCurrency";
+import { fmtPct, fmtTokens } from "../../lib/dashboard-format";
 import type { DailyRow } from "../../types/dashboard";
 import { DailyDetailModal } from "./DailyDetailModal";
 
@@ -43,6 +44,7 @@ function shortModel(model: string): string {
 
 export function DailyBars({ daily, dimension, names, unknownProviderLabel }: DailyBarsProps) {
   const { t } = useTranslation();
+  const { money } = useCurrency();
   const [selected, setSelected] = useState<DailyRow | null>(null);
 
   const colorMap = useMemo(() => {
@@ -103,7 +105,7 @@ export function DailyBars({ daily, dimension, names, unknownProviderLabel }: Dai
 
           const tooltipLines = [
             d.date,
-            `${t("totalTokens")}: ${fmtTokens(d.totalTokens)} · ${fmtUsd(d.costUsd)} · ${t("colCacheHit")} ${fmtPct(d.cacheHitRate)}`,
+            `${t("totalTokens")}: ${fmtTokens(d.totalTokens)} · ${money(d.costUsd)} · ${t("colCacheHit")} ${fmtPct(d.cacheHitRate)}`,
             ...segments.map((s) => `${displayName(s.key)}: ${fmtTokens(s.tokens)}`),
             "",
             t("doubleClickHint"),

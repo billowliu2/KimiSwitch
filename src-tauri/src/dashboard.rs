@@ -610,7 +610,26 @@ fn strip_context_suffix(model_name: &str) -> Option<String> {
     })
 }
 
+/// Memoized price resolution. `match_price` is called once per usage record
+/// during the scan, and the models.dev suffix scan is O(5910) per miss — with
+/// thousands of records sharing a handful of model names, memoizing the result
+/// turns the whole scan from O(records × 5910) into O(unique_models × 5910).
+static MATCH_PRICE_MEMO: OnceLock<Mutex<HashMap<String, (String, f64, f64, f64, bool)>>> =
+    OnceLock::new();
+
+/// Resolve a model's price, caching per-model results (hits and misses).
 fn match_price(model_name: &str) -> (String, f64, f64, f64, bool) {
+    let key = model_name.to_ascii_lowercase();
+    let memo = MATCH_PRICE_MEMO.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some(hit) = memo.lock().unwrap().get(&key) {
+        return hit.clone();
+    }
+    let result = match_price_inner(model_name);
+    memo.lock().unwrap().insert(key, result.clone());
+    result
+}
+
+fn match_price_inner(model_name: &str) -> (String, f64, f64, f64, bool) {
     let bare = match model_name.rsplit_once('/') {
         Some((_, b)) => b,
         None => model_name,
@@ -1537,6 +1556,7 @@ pub fn get_prices() -> PricesResult {
 
 #[tauri::command]
 pub fn get_summary(home_override: Option<String>, range: Option<String>, refresh: Option<bool>) -> SummaryResult {
+    let t0 = std::time::Instant::now();
     let refresh = refresh.unwrap_or(false);
     let home = resolve_kimi_home(home_override);
     let now_ms = std::time::SystemTime::now()
@@ -1544,6 +1564,7 @@ pub fn get_summary(home_override: Option<String>, range: Option<String>, refresh
     let r = range.unwrap_or_else(|| "30d".into());
 
     let (records, meta) = scan_usage_cached(&home, refresh);
+    let t1 = std::time::Instant::now();
     let stats = aggregate(&records, &r, now_ms);
     let all_stats = aggregate(&records, "all", now_ms);
     let heatmap = build_heatmap(&records, now_ms);
@@ -1567,6 +1588,15 @@ pub fn get_summary(home_override: Option<String>, range: Option<String>, refresh
     let env_model = std::env::var("KIMI_MODEL_NAME").ok().map(|name| EnvModelInfo {
         name, provider: std::env::var("KIMI_MODEL_PROVIDER").ok(), model: std::env::var("KIMI_MODEL_ID").ok(),
     });
+
+    let t2 = std::time::Instant::now();
+    let scan_ms = t1.duration_since(t0).as_secs_f64() * 1000.0;
+    let aggregate_ms = t2.duration_since(t1).as_secs_f64() * 1000.0;
+    let total_ms = t2.duration_since(t0).as_secs_f64() * 1000.0;
+    eprintln!(
+        "[dashboard] get_summary range={} records={} scan={:.0}ms aggregate={:.0}ms total={:.0}ms",
+        r, records.len(), scan_ms, aggregate_ms, total_ms
+    );
 
     SummaryResult {
         home: home.to_string_lossy().to_string(),

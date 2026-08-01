@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useTranslation } from "../../i18n";
-import { fmtPct, fmtTokens, fmtUsd } from "../../lib/dashboard-format";
+import { useCurrency } from "../../hooks/useCurrency";
+import { fmtPct, fmtTokens } from "../../lib/dashboard-format";
 import type { DailyRow } from "../../types/dashboard";
 import { modelColor } from "./DailyBars";
 
@@ -22,6 +23,7 @@ function shortModel(model: string): string {
 
 export function DailyDetailModal({ day, dimension, colorMap, unknownProviderLabel, onClose }: DailyDetailModalProps) {
   const { t } = useTranslation();
+  const { money } = useCurrency();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -106,7 +108,7 @@ export function DailyDetailModal({ day, dimension, colorMap, unknownProviderLabe
         {/* Day summary chips */}
         <div className="grid grid-cols-2 gap-2 px-5 py-3 sm:grid-cols-4">
           <SummaryChip label={t("totalTokens")} value={fmtTokens(day.totalTokens)} tone="default" />
-          <SummaryChip label={t("cost")} value={fmtUsd(day.costUsd)} tone="orange" />
+          <SummaryChip label={t("cost")} value={money(day.costUsd)} tone="orange" />
           <SummaryChip label={t("requests")} value={Math.round(day.requests).toLocaleString()} tone="blue" />
           <SummaryChip label={t("cacheHitRate")} value={fmtPct(day.cacheHitRate)} tone="green" />
         </div>
