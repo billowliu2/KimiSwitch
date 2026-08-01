@@ -373,6 +373,18 @@ export function SettingsModal({
               <div className="text-xs text-content-muted">v{appVersion} · MIT License</div>
               <div className="pt-2 space-y-1">
                 <div>
+                  {t("settingsWebsite")}:{" "}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openExternal("https://billowliu2.github.io/KimiSwitch")
+                    }
+                    className="text-blue-500 hover:text-blue-400 underline bg-transparent p-0 border-0 cursor-pointer"
+                  >
+                    billowliu2.github.io/KimiSwitch
+                  </button>
+                </div>
+                <div>
                   {t("attributionPorted")}{" "}
                   <button
                     type="button"

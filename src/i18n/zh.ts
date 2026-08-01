@@ -256,6 +256,7 @@ export const zhTranslations = {
   updateCheckFailed: "检查更新失败",
   lastChecked: "上次检查",
   appDescription: "Windows 桌面端 LLM 供应商配置管理器",
+  settingsWebsite: "官方网站",
   referenceProject: "引用项目",
 
   // Validation errors

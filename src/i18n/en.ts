@@ -261,6 +261,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   updateCheckFailed: "Update check failed",
   lastChecked: "Last checked",
   appDescription: "Windows desktop LLM provider config manager",
+  settingsWebsite: "Official website",
   referenceProject: "Reference project",
 
   // Validation errors
