@@ -21,8 +21,18 @@
 //! - right before writing back, the file is re-read once more — if the CLI
 //!   refreshed meanwhile its newer tokens win (refresh tokens rotate on use,
 //!   so clobbering the CLI's write would break its next refresh).
+//!
+//! v3 adds the in-app sign-in flow: a Device Code Flow (RFC 8628) identical
+//! to the official `kimi` CLI, so users can authorize Kimi from the app
+//! instead of running `kimi login` in a terminal. Flow:
+//! 1. `start_device_authorization()` → POST /api/oauth/device_authorization,
+//!    returns user_code + device_code + verification_uri;
+//! 2. user opens the verification URI in a browser and approves;
+//! 3. `poll_device_token()` polls POST /api/oauth/token with the device_code
+//!    grant until the tokens arrive, then writes them to the same
+//!    `~/.kimi-code/credentials/kimi-code.json` file the CLI uses.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::kimi_code_io::kimi_code_config_dir;
 
@@ -32,11 +42,17 @@ const EXPIRY_LEEWAY_SECS: i64 = 30;
 
 /// OAuth token endpoint (confirmed in the official kimi.exe binary).
 const TOKEN_ENDPOINT: &str = "https://auth.kimi.com/api/oauth/token";
+/// Device authorization endpoint (RFC 8628).
+const DEVICE_AUTHORIZATION_ENDPOINT: &str = "https://auth.kimi.com/api/oauth/device_authorization";
 /// Public OAuth client id used by the official CLI (from kimi.exe).
 const CLIENT_ID: &str = "17e5f671-d194-4dfb-9706-5516cb48c098";
 /// Refresh request timeout; refresh is rare, a bit more headroom than the 8s
 /// query default is fine.
 const REFRESH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+/// Device grant type (RFC 8628).
+const DEVICE_GRANT_TYPE: &str = "urn:ietf:params:oauth:grant-type:device_code";
+/// Total polling budget for the device flow, matching the official CLI.
+const POLL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15 * 60);
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct OAuthCredentials {
@@ -227,6 +243,200 @@ async fn refresh_credentials(creds: &OAuthCredentials) -> Result<String, String>
     Ok(token.access_token)
 }
 
+// ---------------------------------------------------------------------------
+// Device Code Flow (RFC 8628) — in-app sign-in, mirrors the official CLI
+// ---------------------------------------------------------------------------
+
+/// Response of POST /api/oauth/device_authorization.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct DeviceAuthorization {
+    pub user_code: String,
+    pub device_code: String,
+    pub verification_uri: Option<String>,
+    pub verification_uri_complete: Option<String>,
+    pub expires_in: Option<i64>,
+    pub interval: Option<i64>,
+}
+
+/// Poll outcome, serialized back to the frontend so it can drive the dialog.
+#[derive(Debug, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum DevicePollStatus {
+    /// Keep polling with the returned interval (seconds).
+    Pending { interval: i64 },
+    /// Server asked to slow down; keep polling with interval + 5.
+    SlowDown { interval: i64 },
+    /// Tokens obtained and written to the credentials file.
+    Success,
+    /// Device code expired; the user must start over.
+    Expired,
+    /// User denied the authorization.
+    AccessDenied,
+    /// Polling budget exhausted.
+    Timeout,
+}
+
+/// `~/.kimi-code/device_id` — reused by the CLI so the app looks like the
+/// same device. Created on first use.
+fn device_id_path() -> std::path::PathBuf {
+    kimi_code_config_dir().join("device_id")
+}
+
+fn load_or_create_device_id() -> Option<String> {
+    let path = device_id_path();
+    if let Ok(content) = std::fs::read_to_string(&path) {
+        let id = content.trim().to_string();
+        if !id.is_empty() {
+            return Some(id);
+        }
+    }
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let id = format!("kimi-switch-{nanos:x}-{}", std::process::id());
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    // Best-effort write; a missing file just means the header is omitted.
+    let _ = std::fs::write(&path, &id);
+    Some(id)
+}
+
+/// Device identity headers matching the official CLI (`X-Msh-*`).
+fn identity_headers() -> Vec<(&'static str, String)> {
+    let hostname = std::env::var("COMPUTERNAME")
+        .or_else(|_| std::env::var("HOSTNAME"))
+        .unwrap_or_else(|_| "kimi-switch".to_string());
+    let os_version = std::env::var("OS").unwrap_or_else(|_| std::env::consts::OS.to_string());
+    let mut headers = vec![
+        ("X-Msh-Platform", "kimi_code_cli".to_string()),
+        ("X-Msh-Version", env!("CARGO_PKG_VERSION").to_string()),
+        ("X-Msh-Device-Name", hostname.clone()),
+        (
+            "X-Msh-Device-Model",
+            format!("{} {}", std::env::consts::OS, hostname),
+        ),
+        ("X-Msh-Os-Version", os_version),
+    ];
+    if let Some(device_id) = load_or_create_device_id() {
+        headers.push(("X-Msh-Device-Id", device_id));
+    }
+    headers
+}
+
+/// Step 1 of the device flow: ask the server for a user_code + device_code.
+/// No user interaction required here; the frontend shows the code + URL.
+pub async fn start_device_authorization() -> Result<DeviceAuthorization, String> {
+    let client = reqwest::Client::builder()
+        .timeout(REFRESH_TIMEOUT)
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {e}"))?;
+
+    let mut req = client
+        .post(DEVICE_AUTHORIZATION_ENDPOINT)
+        .form(&[("client_id", CLIENT_ID)]);
+    for (name, value) in identity_headers() {
+        req = req.header(name, value);
+    }
+
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("Device authorization request failed: {e}"))?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        let body: String = body.chars().take(200).collect();
+        return Err(format!("Device authorization failed (HTTP {status}): {body}"));
+    }
+    resp.json::<DeviceAuthorization>()
+        .await
+        .map_err(|e| format!("Failed to parse device authorization response: {e}"))
+}
+
+/// Step 2 of the device flow: poll the token endpoint until the user
+/// approves (or the flow fails). On success the tokens are merged into the
+/// CLI credentials file, making `kimi login` unnecessary.
+pub async fn poll_device_token(
+    device_code: &str,
+    initial_interval: i64,
+) -> Result<DevicePollStatus, String> {
+    let client = reqwest::Client::builder()
+        .timeout(REFRESH_TIMEOUT)
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {e}"))?;
+
+    let deadline = std::time::Instant::now() + POLL_TIMEOUT;
+    let mut interval = initial_interval.max(1);
+
+    loop {
+        let mut req = client
+            .post(TOKEN_ENDPOINT)
+            .form(&[
+                ("grant_type", DEVICE_GRANT_TYPE),
+                ("client_id", CLIENT_ID),
+                ("device_code", device_code),
+            ]);
+        for (name, value) in identity_headers() {
+            req = req.header(name, value);
+        }
+
+        let resp = match req.send().await {
+            Ok(r) => r,
+            Err(e) => return Err(format!("Token polling request failed: {e}")),
+        };
+
+        if resp.status().is_success() {
+            let token: TokenResponse = match resp.json().await {
+                Ok(t) => t,
+                Err(e) => return Err(format!("Failed to parse token response: {e}")),
+            };
+            persist_device_token(&token)?;
+            return Ok(DevicePollStatus::Success);
+        }
+
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        let error: Option<String> = serde_json::from_str::<serde_json::Value>(&body)
+            .ok()
+            .and_then(|v| v.get("error").and_then(|e| e.as_str()).map(String::from));
+        match error.as_deref() {
+            Some("authorization_pending") => {}
+            Some("slow_down") => interval += 5,
+            Some("expired_token") => return Ok(DevicePollStatus::Expired),
+            Some("access_denied") => return Ok(DevicePollStatus::AccessDenied),
+            Some(other) => {
+                let body: String = body.chars().take(200).collect();
+                return Err(format!("Token polling error ({other}): {body}"));
+            }
+            None => {
+                let body: String = body.chars().take(200).collect();
+                return Err(format!("Token polling failed (HTTP {status}): {body}"));
+            }
+        }
+
+        if std::time::Instant::now() + std::time::Duration::from_secs(interval as u64) >= deadline {
+            return Ok(DevicePollStatus::Timeout);
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(interval as u64)).await;
+    }
+}
+
+/// Write a freshly obtained token set into the CLI credentials file,
+/// preserving unrelated fields and using the same snake_case shape.
+fn persist_device_token(token: &TokenResponse) -> Result<(), String> {
+    let path = credentials_path();
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let current = std::fs::read_to_string(&path).unwrap_or_default();
+    let merged = merge_token_response(&current, token);
+    std::fs::write(&path, merged)
+        .map_err(|e| format!("Failed to write Kimi credentials: {e}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -329,5 +539,34 @@ mod tests {
         let merged = merge_token_response(current, &resp);
         let v: serde_json::Value = serde_json::from_str(&merged).unwrap();
         assert_eq!(v["refresh_token"], "old-refresh");
+    }
+
+    #[test]
+    fn device_authorization_serializes_snake_case() {
+        let auth = DeviceAuthorization {
+            user_code: "ABC-DEF".to_string(),
+            device_code: "dev-1".to_string(),
+            verification_uri: Some("https://auth.kimi.com/device".to_string()),
+            verification_uri_complete: None,
+            expires_in: Some(1800),
+            interval: Some(5),
+        };
+        let v = serde_json::to_value(&auth).unwrap();
+        assert_eq!(v["user_code"], "ABC-DEF");
+        assert_eq!(v["device_code"], "dev-1");
+        assert_eq!(v["verification_uri_complete"], serde_json::Value::Null);
+        assert_eq!(v["interval"], 5);
+        assert!(v.get("userCode").is_none(), "must be snake_case for the frontend");
+    }
+
+    #[test]
+    fn device_poll_status_serializes_snake_case() {
+        // Internally tagged: {"status":"pending","interval":5} — easy for the
+        // frontend to switch on.
+        let pending = serde_json::to_value(DevicePollStatus::Pending { interval: 5 }).unwrap();
+        assert_eq!(pending["status"], "pending");
+        assert_eq!(pending["interval"], 5);
+        let success = serde_json::to_value(DevicePollStatus::Success).unwrap();
+        assert_eq!(success["status"], "success");
     }
 }

@@ -1057,3 +1057,24 @@ pub fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), Strin
         .open_url(url, None::<&str>)
         .map_err(|e| e.to_string())
 }
+// ---------------------------------------------------------------------------
+// Kimi OAuth device-code sign-in (in-app replacement for `kimi login`)
+// ---------------------------------------------------------------------------
+
+/// Step 1: ask auth.kimi.com for a user_code + verification URI.
+#[tauri::command]
+pub async fn kimi_oauth_start() -> Result<crate::oauth::DeviceAuthorization, String> {
+    crate::oauth::start_device_authorization().await
+}
+
+/// Step 2: poll the token endpoint until the user approves. On success the
+/// tokens are written to the CLI credentials file (`kimi login` no longer
+/// needed). Errors are transient (network); deterministic outcomes
+/// (pending / success / expired / denied / timeout) come back in the enum.
+#[tauri::command]
+pub async fn kimi_oauth_poll(
+    device_code: String,
+    interval: i64,
+) -> Result<crate::oauth::DevicePollStatus, String> {
+    crate::oauth::poll_device_token(&device_code, interval).await
+}

@@ -8,6 +8,7 @@ import { getDefaultMaxContextSize } from "../lib/model-defaults";
 import { capabilitiesFromRef, getModelRef } from "../lib/models-dev";
 import { getIconMetadata } from "../icons/extracted/metadata";
 import { AgentSettingsPanel } from "./AgentSettingsPanel";
+import { KimiOAuthDialog } from "./KimiOAuthDialog";
 import { ProviderIcon } from "./ProviderIcon";
 import { IconPicker } from "./IconPicker";
 import type { Agent, DiscoveredModel, Model, Provider, ProviderType } from "../types";
@@ -117,6 +118,7 @@ export function ProviderEdit({
   const [activeTab, setActiveTab] = useState<"basic" | "models" | "json">("basic");
   const [showApiKey, setShowApiKey] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
+  const [kimiOAuthOpen, setKimiOAuthOpen] = useState(false);
 
   // Preset this provider was created from (if any) — provides the
   // "Get API Key" / referral links shown under the key input.
@@ -270,6 +272,17 @@ export function ProviderEdit({
                     {t("managedProvider")}
                   </label>
                 </div>
+                {provider.managed && (
+                  <div className="col-span-1 md:col-span-2">
+                    <button
+                      type="button"
+                      onClick={() => setKimiOAuthOpen(true)}
+                      className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-500 transition-colors"
+                    >
+                      {t("kimiOAuthLogin")}
+                    </button>
+                  </div>
+                )}
               </div>
             </section>
 
@@ -439,6 +452,11 @@ export function ProviderEdit({
           </div>,
           document.body
         )}
+
+      <KimiOAuthDialog
+        open={kimiOAuthOpen}
+        onClose={() => setKimiOAuthOpen(false)}
+      />
     </div>
   );
 }

@@ -106,6 +106,8 @@ pub fn run() {
             commands::download_update,
             commands::open_installer,
             commands::open_external_url,
+            commands::kimi_oauth_start,
+            commands::kimi_oauth_poll,
             dashboard::get_paths,
             dashboard::get_prices,
             dashboard::get_summary,

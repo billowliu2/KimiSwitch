@@ -2,7 +2,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { useTranslation, type Language } from "../i18n";
 import { useTheme, type Theme } from "../hooks/useTheme";
 import type { UpdateInfo } from "../hooks/useUpdateCheck";
@@ -110,10 +109,10 @@ export function SettingsModal({
     invoke("open_installer", { path: downloadedPath }).catch(() => {});
   };
 
-  // Open an external link in the system browser. Falls back to a new tab
-  // when the opener plugin call fails, so a broken click never stays silent.
+  // Open an external link via the Rust-side opener command (bypasses the JS
+  // plugin scope); fall back to a new tab when even that fails.
   const openExternal = (url: string) => {
-    openUrl(url).catch(() => {
+    invoke("open_external_url", { url }).catch(() => {
       const w = window.open(url, "_blank");
       if (!w) console.error(`failed to open ${url}`);
     });
