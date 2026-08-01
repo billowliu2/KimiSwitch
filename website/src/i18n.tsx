@@ -19,7 +19,7 @@ const zh = {
     downloadBtn: "下载 v0.6.8",
   },
   hero: {
-    badge: "开源 MIT · Windows 10 / 11",
+    badge: "v0.6.8 · 开源 MIT · Windows / macOS / Linux",
     titleBefore: "统一管理你的",
     titleAccent: "AI 供应商",
     titleAfter: "",
@@ -315,7 +315,7 @@ const en: Dict = {
     downloadBtn: "Download v0.6.8",
   },
   hero: {
-    badge: "Open source MIT · Windows 10 / 11",
+    badge: "v0.6.8 · Open source MIT · Windows / macOS / Linux",
     titleBefore: "One app for all your ",
     titleAccent: "AI providers",
     titleAfter: "",
