@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "../../i18n";
-import { fmtPct, fmtTokens, fmtUsd } from "../../lib/dashboard-format";
+import { useCurrency } from "../../hooks/useCurrency";
+import { fmtPct, fmtTokens } from "../../lib/dashboard-format";
 import type { HeatmapCell, HeatmapData } from "../../types/dashboard";
 
 interface HeatmapProps {
@@ -220,6 +221,7 @@ export function Heatmap({ heatmap }: HeatmapProps) {
 
 function HeatmapTooltip({ state }: { state: HoverState }) {
   const { t } = useTranslation();
+  const { money } = useCurrency();
   const { cell, x, y } = state;
   // Position above the cursor with a small offset; flip below if too close to top.
   const offset = 14;
@@ -239,7 +241,7 @@ function HeatmapTooltip({ state }: { state: HoverState }) {
     >
       <div className="font-medium text-content-primary">{cell.date}</div>
       <div className="text-content-muted">
-        {fmtTokens(cell.totalTokens)} · {fmtUsd(cell.costUsd)} ·{" "}
+        {fmtTokens(cell.totalTokens)} · {money(cell.costUsd)} ·{" "}
         {fmtInt(cell.requests)} {t("requests")}
       </div>
       <div className="text-content-muted">
