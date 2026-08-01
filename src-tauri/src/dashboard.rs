@@ -581,6 +581,26 @@ fn models_dev_lookup(model_name: &str) -> Option<(String, ModelsDevCost)> {
     Some((key.clone(), *cost))
 }
 
+/// Strip a trailing context-size suffix ("-256k", "-128k", "-1m") from a model
+/// id: context variants like "k3-256k" bill at the base model's ("k3") price.
+/// Returns the stripped id (provider prefix preserved), or None when there is
+/// no such suffix.
+fn strip_context_suffix(model_name: &str) -> Option<String> {
+    let (prefix, bare) = match model_name.rsplit_once('/') {
+        Some((p, b)) => (Some(p), b),
+        None => (None, model_name),
+    };
+    let (stem, suffix) = bare.rsplit_once('-')?;
+    let digits = suffix.strip_suffix(|c| matches!(c, 'k' | 'K' | 'm' | 'M'))?;
+    if stem.is_empty() || digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    Some(match prefix {
+        Some(p) => format!("{p}/{stem}"),
+        None => stem.to_string(),
+    })
+}
+
 fn match_price(model_name: &str) -> (String, f64, f64, f64, bool) {
     let bare = match model_name.rsplit_once('/') {
         Some((_, b)) => b,
@@ -588,7 +608,26 @@ fn match_price(model_name: &str) -> (String, f64, f64, f64, bool) {
     };
     // 1) models.dev snapshot first (authoritative, all providers).
     if let Some((id, c)) = models_dev_lookup(model_name) {
+        if c.input > 0.0 || c.output > 0.0 {
+            return (id, c.cache_read, c.input, c.output, false);
+        }
+        // Zero-priced listing (subscription-plan entries such as
+        // kimi-for-coding/k3-256k): bill at the base model's list price.
+        if let Some(base) = strip_context_suffix(model_name) {
+            if let Some((base_id, base_c)) = models_dev_lookup(&base) {
+                if base_c.input > 0.0 || base_c.output > 0.0 {
+                    return (base_id, base_c.cache_read, base_c.input, base_c.output, false);
+                }
+            }
+        }
         return (id, c.cache_read, c.input, c.output, false);
+    }
+    // 1b) no direct match: retry with the context-size suffix stripped
+    // ("k3-256k" → "k3") before falling back to legacy tables.
+    if let Some(base) = strip_context_suffix(model_name) {
+        if let Some((id, c)) = models_dev_lookup(&base) {
+            return (id, c.cache_read, c.input, c.output, false);
+        }
     }
     // 2) legacy Kimi table (kept as a fallback for names not in models.dev).
     let bare_l = bare.to_ascii_lowercase();
@@ -603,10 +642,12 @@ fn match_price(model_name: &str) -> (String, f64, f64, f64, bool) {
 }
 
 fn cost_for_usage(input_other: u64, output: u64, cache_read: u64, cache_create: u64, model: &str) -> (f64, bool) {
-    let (_price_id, cache_hit, input_price, output_price, est) = match_price(model);
+    let (price_id, cache_hit, input_price, output_price, est) = match_price(model);
     // models.dev reports a separate cache_write price; fall back to input when
     // absent (models without a cache_write field bill cache creation at input).
-    let cache_write_price = models_dev_lookup(model)
+    // Resolve via the matched price id so context-suffix fallbacks (k3-256k →
+    // k3) also pick up the base model's cache_write price.
+    let cache_write_price = models_dev_lookup(&price_id)
         .and_then(|(_, c)| c.cache_write)
         .unwrap_or(input_price);
     let cost = (input_other as f64 / 1e6) * input_price
@@ -1579,6 +1620,23 @@ mod pricing_tests {
         let (id, _, input, _, _) = match_price("glm-4.6");
         assert_eq!(id, "zhipuai/glm-4.6");
         assert_eq!(input, 0.6);
+    }
+
+    #[test]
+    fn context_suffix_variant_bills_at_base_model() {
+        // kimi-code/k3-256k only exists as a zero-priced subscription entry
+        // (kimi-for-coding/k3-256k); it must bill at the k3 list price.
+        let (id, ch, input, output, est) = match_price("kimi-code/k3-256k");
+        assert!(!est);
+        assert_eq!(id, "moonshotai/kimi-k3");
+        assert_eq!(input, 3.0);
+        assert_eq!(output, 15.0);
+        assert_eq!(ch, 0.3);
+
+        // The strip helper leaves normal ids alone.
+        assert_eq!(strip_context_suffix("kimi-code/k3-256k").as_deref(), Some("kimi-code/k3"));
+        assert_eq!(strip_context_suffix("glm-4.6"), None);
+        assert_eq!(strip_context_suffix("kimi-k2-thinking"), None);
     }
 
     #[test]
