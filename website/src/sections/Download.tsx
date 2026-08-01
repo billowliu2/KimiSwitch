@@ -8,8 +8,27 @@ const icons: Record<string, Icon> = {
   linux: LinuxLogo,
 };
 
-const GITHUB_RELEASES = "https://github.com/billowliu2/KimiSwitch/releases";
+const VERSION = "0.6.8";
+const GITHUB = "https://github.com/billowliu2/KimiSwitch";
 const MIRROR_RELEASES = "https://git.codingplan.site/admin/KimiCodeSwitch/releases";
+const dl = (file: string) => `${GITHUB}/releases/download/v${VERSION}/${file}`;
+
+/** Per-platform download assets for the current release (names match the CI
+ *  release workflow, e.g. Kimi.Switch_0.6.8_x64_en-US.msi). */
+const assets: Record<string, { label: string; href: string }[]> = {
+  windows: [
+    { label: "MSI", href: dl("Kimi.Switch_0.6.8_x64_en-US.msi") },
+    { label: "镜像", href: MIRROR_RELEASES },
+  ],
+  macos: [
+    { label: "Apple Silicon (.dmg)", href: dl("Kimi.Switch_0.6.8_aarch64.dmg") },
+  ],
+  linux: [
+    { label: ".deb", href: dl("Kimi.Switch_0.6.8_amd64.deb") },
+    { label: ".AppImage", href: dl("Kimi.Switch_0.6.8_amd64.AppImage") },
+    { label: ".rpm", href: dl("Kimi.Switch-0.6.8-1.x86_64.rpm") },
+  ],
+};
 
 export default function Download() {
   const { t } = useLang();
@@ -22,44 +41,32 @@ export default function Download() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {t.download.items.map((p) => {
           const Icon = icons[p.id] ?? WindowsLogo;
+          const links = assets[p.id] ?? [];
           return (
             <div key={p.id} className="card flex flex-col">
               <div className="mb-3 flex items-center justify-between">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary">
                   <Icon className="h-5 w-5" weight="duotone" />
                 </div>
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    p.ready
-                      ? "bg-primary/10 text-primary border border-primary/25"
-                      : "bg-muted text-muted-foreground border border-border"
-                  }`}
-                >
-                  {p.ready ? t.download.ready : t.download.wip}
+                <span className="rounded-full border border-primary/25 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                  {t.download.ready}
                 </span>
               </div>
               <h3 className="mb-2 text-lg font-semibold">{p.name}</h3>
               <p className="text-sm text-muted-foreground">{p.note}</p>
-              {p.ready && (
-                <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4 flex flex-wrap gap-2">
+                {links.map((l) => (
                   <a
-                    href={GITHUB_RELEASES}
+                    key={l.label}
+                    href={l.href}
                     target="_blank"
                     rel="noreferrer"
-                    className="btn-primary text-xs"
+                    className={l.label === "镜像" ? "btn-ghost text-xs" : "btn-primary text-xs"}
                   >
-                    {t.download.githubBtn}
+                    {l.label}
                   </a>
-                  <a
-                    href={MIRROR_RELEASES}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn-ghost text-xs"
-                  >
-                    {t.download.mirrorBtn}
-                  </a>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
           );
         })}

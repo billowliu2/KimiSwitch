@@ -241,9 +241,9 @@ const zh = {
     githubBtn: "GitHub 下载",
     mirrorBtn: "镜像下载",
     items: [
-      { id: "windows", name: "Windows", ready: true, note: ".msi 与 .exe 安装包，系统托盘常驻" },
-      { id: "macos", name: "macOS", ready: false, note: "GitHub Actions 已能构建 .dmg，待官方适配" },
-      { id: "linux", name: "Linux", ready: false, note: ".AppImage / .deb / .rpm 构建中" },
+      { id: "windows", name: "Windows", ready: true, note: ".msi 安装包，系统托盘常驻" },
+      { id: "macos", name: "macOS", ready: true, note: ".dmg 安装包（Apple Silicon），未签名需右键打开" },
+      { id: "linux", name: "Linux", ready: true, note: ".deb / .AppImage / .rpm 三格式" },
     ],
   },
   cta: {
@@ -505,9 +505,9 @@ const en: Dict = {
     githubBtn: "Download from GitHub",
     mirrorBtn: "China mirror",
     items: [
-      { id: "windows", name: "Windows", ready: true, note: ".msi and .exe installers, lives in the system tray" },
-      { id: "macos", name: "macOS", ready: false, note: "GitHub Actions already builds .dmg, official support pending" },
-      { id: "linux", name: "Linux", ready: false, note: ".AppImage / .deb / .rpm builds in progress" },
+      { id: "windows", name: "Windows", ready: true, note: ".msi installer, lives in the system tray" },
+      { id: "macos", name: "macOS", ready: true, note: ".dmg installer (Apple Silicon), unsigned - right-click to open" },
+      { id: "linux", name: "Linux", ready: true, note: ".deb / .AppImage / .rpm" },
     ],
   },
   cta: {
