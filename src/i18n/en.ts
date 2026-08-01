@@ -320,6 +320,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   footerScanned: "Scanned {n} files · {m} records",
   attributionPorted: "Dashboard & session manager ported from",
   attributionSuffix: "(MIT, © JochenYang)",
+  modelDataSourcePrefix: "Model & pricing data referenced from",
 
   // Sessions — preview
   previewCollapseChars: "Collapse · {n} chars",
@@ -353,6 +354,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   presetNameSiliconflow: "SiliconFlow",
   presetNameNovita: "Novita AI",
   presetNameOpenrouter: "OpenRouter",
+  presetNameTokenRhythm: "TokenRhythm",
   presetNameOpenai: "OpenAI",
   presetNameGoogleGenai: "Google AI Studio",
   presetNameVolcengine: "Volcengine Ark",

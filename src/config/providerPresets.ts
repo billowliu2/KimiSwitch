@@ -368,6 +368,35 @@ export const providerPresets: ProviderPreset[] = [
     billingMode: "pay_as_you_go",
   },
   {
+    id: "tokenrhythm",
+    name: "TokenRhythm",
+    nameKey: "presetNameTokenRhythm",
+    websiteUrl: "https://tokenrhythm.studio",
+    // Referral link for creating an API key on the console.
+    apiKeyUrl: "https://tokenrhythm.studio/i/rf_tr_v0QXuBTzyl3-bJOS2uFFPg6x",
+    category: "aggregator",
+    providerType: "openai",
+    baseUrl: "https://tokenrhythm.studio/v1",
+    icon: "tokenrhythm",
+    models: [
+      { model: "deepseek-v4-flash" },
+      { model: "deepseek-v4-pro" },
+      { model: "glm-5" },
+      { model: "glm-5.1" },
+      { model: "glm-5.2" },
+      { model: "kimi-k2.5" },
+      { model: "kimi-k2.6" },
+      { model: "kimi-k2.7-code" },
+      { model: "minimax-m2.5" },
+      { model: "minimax-m2.7" },
+      { model: "mimo-v2.5-pro" },
+      { model: "qwen3.7-max" },
+    ],
+    // No public billing endpoint: the API key only authorizes the OpenAI /
+    // Anthropic / Embeddings proxy. Console usage requires a login session.
+    billingMode: "pay_as_you_go",
+  },
+  {
     id: "openai",
     name: "OpenAI",
     nameKey: "presetNameOpenai",

@@ -4,6 +4,13 @@ import snapshot from "./models-dev.json";
  * Compact per-model reference data from models.dev
  * (see scripts/fetch-models-dev.mjs).
  */
+export interface ModelCost {
+  input?: number;
+  output?: number;
+  cache_read?: number;
+  cache_write?: number;
+}
+
 export interface ModelRef {
   name?: string;
   context?: number;
@@ -12,9 +19,19 @@ export interface ModelRef {
   structured_output?: boolean;
   image?: boolean;
   video?: boolean;
+  /** $/M tokens from models.dev (added by fetch-models-dev.mjs). */
+  cost?: ModelCost;
 }
 
-const data: Record<string, ModelRef> = snapshot;
+const raw = snapshot as Record<string, unknown>;
+
+// Drop the "last_updated" metadata key; the rest is "<provider>/<model>".
+const data: Record<string, ModelRef> = {};
+for (const [key, value] of Object.entries(raw)) {
+  if (key !== "last_updated" && value && typeof value === "object") {
+    data[key] = value as ModelRef;
+  }
+}
 
 // models.dev keys are "<lab>/<model>" and may be mixed-case (e.g.
 // "minimax/MiniMax-M3"), while provider APIs return bare model ids

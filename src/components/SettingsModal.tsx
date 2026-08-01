@@ -375,8 +375,26 @@ export function SettingsModal({
               <div className="pt-2 space-y-1">
                 <div>
                   {t("attributionPorted")}{" "}
-                  <span className="font-medium text-content-primary">kimicode-dashboard</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openExternal("https://github.com/JochenYang/kimicode-dashboard")
+                    }
+                    className="text-blue-500 hover:text-blue-400 underline bg-transparent p-0 border-0 cursor-pointer font-semibold"
+                  >
+                    kimicode-dashboard
+                  </button>
                   <span className="text-content-muted"> {t("attributionSuffix")}</span>
+                </div>
+                <div className="pt-1">
+                  {t("modelDataSourcePrefix")}{" "}
+                  <button
+                    type="button"
+                    onClick={() => openExternal("https://models.dev/")}
+                    className="text-blue-500 hover:text-blue-400 underline bg-transparent p-0 border-0 cursor-pointer"
+                  >
+                    models.dev
+                  </button>
                 </div>
                 <div className="pt-1">
                   <span className="text-content-muted">{t("referenceProject")}: </span>

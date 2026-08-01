@@ -179,7 +179,7 @@
 - **`config.toml` 是 Kimi Code 的权威来源**：所有供应商和模型始终全量保留，`default_model` 决定哪个生效（与 CLI 原生 `/provider` 行为一致）。切换时只改 `default_model`，新增的供应商会被自动提升到列表最前，不会被覆盖
 - **SQLite 只存 Kimi Switch 专有元数据**：备注、官网、每个 Agent 记住的默认模型（`settings` 表）。主题 / 语言 / 上次更新检查时间存在前端 `localStorage`（WebView2），不在 `~/.kimi-switch` 下。`config.toml` 不完整时 SQLite 兜底
 - **`raw_other` 透传未知字段**：含 `[oauth]` 段，前后往返不丢字段
-- **models.dev 快照**：来源于 `https://models.dev/api.json`，本地 JSON 缓存 → `capabilitiesFromRef` 推导 `thinking/image_in/video_in/tool_use`，`getModelRef` 推导 `max_context_size/display_name`
+- **models.dev 快照**：来源于 `https://models.dev/api.json`，本地 JSON 缓存 → `capabilitiesFromRef` 推导 `thinking/image_in/video_in/tool_use`，`getModelRef` 推导 `max_context_size/display_name`；仪表盘成本计算以快照 `cost`（$/M tokens）为准，缺失时回退内置 Kimi 价格表（`pretauri` 钩子保证打包前自动同步）
 - **启动版本与配置目录**：`KIMI_CODE_HOME` / `PI_CODING_AGENT_DIR` 覆盖 Kimi Code / Pi 的目录；Kimi Switch 自己的数据目录固定为 `~/.kimi-switch`，暂无环境变量覆盖（详见 [数据存储位置](#数据存储位置)）
 
 ## 功能详情

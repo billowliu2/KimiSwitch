@@ -314,7 +314,8 @@ export const zhTranslations = {
   // Dashboard — footer / attribution
   footerScanned: "扫描 {n} 个文件 · {m} 条记录",
   attributionPorted: "仪表盘与会话管理功能基于",
-  attributionSuffix: "（MIT，© JochenYang）移植",
+  attributionSuffix: "（MIT，© JochenYang）",
+  modelDataSourcePrefix: "新增模型与价格参考来自于",
 
   // Sessions — preview
   previewCollapseChars: "收起 · {n} 字符",
@@ -348,6 +349,7 @@ export const zhTranslations = {
   presetNameSiliconflow: "硅基流动",
   presetNameNovita: "Novita AI",
   presetNameOpenrouter: "OpenRouter",
+  presetNameTokenRhythm: "基元律动",
   presetNameOpenai: "OpenAI 官方",
   presetNameGoogleGenai: "Google AI Studio",
   presetNameVolcengine: "火山方舟",

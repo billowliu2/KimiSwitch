@@ -696,6 +696,13 @@ export const iconMetadata: Record<string, IconMetadata> = {
     keywords: ["stepfun", "step", "jieyue", "阶跃星辰"],
     defaultColor: "#005AFF",
   },
+  tokenrhythm: {
+    name: "tokenrhythm",
+    displayName: "TokenRhythm",
+    category: "ai-provider",
+    keywords: ["tokenrhythm", "token rhythm", "基元律动", "aggregator", "relay", "gateway", "opensquilla"],
+    defaultColor: "#0D0D0C",
+  },
 };
 
 export function getIconMetadata(name: string): IconMetadata | undefined {
