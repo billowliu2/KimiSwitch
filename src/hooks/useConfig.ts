@@ -8,8 +8,8 @@ interface UseConfigReturn {
   dirty: boolean;
   error: string | null;
   loading: boolean;
-  refresh: () => Promise<void>;
-  save: () => Promise<void>;
+  refresh: (opts?: { silent?: boolean }) => Promise<void>;
+  save: (opts?: { silent?: boolean }) => Promise<void>;
   updateConfig: (updater: (config: Config) => Config) => void;
 }
 
@@ -25,8 +25,11 @@ export function useConfig(agent: Agent): UseConfigReturn {
     configRef.current = config;
   }, [config]);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const refresh = useCallback(async (opts?: { silent?: boolean }) => {
+    // silent: skip the loading flip — App returns a bare loading screen while
+    // `loading` is true, which would unmount any open panel (and swallow its
+    // in-flight async results).
+    if (!opts?.silent) setLoading(true);
     setError(null);
     try {
       const loadedConfig = await invoke<Config>("load_agent_config_command", {
@@ -39,7 +42,7 @@ export function useConfig(agent: Agent): UseConfigReturn {
       setError(message);
       console.error("useConfig refresh failed:", message);
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, [agent]);
 
@@ -61,19 +64,19 @@ export function useConfig(agent: Agent): UseConfigReturn {
     setDirty(true);
   }, []);
 
-  const save = useCallback(async () => {
+  const save = useCallback(async (opts?: { silent?: boolean }) => {
     const current = configRef.current;
     if (!current) return;
-    setLoading(true);
+    if (!opts?.silent) setLoading(true);
     setError(null);
     try {
       await invoke("save_agent_config_command", { agent, config: current });
-      await refresh();
+      await refresh({ silent: opts?.silent });
     } catch (err) {
       const raw = err instanceof Error ? err.message : String(err);
       setError(raw);
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, [refresh, t, agent]);
 

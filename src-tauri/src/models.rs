@@ -96,9 +96,17 @@ pub struct Provider {
     /// `usage_kinds:<provider_name>`, NOT in the agent's config.toml — both
     /// export paths (kimi_code_io manual TOML, pi_io PiProvider struct) are
     /// explicit and never serialize this field, while the IPC payload to the
-    /// frontend does carry it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// frontend does carry it. Renamed to camelCase to match the TS
+    /// `Provider.usageKinds` field — without the rename the frontend reads
+    /// `undefined` and no usage footer ever renders.
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "usageKinds")]
     pub usage_kinds: Option<Vec<String>>,
+    /// Usage query configuration (template, credentials, auto interval),
+    /// edited via the "配置用量查询" panel. Same persistence strategy as
+    /// `usage_kinds`: SQLite settings `usage_config:<provider_name>`, never
+    /// config.toml; IPC carries it as camelCase.
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "usageConfig")]
+    pub usage_config: Option<UsageConfig>,
 }
 
 impl PartialEq for Provider {
@@ -117,6 +125,7 @@ impl PartialEq for Provider {
             && self.icon_color == other.icon_color
             && self.raw_other == other.raw_other
             && self.usage_kinds == other.usage_kinds
+            && self.usage_config == other.usage_config
     }
 }
 
@@ -206,6 +215,41 @@ impl PartialEq for Config {
 }
 
 impl Eq for Config {}
+
+/// Usage query configuration edited via the "配置用量查询" panel.
+/// Mirrors cc-switch's `UsageScript` but trimmed to what Kimi Switch supports:
+/// auto-detected kinds plus the NewAPI/OneAPI template. Serialized camelCase
+/// to match the TS `UsageConfig` interface; persisted in SQLite settings, never
+/// in the agent's config.toml.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageConfig {
+    /// Whether usage queries run for this provider at all.
+    pub enabled: bool,
+    /// "auto" = query the kinds in `usage_kinds` / host detection;
+    /// "newapi" = query a NewAPI/OneAPI gateway with accessToken + userId.
+    pub template_type: String,
+    /// NewAPI query base URL (falls back to the provider's base_url).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
+    /// NewAPI web-console access token (NOT the sk- inference key).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub access_token: Option<String>,
+    /// NewAPI user id, sent as the `New-Api-User` header.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_id: Option<String>,
+    /// Auto query interval in minutes; 0/None = manual refresh only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_query_interval_minutes: Option<u32>,
+    /// Per-request timeout in seconds; 0/None = default (8s).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeout_seconds: Option<u64>,
+}
+
+impl UsageConfig {
+    pub const TEMPLATE_AUTO: &'static str = "auto";
+    pub const TEMPLATE_NEWAPI: &'static str = "newapi";
+}
 
 impl std::fmt::Debug for Config {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

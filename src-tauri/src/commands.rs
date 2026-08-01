@@ -1,5 +1,5 @@
 use crate::db;
-use crate::models::{Agent, Config, DiscoveredModel, Model, Provider, ProviderType};
+use crate::models::{Agent, Config, DiscoveredModel, Model, Provider, ProviderType, UsageConfig};
 use crate::pi_io;
 use crate::services::{self, UsageKind, UsageResult};
 use indexmap::IndexMap;
@@ -27,6 +27,10 @@ fn usage_kinds_key(provider_name: &str) -> String {
     format!("usage_kinds:{provider_name}")
 }
 
+fn usage_config_key(provider_name: &str) -> String {
+    format!("usage_config:{provider_name}")
+}
+
 /// Merge per-provider `usage_kinds` into a loaded config: explicit SQLite
 /// settings first, host-based detection as fallback so existing installs get
 /// billing support automatically. The field never enters config.toml.
@@ -45,6 +49,11 @@ fn merge_usage_kinds(config: &mut Config) {
                 Some(kinds.iter().map(|k| k.as_str().to_string()).collect())
             }
         });
+        // Same pattern for the panel-edited usage config.
+        p.usage_config = db::get_setting_pub(&usage_config_key(&p.name))
+            .ok()
+            .flatten()
+            .and_then(|s| serde_json::from_str::<UsageConfig>(&s).ok());
     }
 }
 
@@ -157,6 +166,14 @@ pub fn save_agent_config_command(agent: Agent, config: Config) -> Result<(), Str
                 db::set_setting_pub(&key, &json).map_err(fmt_anyhow)?;
             }
             _ => db::delete_setting_pub(&key).map_err(fmt_anyhow)?,
+        }
+        let cfg_key = usage_config_key(&provider.name);
+        match &provider.usage_config {
+            Some(cfg) => {
+                let json = serde_json::to_string(cfg).map_err(|e| e.to_string())?;
+                db::set_setting_pub(&cfg_key, &json).map_err(fmt_anyhow)?;
+            }
+            None => db::delete_setting_pub(&cfg_key).map_err(fmt_anyhow)?,
         }
     }
     Ok(())
@@ -614,9 +631,20 @@ pub async fn query_provider_usage(
         )));
     };
 
+    // Panel toggle: user disabled usage queries for this provider.
+    if let Some(cfg) = &provider.usage_config {
+        if !cfg.enabled {
+            return Ok(UsageResult::failure(
+                "usage query disabled in config panel".to_string(),
+            ));
+        }
+    }
+
     // The api_key only ever goes into request headers — never into logs,
-    // error messages, or the cache key.
-    let api_key = provider
+    // error messages, or the cache key. Managed (OAuth-login) providers have
+    // no static key; their credential comes from the Kimi Code OAuth session
+    // file (refreshed on demand when the 15-min access token expires).
+    let mut api_key = provider
         .api_key
         .clone()
         .filter(|s| !s.trim().is_empty())
@@ -627,15 +655,48 @@ pub async fn query_provider_usage(
                 .cloned()
                 .filter(|s| !s.is_empty())
         });
+    let mut oauth_err: Option<String> = None;
+    if api_key.is_none() && provider.managed {
+        match crate::oauth::get_valid_access_token().await {
+            Ok(token) => api_key = Some(token),
+            Err(e) => oauth_err = Some(e),
+        }
+    }
     let Some(api_key) = api_key else {
         return Ok(UsageResult::failure(if provider.managed {
-            "provider uses managed OAuth; usage query requires an API key".to_string()
+            oauth_err.unwrap_or_else(|| {
+                "no Kimi Code OAuth credentials found; run `kimi login` first".to_string()
+            })
         } else {
             "no API key configured".to_string()
         }));
     };
 
     let base_url = resolve_base_url(provider);
+
+    // NewAPI template: query the gateway's own /api/user/self with the
+    // web-console access token, bypassing usage_kinds entirely.
+    if let Some(cfg) = &provider.usage_config {
+        if cfg.template_type == UsageConfig::TEMPLATE_NEWAPI {
+            // Err = transient (network) → propagate for retry, same semantics
+            // as the kinds loop below. Config errors surface as Ok(failure).
+            let result = services::query_kind(
+                UsageKind::BalanceNewapi,
+                &base_url,
+                &api_key,
+                Some(cfg),
+            )
+            .await?;
+            if result.success {
+                usage_cache()
+                    .lock()
+                    .unwrap()
+                    .insert(cache_key, (Instant::now(), result.clone()));
+            }
+            return Ok(result);
+        }
+    }
+
     let kinds: Vec<UsageKind> = provider
         .usage_kinds
         .as_ref()
@@ -660,7 +721,7 @@ pub async fn query_provider_usage(
     let mut transient: Vec<String> = Vec::new();
     let mut any_success = false;
     for kind in kinds {
-        match services::query_kind(kind, &base_url, &api_key).await {
+        match services::query_kind(kind, &base_url, &api_key, provider.usage_config.as_ref()).await {
             Ok(result) if result.success => {
                 any_success = true;
                 if let Some(d) = result.data {

@@ -34,6 +34,11 @@ export interface Provider {
    * and persisted back to SQLite on save; never written to config.toml.
    */
   usageKinds?: string[];
+  /**
+   * Usage query configuration edited via the "配置用量查询" panel.
+   * Same persistence as usageKinds (SQLite settings, never config.toml).
+   */
+  usageConfig?: UsageConfig;
   /** Extra agent-specific provider fields preserved across edits. */
   raw_other?: unknown;
 }
@@ -57,6 +62,25 @@ export interface Config {
   providers: Record<string, Provider>;
   models: Record<string, Model>;
   raw_other?: unknown;
+}
+
+/**
+ * Usage query configuration (mirrors the Rust `UsageConfig`, camelCase).
+ * "auto" = query kinds from usageKinds/host detect; "newapi" = query a
+ * NewAPI/OneAPI gateway with accessToken + userId.
+ */
+export interface UsageConfig {
+  enabled: boolean;
+  templateType: "auto" | "newapi";
+  baseUrl?: string;
+  /** NewAPI web-console access token (NOT the sk- inference key). */
+  accessToken?: string;
+  /** NewAPI user id, sent as the New-Api-User header. */
+  userId?: string;
+  /** Auto query interval in minutes; 0/undefined = manual refresh only. */
+  autoQueryIntervalMinutes?: number;
+  /** Per-request timeout in seconds; 0/undefined = default (8s). */
+  timeoutSeconds?: number;
 }
 
 /** A model discovered from a provider's API endpoint. */

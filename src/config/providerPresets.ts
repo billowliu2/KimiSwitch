@@ -13,6 +13,7 @@ export type UsageKind =
   | "balance:openrouter"
   | "balance:stepfun"
   | "balance:novita"
+  | "balance:kimi"
   | "plan:kimi_coding"
   | "plan:zhipu"
   | "plan:minimax";
@@ -27,6 +28,7 @@ export const SUPPORTED_USAGE_KINDS: ReadonlySet<string> = new Set<UsageKind>([
   "balance:openrouter",
   "balance:stepfun",
   "balance:novita",
+  "balance:kimi",
   "plan:kimi_coding",
   "plan:zhipu",
   "plan:minimax",
@@ -141,6 +143,9 @@ export const providerPresets: ProviderPreset[] = [
       { model: "kimi-k2.6" },
     ],
     billingMode: "pay_as_you_go",
+    // Kimi 开放平台余额：国内站 api.moonshot.cn / 国际站 api.moonshot.ai，
+    // Rust detect 按 host 消歧（api.moonshot.ai → USD，api.moonshot.cn → CNY）。
+    usageKinds: ["balance:kimi"],
   },
   {
     id: "deepseek",

@@ -8,6 +8,7 @@ import { ProviderEdit } from "./components/ProviderEdit";
 import { DashboardPage } from "./components/dashboard/DashboardPage";
 import { SessionsPage } from "./components/sessions/SessionsPage";
 import { SettingsModal } from "./components/SettingsModal";
+import { UsageConfigModal } from "./components/UsageConfigModal";
 import { PresetPickerModal } from "./components/PresetPickerModal";
 import { useTranslation } from "./i18n";
 import { getDefaultMaxContextSize } from "./lib/model-defaults";
@@ -17,7 +18,7 @@ import {
   type ProviderPreset,
 } from "./config/providerPresets";
 import { validateProviders } from "./lib/validation";
-import type { Agent, Model, Provider } from "./types";
+import type { Agent, Model, Provider, UsageConfig } from "./types";
 
 const AGENT_STORAGE_KEY = "kimi-switch-agent";
 
@@ -75,6 +76,8 @@ export default function App() {
   const [switchMessage, setSwitchMessage] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showPresetPicker, setShowPresetPicker] = useState(false);
+  /** Provider whose usage-config panel is open; null = closed. */
+  const [usageConfigProvider, setUsageConfigProvider] = useState<string | null>(null);
   // Provider names that have been added to the in-memory config but not
   // yet committed via save(). Pressing "back" in the edit form for one of
   // these drops it silently (no confirm); all other dirty navigation
@@ -306,6 +309,24 @@ export default function App() {
     }
   };
 
+  const handleSaveUsageConfig = (name: string, usageConfig: UsageConfig) => {
+    updateConfig((cfg) => {
+      const target = cfg.providers[name];
+      if (!target) return cfg;
+      return {
+        ...cfg,
+        providers: {
+          ...cfg.providers,
+          [name]: { ...target, usageConfig },
+        },
+      };
+    });
+    // Silent save: a normal save flips App to its loading screen, which
+    // unmounts this panel and swallows the in-flight test query's result.
+    // Returned so the panel's test can await persistence before querying.
+    return save({ silent: true });
+  };
+
   const handleDuplicateProvider = async (name: string) => {
     updateConfig((cfg) => {
       const src = cfg.providers[name];
@@ -524,7 +545,7 @@ export default function App() {
             <button
               type="button"
               className="mt-2 px-2 py-1 border border-red-400/30 rounded hover:bg-red-900/30"
-              onClick={refresh}
+              onClick={() => refresh()}
             >
               {t("retry")}
             </button>
@@ -633,6 +654,7 @@ export default function App() {
             onDuplicate={handleDuplicateProvider}
             onAdd={handleAddProvider}
             onSwitchProvider={handleSwitchProvider}
+            onConfigureUsage={(name) => setUsageConfigProvider(name)}
             agent={agent}
           />
         ) : currentProvider ? (
@@ -802,6 +824,16 @@ export default function App() {
         onSelect={handleSelectPreset}
         onCustom={handleAddCustomProvider}
       />
+
+      {usageConfigProvider && config.providers[usageConfigProvider] && (
+        <UsageConfigModal
+          open={usageConfigProvider != null}
+          agent={agent}
+          provider={config.providers[usageConfigProvider]}
+          onClose={() => setUsageConfigProvider(null)}
+          onSave={handleSaveUsageConfig}
+        />
+      )}
     </div>
   );
 }

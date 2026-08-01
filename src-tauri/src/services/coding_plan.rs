@@ -13,7 +13,11 @@
 
 use super::balance::{get_json, AuthStyle, Fetched};
 use super::usage_types::{UsageData, UsageResult};
+use std::time::Duration;
 
+// 套餐类 tier id 的唯一来源：所有套餐供应商（Kimi/智谱/MiniMax 及未来新增）
+// 都只用这两个 id。前端 src/lib/usage-display.ts 的 planLabel() 依赖此约定
+// 做本地化映射——新增 tier id 时必须同步加映射。
 const TIER_FIVE_HOUR: &str = "five_hour";
 const TIER_WEEKLY_LIMIT: &str = "weekly_limit";
 
@@ -66,11 +70,12 @@ fn parse_f64(value: &serde_json::Value) -> Option<f64> {
 // Response: { limits: [{ detail: { limit, remaining, resetTime } }],
 //             usage: { limit, remaining, resetTime } }
 
-pub async fn query_kimi_coding(api_key: &str) -> Result<UsageResult, String> {
+pub async fn query_kimi_coding(api_key: &str, timeout: Duration) -> Result<UsageResult, String> {
     match get_json(
         "https://api.kimi.com/coding/v1/usages",
         api_key,
         AuthStyle::Bearer,
+        timeout,
     )
     .await?
     {
@@ -196,12 +201,12 @@ fn zhipu_quota_base(base_url: &str) -> &'static str {
     }
 }
 
-pub async fn query_zhipu(base_url: &str, api_key: &str) -> Result<UsageResult, String> {
+pub async fn query_zhipu(base_url: &str, api_key: &str, timeout: Duration) -> Result<UsageResult, String> {
     let url = format!(
         "{}/api/monitor/usage/quota/limit",
         zhipu_quota_base(base_url)
     );
-    match get_json(&url, api_key, AuthStyle::Raw).await? {
+    match get_json(&url, api_key, AuthStyle::Raw, timeout).await? {
         Fetched::Body(body) => Ok(match parse_zhipu(&body) {
             Ok(data) => UsageResult::ok(data),
             Err(err) => err,
@@ -215,14 +220,14 @@ pub async fn query_zhipu(base_url: &str, api_key: &str) -> Result<UsageResult, S
 // （海外站 api.minimax.io）
 // 接口直接给"剩余百分比"，反转为已用百分比；只取 model_name == "general"。
 
-pub async fn query_minimax(api_key: &str, is_cn: bool) -> Result<UsageResult, String> {
+pub async fn query_minimax(api_key: &str, is_cn: bool, timeout: Duration) -> Result<UsageResult, String> {
     let domain = if is_cn {
         "api.minimaxi.com"
     } else {
         "api.minimax.io"
     };
     let url = format!("https://{domain}/v1/api/openplatform/coding_plan/remains");
-    match get_json(&url, api_key, AuthStyle::Bearer).await? {
+    match get_json(&url, api_key, AuthStyle::Bearer, timeout).await? {
         Fetched::Body(body) => Ok(match parse_minimax(&body) {
             Ok(data) => UsageResult::ok(data),
             Err(err) => err,

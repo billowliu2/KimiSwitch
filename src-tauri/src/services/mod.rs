@@ -21,6 +21,8 @@ pub enum UsageKind {
     BalanceOpenrouter,
     BalanceStepfun,
     BalanceNovita,
+    BalanceKimi,
+    BalanceNewapi,
     PlanKimiCoding,
     PlanZhipu,
     PlanMinimax,
@@ -35,18 +37,22 @@ impl UsageKind {
             UsageKind::BalanceOpenrouter => "balance:openrouter",
             UsageKind::BalanceStepfun => "balance:stepfun",
             UsageKind::BalanceNovita => "balance:novita",
+            UsageKind::BalanceKimi => "balance:kimi",
+            UsageKind::BalanceNewapi => "balance:newapi",
             UsageKind::PlanKimiCoding => "plan:kimi_coding",
             UsageKind::PlanZhipu => "plan:zhipu",
             UsageKind::PlanMinimax => "plan:minimax",
         }
     }
 
-    pub const ALL: [UsageKind; 8] = [
+    pub const ALL: [UsageKind; 10] = [
         UsageKind::BalanceDeepseek,
         UsageKind::BalanceSiliconflow,
         UsageKind::BalanceOpenrouter,
         UsageKind::BalanceStepfun,
         UsageKind::BalanceNovita,
+        UsageKind::BalanceKimi,
+        UsageKind::BalanceNewapi,
         UsageKind::PlanKimiCoding,
         UsageKind::PlanZhipu,
         UsageKind::PlanMinimax,
@@ -63,6 +69,8 @@ impl std::str::FromStr for UsageKind {
             "balance:openrouter" => UsageKind::BalanceOpenrouter,
             "balance:stepfun" => UsageKind::BalanceStepfun,
             "balance:novita" => UsageKind::BalanceNovita,
+            "balance:kimi" => UsageKind::BalanceKimi,
+            "balance:newapi" => UsageKind::BalanceNewapi,
             "plan:kimi_coding" => UsageKind::PlanKimiCoding,
             "plan:zhipu" => UsageKind::PlanZhipu,
             "plan:minimax" => UsageKind::PlanMinimax,
@@ -91,6 +99,11 @@ pub fn detect_provider(base_url: &str) -> Vec<UsageKind> {
     if url.contains("api.novita.ai") {
         kinds.push(UsageKind::BalanceNovita);
     }
+    // Kimi 开放平台（Moonshot）：国内站 api.moonshot.cn / 国际站 api.moonshot.ai。
+    // 注意别与 api.kimi.com（Kimi Code 官方端点）混淆：后者只有 /coding 路径命中套餐。
+    if url.contains("api.moonshot.cn") || url.contains("api.moonshot.ai") {
+        kinds.push(UsageKind::BalanceKimi);
+    }
     if url.contains("api.kimi.com") && url.contains("/coding") {
         kinds.push(UsageKind::PlanKimiCoding);
     }
@@ -105,24 +118,53 @@ pub fn detect_provider(base_url: &str) -> Vec<UsageKind> {
 
 /// 按 kind 路由到对应查询实现。`base_url` 用于消歧同一家供应商的
 /// 国内/海外站（SiliconFlow .cn/.com、MiniMax .com/.io、智谱 bigmodel/z.ai）。
+/// `usage_config` 仅 BalanceNewapi 分支读取（access_token / user_id），
+/// 其余分支忽略；调用方在 templateType=="newapi" 时保证其存在。
 pub async fn query_kind(
     kind: UsageKind,
     base_url: &str,
     api_key: &str,
+    usage_config: Option<&crate::models::UsageConfig>,
 ) -> Result<UsageResult, String> {
     let lower = base_url.to_lowercase();
+    // 用户配置的超时（秒）；0/未配置回退默认 8s。
+    let timeout = usage_config
+        .and_then(|c| c.timeout_seconds)
+        .filter(|&s| s > 0)
+        .map(std::time::Duration::from_secs)
+        .unwrap_or(balance::REQUEST_TIMEOUT);
     match kind {
-        UsageKind::BalanceDeepseek => balance::query_deepseek(api_key).await,
+        UsageKind::BalanceDeepseek => balance::query_deepseek(api_key, timeout).await,
         UsageKind::BalanceSiliconflow => {
-            balance::query_siliconflow(api_key, !lower.contains("siliconflow.com")).await
+            balance::query_siliconflow(api_key, !lower.contains("siliconflow.com"), timeout).await
         }
-        UsageKind::BalanceOpenrouter => balance::query_openrouter(api_key).await,
-        UsageKind::BalanceStepfun => balance::query_stepfun(api_key).await,
-        UsageKind::BalanceNovita => balance::query_novita(api_key).await,
-        UsageKind::PlanKimiCoding => coding_plan::query_kimi_coding(api_key).await,
-        UsageKind::PlanZhipu => coding_plan::query_zhipu(base_url, api_key).await,
+        UsageKind::BalanceOpenrouter => balance::query_openrouter(api_key, timeout).await,
+        UsageKind::BalanceStepfun => balance::query_stepfun(api_key, timeout).await,
+        UsageKind::BalanceNovita => balance::query_novita(api_key, timeout).await,
+        UsageKind::BalanceKimi => {
+            balance::query_kimi(api_key, !lower.contains("moonshot.ai"), timeout).await
+        }
+        UsageKind::BalanceNewapi => {
+            let (token, uid) = usage_config
+                .and_then(|c| {
+                    c.access_token
+                        .as_deref()
+                        .zip(c.user_id.as_deref())
+                        .filter(|(t, u)| !t.is_empty() && !u.is_empty())
+                })
+                .ok_or_else(|| {
+                    "newapi template requires accessToken and userId".to_string()
+                })?;
+            let url = usage_config
+                .and_then(|c| c.base_url.as_deref())
+                .filter(|s| !s.is_empty())
+                .unwrap_or(base_url);
+            balance::query_newapi(url, token, uid, timeout).await
+        }
+        UsageKind::PlanKimiCoding => coding_plan::query_kimi_coding(api_key, timeout).await,
+        UsageKind::PlanZhipu => coding_plan::query_zhipu(base_url, api_key, timeout).await,
         UsageKind::PlanMinimax => {
-            coding_plan::query_minimax(api_key, !lower.contains("minimax.io")).await
+            coding_plan::query_minimax(api_key, !lower.contains("minimax.io"), timeout).await
         }
     }
 }
@@ -133,12 +175,13 @@ mod tests {
 
     #[test]
     fn detect_provider_maps_known_hosts() {
-        let cases: [(&str, UsageKind); 8] = [
+        let cases: [(&str, UsageKind); 9] = [
             ("https://api.deepseek.com/v1", UsageKind::BalanceDeepseek),
             ("https://api.siliconflow.cn/v1", UsageKind::BalanceSiliconflow),
             ("https://openrouter.ai/api/v1", UsageKind::BalanceOpenrouter),
             ("https://api.stepfun.com/v1", UsageKind::BalanceStepfun),
             ("https://api.novita.ai/v3", UsageKind::BalanceNovita),
+            ("https://api.moonshot.cn/v1", UsageKind::BalanceKimi),
             ("https://api.kimi.com/coding/v1", UsageKind::PlanKimiCoding),
             (
                 "https://open.bigmodel.cn/api/paas/v4",
@@ -165,7 +208,7 @@ mod tests {
         assert!(detect_provider("https://api.openai.com/v1").is_empty());
         assert!(detect_provider("https://example.com").is_empty());
         assert!(detect_provider("").is_empty());
-        // api.kimi.com 但无 /coding 路径 → 不命中套餐查询
+        // api.kimi.com 但无 /coding 路径 → 不命中套餐查询，也不命中 Moonshot 余额
         assert!(detect_provider("https://api.kimi.com/v1").is_empty());
     }
 

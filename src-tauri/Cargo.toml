@@ -1,6 +1,6 @@
 [package]
 name = "kimiswitch"
-version = "0.6.3"
+version = "0.6.4"
 description = "Kimi Switch - model config manager"
 authors = ["you"]
 edition = "2021"
@@ -25,6 +25,7 @@ futures-util = "0.3"
 dirs = "5.0"
 toml = "0.8"
 rusqlite = { version = "0.32", features = ["bundled", "chrono"] }
+tokio = { version = "1", features = ["sync"] }
 
 [lib]
 name = "kimiswitch_lib"

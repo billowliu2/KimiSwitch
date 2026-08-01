@@ -4,6 +4,7 @@ pub mod dashboard;
 pub mod db;
 pub mod kimi_code_io;
 pub mod models;
+pub mod oauth;
 pub mod pi_io;
 pub mod services;
 

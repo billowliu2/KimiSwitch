@@ -212,7 +212,47 @@ KimiSwitch 的 `providerPresets.ts` 已镜像这套体系（`baseUrl` 与 OpenCo
 | `bailian`（阿里云百炼） | pay_as_you_go | `usageKinds` 为空 | 百炼 2026-07 上线 Coding Plan（专属 key 格式 `sk-sp-`，按**调用次数**扣额度，与 token 无关）；官方文档仅提供"控制台 Coding Plan 页面查看"，**未发现公开查询 API**。预留为待跟踪项（套餐上线早期，API 可能随后开放） |
 | `moonshot`（Kimi 开放平台） | pay_as_you_go | `usageKinds` 为空 | → 即 P0 的 `balance:kimi`，见 §4.3 |
 
+### 4.7 NewAPI / OneAPI 类中转站账单查询（本次重点调研）
+
+**背景**：用户使用自建 NewAPI 中转站（实测 `https://ai.codingplan.site`，`sk-` API Key 验证有效）。结论先行：
+
+1. **`sk-` API Key 查不了余额**（实测 401）。NewAPI 站点的**管理接口只认「登录 Access Token」**，不认推理令牌。cc-switch 也是这个结论——它的 NEW_API 模板填的不是 `apiKey`，而是 `accessToken` + `userId` 两个独立字段。
+2. **参考实现（cc-switch，完整链路）**：
+   - 模板代码（`UsageScriptModal.tsx:90`）：`GET {{baseUrl}}/api/user/self`，头 `Authorization: Bearer {{accessToken}}` + **`New-Api-User: {{userId}}`**；extractor 取 `data.quota`、`data.used_quota`，余额 = `quota ÷ 500000`，已用 = `used_quota ÷ 500000`（单位按站点 `quota_per_unit`，实测本站为 500000；`custom_currency_symbol` 决定是 ¥ 还是 $）。
+   - 凭据模型（`types.ts UsageScript`）：`accessToken?` / `userId?`，与 `apiKey`、`baseUrl` 并列，存供应商 `meta.usage_script`。
+   - 后端占位符替换（`usage_script.rs:413-416`）：`{{accessToken}}` / `{{userId}}` 仅在脚本含对应占位符时替换；查询凭证由 `resolve_script_credentials` 决定（显式值优先，回退供应商配置）。
+   - 安全校验（`usage_script.rs`）：**非 custom 模板强制 HTTPS + 与 base_url 同源（host+port）**；custom 模板放开（可任意 HTTPS 域名/HTTP）。
+   - 前端表单（`UsageScriptModal.tsx:1154-1230`）：NEW_API 模板下显示 Base URL / Access Token（密码框带显隐）/ User ID 三个输入；模板切换联动清理多余字段。
+3. **本站在 cc-switch 下的配置方式**：新建 Claude/Codex 供应商 → 开启用量查询 → 选 NEW_API 模板 → 填 `https://ai.codingplan.site`（Base URL）+ 网页后台 Access Token + 数字用户 ID。实测确认该站 `/api/status` 返回 `quota_per_unit: 500000`、`display_in_currency: true`、`custom_currency_symbol: ¤`（金额符号需按站确认）。
+
+### 4.8 NewAPI 适配 KimiSwitch 的落地方案
+
+KimiSwitch 现有 `usageKinds` 枚举是**每家中转站一个 Rust 函数**的路子，不适合任意 NewAPI 站。对照 cc-switch，推荐**声明式配置（不引入 JS 引擎）**：
+
+- **存储**：`Provider` 增加可选 `usageConfig?: { accessToken?: string; userId?: string }`（不写进 TOML，与 `usageKinds` 一样存 SQLite settings `usage_config:<provider_name>`，避免污染 Kimi Code 原生配置）。
+- **查询**：新增一个 `UsageKind::BalanceNewApi`（`"balance:newapi"`），Rust 侧 `query_kind` 分支：
+  - 端点：`{base_url}/api/user/self`（同源，复用 provider 的 base_url）；
+  - 头：`Authorization: Bearer {accessToken}` + `New-Api-User: {userId}`；
+  - 解析：`data.quota / data.used_quota` ÷ `quota_per_unit`（从 `/api/status` 拉取，避免硬编码 500000；失败时回退 500000）；
+  - 金额符号：`custom_currency_symbol`（未取到默认 ¥）。
+- **错误通道**：遵循现有约定（`bytes()` 再解析、瞬时/确定性分离）。
+- **前端**：`UsageFooter` 无需改；`ProviderEdit` 在启用 `usageKinds` 含 `balance:newapi` 时显示 Access Token / User ID 输入（参考 cc-switch 表单），或做成独立小弹窗。
+- **风险**：`sk-` 用户拿不到 Access Token 时无解（需登录网页后台）；同源校验天然防误查其他站。
+
 ## 5. 新增能力实现清单（改动点）
+
+> 实施状态（2026-07-31）：**P0 已实现，未验证、未提交**。
+> 展示方案已确认为 **A（供应商卡片底部 UsageFooter，零前端改动）**。
+> 改动文件：`src-tauri/src/services/balance.rs`（query_kimi/parse_kimi + 单测）、`src-tauri/src/services/mod.rs`（枚举/路由/detect + 单测）、`src/config/providerPresets.ts`（UsageKind/SUPPORTED_USAGE_KINDS + moonshot 预设挂 `balance:kimi`）。
+> 待办：用户确认后 `cargo test` + `tsc` 验证，验证通过再提交。
+> 遗留风险：国际站 `api.moonshot.ai/v1/users/me/balance` 端点与币种（按 USD 处理）未实测，见 §4.3。
+
+> 实施状态更新（2026-07-31 晚）：**A + B + C 已全部实现（打包验证中，未提交）**。
+> - **A（OAuth）**：新增 `src-tauri/src/oauth.rs`（读 `~/.kimi-code/credentials/kimi-code.json` access_token，过期 30s 缓冲，不做 refresh），`query_provider_usage` 的 managed 分支从"报 API key 错误"改为读 OAuth 凭据走 `plan:kimi_coding` 查询；`managed:kimi-code` 卡片不再显示"API Key 无效"。
+> - **B（NewAPI）**：`services/balance.rs` 加 `query_newapi`（`{base_url}/api/user/self` + Bearer accessToken + `New-Api-User` userId，`/api/status` 运行态拉 `quota_per_unit` 与 `custom_currency_symbol`，进程内缓存）；`UsageKind` 加 `BalanceNewApi`（`"balance:newapi"`，ALL 变 10）；`query_kind` 签名加 `usage_config` 参数。
+> - **C（配置面板 + 布局）**：新增 `UsageConfigModal.tsx`（启用开关 / 自动检测 vs NewAPI 模板 / 凭据输入 / 自动查询间隔 / 测试按钮，参考 cc-switch UsageScriptModal 但裁剪）；`UsageFooter` 拆分 compact（卡片右上：主摘要 + `x 前` + 刷新）与 detail（底部：多档明细 + 错误/重试）；`ProviderList` 加 BarChart3 配置入口按钮；`usageConfig` 存 SQLite settings（`usage_config:<provider_name>`），不进 config.toml。
+> - **验证**：`cargo test` 46 通过（新增 oauth 凭据解析/过期、newapi 解析 5 个用例、UsageKind roundtrip 10 项）、`tsc --noEmit` 零错误；打包供用户测试。
+> - **改动文件**：Rust 6 个（oauth.rs 新增、models.rs、commands.rs、services/mod.rs、services/balance.rs、lib.rs）+ 前端 7 个（types/index.ts、UsageConfigModal.tsx 新增、UsageFooter.tsx、ProviderList.tsx、App.tsx、i18n/zh.ts、i18n/en.ts）。
 
 以 **P0：Kimi 开放平台余额（`balance:kimi`）** 为例，完整改动点如下（严格套用现有四步模式，前端展示零改动）：
 
@@ -238,8 +278,10 @@ KimiSwitch 的 `providerPresets.ts` 已镜像这套体系（`baseUrl` 与 OpenCo
 | **P0** | Kimi 开放平台余额 `balance:kimi` | balance.rs + mod.rs + providerPresets.ts | 小（~1 天） | 低；EN 端点待实测 |
 | P1 | ZenMux 套餐（照搬 cc-switch） | coding_plan.rs + mod.rs + 预设 | 小 | 低 |
 | P1 | 火山方舟 Coding Plan（AK/SK 签名 V4） | coding_plan.rs + 凭据存储 + 表单 | 中 | 签名细节易错，需单测 |
-| P2 | 智谱团队版 / 中转站声明式配置（new-api 类） | 架构决策后实施 | 中-大 | 需先定方案 |
-| P3 | JS 脚本引擎 / 官方 OAuth 订阅 / 托盘用量 | — | 大 | 与目标 CLI 不匹配，建议不做 |
+| P2 | 智谱团队版 | coding_plan.rs + 凭据存储 + 表单 | 中 | 需扩展 Provider 凭据 |
+| **P1** | **NewAPI 中转站余额 `balance:newapi`**（§4.8 声明式方案：`usageConfig{accessToken,userId}` + `/api/user/self`） | balance.rs + mod.rs + db 存储 + ProviderEdit 表单 | 中 | 需用户提供 Access Token；站点 quota_per_unit/符号需运行态拉取 |
+| P3 | JS 脚本引擎（custom/general） | usage_script.rs 移植（rquickjs） | 大 | 覆盖面广但工程量大；被 `balance:newapi` 声明式方案覆盖主场景后可暂缓 |
+| P3 | 官方 OAuth 订阅 / 托盘用量 | — | 大 | 与目标 CLI 不匹配，建议不做 |
 | P3 | 查询请求走代理（见 §6.1） | balance.rs 共用 Client 改造 | 小-中 | 依赖全局代理设置是否已存在 |
 
 ### 6.1 遗漏盘点（首轮调研未覆盖，本次补查确认）
@@ -262,6 +304,8 @@ KimiSwitch 的 `providerPresets.ts` 已镜像这套体系（`baseUrl` 与 OpenCo
 4. **响应读体与解析分离**：所有查询先 `bytes()` 再 parse，保持瞬时/确定性错误通道不混淆（已统一在 `balance.rs::get_json`）。
 5. **金额单位**：Novita ×0.0001 USD；Kimi 余额为 CNY；Go 套餐按 USD 计。
 6. **TS/Rust 枚举漂移**：新增 kind 必须同时改 `UsageKind` union + `SUPPORTED_USAGE_KINDS` + Rust 枚举三处，否则 dev 断言报错。
+7. **NewAPI 特有点（§4.7 实测）**：`sk-` API Key 与 Access Token 是两套凭据，前者**查不了** `/api/user/self`；`New-Api-User` 头必须带；余额 = `quota/used_quota ÷ quota_per_unit`（本站 500000）；`quota` 为 0 常表示该令牌"无限额度"（后台设置），不要显示成余额为 0。
+8. **NewAPI 同源**：`/api/user/self` 与推理同源（同一 base_url host），天然可复用车基地址；若经代理访问站点，`/api/status` 也要走代理（见 §6.1 代理改造）。
 
 ---
 
@@ -289,6 +333,9 @@ KimiSwitch 的 `providerPresets.ts` 已镜像这套体系（`baseUrl` 与 OpenCo
 - Kimi Code 文档（服务地址 / 环境变量 / 错误参考）：https://www.kimi.com/code/docs/ 、 https://www.kimi.com/code/docs/kimi-code-cli/configuration/env-vars.html
 - Kimi 帮助中心（余额与用量、会员权益）：https://www.kimi.com/zh-cn/help/kimi-api/api-balance-and-usage 、 https://www.kimi.com/zh-cn/help/kimi-code/membership-guide
 - 智谱 GLM Coding Plan 额度 API（cc-switch issue 社区确认）：https://github.com/farion1231/cc-switch/issues/1588 、 https://github.com/seakee/CPA-Manager-Plus/issues/379
+- NewAPI / OneAPI `/api/user/self` 接口（社区文档）：https://juejin.cn/post/7493007002832551988 、 https://allinone.apifox.cn/399558528e0 、 https://docs.laozhang.ai/faq/balance-query-api
+- NewAPI 用户管理文档：https://www.newapi.ai/zh/docs/guide/feature-guide/admin/user
+- 实测站点：`https://ai.codingplan.site`（`/api/status`：quota_per_unit=500000、display_in_currency=true）
 - Kimi 余额查询（cc-switch issue，官方 API 引入）：https://github.com/farion1231/cc-switch/issues/4455
 - OpenCode Go 套餐额度：https://opencode.ai/docs/go/
 - OpenCode providers / 配置：https://opencode.ai/docs/providers/

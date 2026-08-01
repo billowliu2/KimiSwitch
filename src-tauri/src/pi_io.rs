@@ -340,6 +340,7 @@ pub fn pi_file_to_config(file: &PiModelsFile) -> Config {
             icon_color: None,
             raw_other: provider_raw,
             usage_kinds: None,
+            usage_config: None,
         };
 
         for (idx, pi_model) in pi_provider.models.iter().enumerate() {

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Pencil, Copy, Activity, Loader2, Trash2 } from "lucide-react";
+import { Pencil, Copy, Activity, Loader2, Trash2, BarChart3 } from "lucide-react";
 import { useTranslation } from "../i18n";
 import { ProviderIcon } from "./ProviderIcon";
 import { UsageFooter } from "./UsageFooter";
@@ -28,6 +28,7 @@ interface ProviderListProps {
   onDuplicate: (name: string) => void;
   onAdd: () => void;
   onSwitchProvider: (name: string) => void;
+  onConfigureUsage: (name: string) => void;
   agent: Agent;
 }
 
@@ -43,10 +44,16 @@ export function ProviderList({
   onDuplicate,
   onAdd,
   onSwitchProvider,
+  onConfigureUsage,
   agent,
 }: ProviderListProps) {
   const { t } = useTranslation();
   const [testState, setTestState] = useState<Record<string, TestState>>({});
+
+  // managed（OAuth 登录托管）供应商排在最前；其余保持原有顺序（稳定排序）。
+  const sortedProviders = [...providers].sort(
+    (a, b) => Number(b.managed === true) - Number(a.managed === true)
+  );
 
   const handleTest = async (provider: Provider) => {
     setTestState((s) => ({ ...s, [provider.name]: { status: "testing" } }));
@@ -132,7 +139,7 @@ export function ProviderList({
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 w-full">
-            {providers.map((provider) => {
+            {sortedProviders.map((provider) => {
               const providerModels = Object.values(models).filter(
                 (m) => m.provider === provider.name
               );
@@ -217,6 +224,19 @@ export function ProviderList({
                         {ts.status === "ok" ? `${ts.latency}ms` : "✕"}
                       </span>
                     )}
+                    {/* compact usage summary — sits left of the switch button,
+                        mirroring cc-switch's card layout (usage → action buttons) */}
+                    {(provider.usageKinds?.length ?? 0) > 0 && (
+                      <UsageFooter
+                        agent={agent}
+                        providerName={provider.name}
+                        usageKinds={provider.usageKinds}
+                        variant="compact"
+                        autoIntervalMinutes={
+                          provider.usageConfig?.autoQueryIntervalMinutes
+                        }
+                      />
+                    )}
                     <button
                       type="button"
                       onClick={(e) => {
@@ -287,6 +307,18 @@ export function ProviderList({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
+                        onConfigureUsage(provider.name);
+                      }}
+                      title={t("usageConfigBtn")}
+                      className={iconBtn}
+                      aria-label={t("usageConfigBtn")}
+                    >
+                      <BarChart3 className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
                         onDelete(provider.name);
                       }}
                       title={t("delete")}
@@ -301,6 +333,7 @@ export function ProviderList({
                     agent={agent}
                     providerName={provider.name}
                     usageKinds={provider.usageKinds}
+                    variant="detail"
                   />
                 </div>
               );

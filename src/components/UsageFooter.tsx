@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Loader2, RefreshCw } from "lucide-react";
 import { useTranslation } from "../i18n";
+import { localizeUsageError, planLabel } from "../lib/usage-display";
 import type { Agent } from "../types";
 
 interface UsageData {
@@ -31,7 +32,8 @@ interface CacheEntry {
 }
 
 // Module-level cache shared across mounts: re-entering the list within the
-// stale TTL shows the last result without firing new requests.
+// stale TTL shows the last result without firing new requests. Both the
+// compact (card header) and detail (footer) variants read this same cache.
 const STALE_TTL_MS = 5 * 60 * 1000;
 const cache = new Map<string, CacheEntry>();
 
@@ -54,9 +56,21 @@ interface UsageFooterProps {
   agent: Agent;
   providerName: string;
   usageKinds?: string[];
+  /** "detail" (default) renders the multi-line footer; "compact" renders a
+   * one-line summary + last-updated + refresh button for the card header. */
+  variant?: "detail" | "compact";
+  /** Auto query interval in minutes; only wired on the compact variant so
+   * both variants do not double-fire. 0/undefined = manual only. */
+  autoIntervalMinutes?: number;
 }
 
-export function UsageFooter({ agent, providerName, usageKinds }: UsageFooterProps) {
+export function UsageFooter({
+  agent,
+  providerName,
+  usageKinds,
+  variant = "detail",
+  autoIntervalMinutes,
+}: UsageFooterProps) {
   const { t } = useTranslation();
   const supported = (usageKinds?.length ?? 0) > 0;
   // Cache key includes the agent so a Kimi Code provider and a Pi provider
@@ -67,6 +81,7 @@ export function UsageFooter({ agent, providerName, usageKinds }: UsageFooterProp
   const [data, setData] = useState<UsageData[]>([]);
   /** undefined = no error; null = network error; string = Rust error text. */
   const [error, setError] = useState<string | null | undefined>(undefined);
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
   // Generation counter: stale responses (unmounted / superseded query) are ignored.
   const genRef = useRef(0);
@@ -82,6 +97,7 @@ export function UsageFooter({ agent, providerName, usageKinds }: UsageFooterProp
         setStatus(entry.status);
         setData(entry.data);
         setError(entry.error);
+        setUpdatedAt(entry.updatedAt);
       };
       try {
         await acquireSlot();
@@ -133,6 +149,7 @@ export function UsageFooter({ agent, providerName, usageKinds }: UsageFooterProp
       setStatus(cached.status);
       setData(cached.data);
       setError(cached.error);
+      setUpdatedAt(cached.updatedAt);
       if (Date.now() - cached.updatedAt < STALE_TTL_MS) return;
     }
     void runQuery(false);
@@ -145,7 +162,16 @@ export function UsageFooter({ agent, providerName, usageKinds }: UsageFooterProp
     };
   }, []);
 
-  // Tick the reset countdown once a minute while showing data.
+  // Auto query interval (compact variant only, to avoid double-firing).
+  useEffect(() => {
+    if (variant !== "compact" || !supported) return;
+    const mins = autoIntervalMinutes ?? 0;
+    if (mins <= 0) return;
+    const id = setInterval(() => void runQuery(false), mins * 60_000);
+    return () => clearInterval(id);
+  }, [variant, supported, autoIntervalMinutes, runQuery]);
+
+  // Tick relative times once a minute while showing data.
   useEffect(() => {
     if (status !== "success") return;
     const id = setInterval(() => setNow(Date.now()), 60_000);
@@ -185,6 +211,16 @@ export function UsageFooter({ agent, providerName, usageKinds }: UsageFooterProp
     return t("usageResetIn", { time: `${Math.floor(hours / 24)}d` });
   };
 
+  const formatAgo = (ts: number | null): string | null => {
+    if (ts == null) return null;
+    const mins = Math.floor((now - ts) / 60_000);
+    if (mins < 1) return t("usageUpdatedAgo", { time: "1m" });
+    if (mins < 60) return t("usageMinAgo", { n: mins });
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return t("usageHourAgo", { n: hours });
+    return t("usageDayAgo", { n: Math.floor(hours / 24) });
+  };
+
   const refreshBtn = (
     <button
       type="button"
@@ -195,7 +231,7 @@ export function UsageFooter({ agent, providerName, usageKinds }: UsageFooterProp
       disabled={status === "loading"}
       title={t("usageRefresh")}
       aria-label={t("usageRefresh")}
-      className="ml-auto w-6 h-6 flex items-center justify-center rounded text-content-muted hover:text-content-primary hover:bg-hover-2 disabled:opacity-50 transition-colors"
+      className="w-6 h-6 flex items-center justify-center rounded text-content-muted hover:text-content-primary hover:bg-hover-2 disabled:opacity-50 transition-colors"
     >
       {status === "loading" ? (
         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -205,6 +241,73 @@ export function UsageFooter({ agent, providerName, usageKinds }: UsageFooterProp
     </button>
   );
 
+  /** One-line summary of the primary entry (first tier / balance). */
+  const compactSummary = (): { icon: string; text: string; color: string } | null => {
+    const d = data[0];
+    if (!d) return null;
+    const isPlan = !!d.planName && d.planName !== "NewAPI";
+    if (d.isValid === false) {
+      return { icon: "⚡", text: t("usageInvalidKey"), color: "text-red-500 dark:text-red-400" };
+    }
+    if (d.planName === "NewAPI" && d.remaining == null && d.total == null) {
+      return { icon: "💰", text: `${t("usageBalance")} ∞`, color: "text-green-600 dark:text-green-400" };
+    }
+    if (isPlan) {
+      const pct = percentOf(d);
+      const color =
+        pct == null
+          ? "text-content-muted"
+          : pct < 70
+            ? "text-green-600 dark:text-green-400"
+            : pct < 90
+              ? "text-orange-600 dark:text-orange-400"
+              : "text-red-500 dark:text-red-400";
+      const label = data.length > 1 && d.planName ? `${planLabel(d.planName, t)} ` : "";
+      return {
+        icon: "⚡",
+        text: pct != null ? `${label}${Math.round(pct)}%` : `${label}—`,
+        color,
+      };
+    }
+    return {
+      icon: "💰",
+      text: formatAmount(d.remaining, d.unit),
+      color: "text-content-primary",
+    };
+  };
+
+  if (variant === "compact") {
+    if (status === "loading" && data.length === 0) {
+      return <div className="h-3.5 w-20 rounded bg-hover-2 animate-pulse" />;
+    }
+    if (status === "error" && data.length === 0) {
+      return (
+        <span className="flex items-center gap-1 text-xs text-red-500 dark:text-red-400">
+          <span className="truncate max-w-[120px]" title={error ?? t("usageNetworkError")}>
+            {error == null ? t("usageNetworkError") : localizeUsageError(error, t)}
+          </span>
+          {refreshBtn}
+        </span>
+      );
+    }
+    const s = compactSummary();
+    const ghost = status !== "success";
+    const ago = formatAgo(updatedAt);
+    return (
+      <span className={`flex items-center gap-1.5 text-xs tabular-nums ${ghost ? "opacity-50" : ""}`}>
+        {s && (
+          <>
+            <span aria-hidden="true">{s.icon}</span>
+            <span className={`font-medium ${s.color}`}>{s.text}</span>
+          </>
+        )}
+        {ago && <span className="text-content-muted">{ago}</span>}
+        {refreshBtn}
+      </span>
+    );
+  }
+
+  // ── detail variant ──
   // Loading with no prior data: skeleton bar.
   if (status === "loading" && data.length === 0) {
     return (
@@ -224,7 +327,7 @@ export function UsageFooter({ agent, providerName, usageKinds }: UsageFooterProp
         : /401|api[ -]?key|invalid key/i.test(error)
           ? t("usageInvalidKey")
           : error
-            ? `${t("usageQueryFailed")} · ${error}`
+            ? `${t("usageQueryFailed")} · ${localizeUsageError(error, t)}`
             : t("usageQueryFailed");
     return (
       <div className="w-full border-t border-border pt-2 mt-1 flex items-center gap-2 text-xs">
@@ -246,6 +349,9 @@ export function UsageFooter({ agent, providerName, usageKinds }: UsageFooterProp
   }
 
   // success, or error/loading with last-good data (ghost).
+  // Compact header already shows the primary entry; detail only adds value
+  // when there are multiple tiers (e.g. 5h + weekly) or on error ghost.
+  if (data.length <= 1 && status === "success") return null;
   const ghost = status !== "success";
   return (
     <div
@@ -270,7 +376,7 @@ export function UsageFooter({ agent, providerName, usageKinds }: UsageFooterProp
         if (d.isValid === false) {
           main = t("usageInvalidKey");
         } else if (isPlan) {
-          const label = data.length > 1 && d.planName ? `${d.planName} · ` : "";
+          const label = data.length > 1 && d.planName ? `${planLabel(d.planName, t)} · ` : "";
           main =
             pct != null
               ? `${label}${Math.round(pct)}% ${t("usageUsed")}`
@@ -295,14 +401,12 @@ export function UsageFooter({ agent, providerName, usageKinds }: UsageFooterProp
             {resetText && (
               <span className="text-content-muted shrink-0">{resetText}</span>
             )}
-            {i === data.length - 1 && refreshBtn}
           </div>
         );
       })}
       {data.length === 0 && (
         <div className="flex items-center gap-1.5">
           <span className="text-content-muted">—</span>
-          {refreshBtn}
         </div>
       )}
     </div>

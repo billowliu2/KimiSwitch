@@ -159,6 +159,7 @@ pub fn load_config(agent: &Agent) -> DbResult<Config> {
                     .unwrap_or(Value::Null),
                 // Merged from the settings table by load_agent_config_command.
                 usage_kinds: None,
+                usage_config: None,
             })
         })?;
 
