@@ -530,6 +530,15 @@ fn models_dev_cost_index() -> &'static HashMap<String, ModelsDevCost> {
     })
 }
 
+/// Warm the compiled-in models.dev price index off the first dashboard open:
+/// parsing the ~1.3 MB snapshot costs tens of milliseconds, so build it on a
+/// background thread at startup instead of lazily on the first get_summary.
+pub fn warm_price_index() {
+    std::thread::spawn(|| {
+        let _ = models_dev_cost_index();
+    });
+}
+
 /// Official providers take precedence over resellers when the same model id
 /// ships under multiple providers and no provider prefix disambiguates.
 const OFFICIAL_PROVIDERS: &[&str] = &[
@@ -741,6 +750,45 @@ fn scan_usage(home: &Path) -> (Vec<UsageRecord>, ScanMeta) {
         sessions_root: root.to_string_lossy().to_string(),
         errors: errors.into_iter().take(20).collect(),
     })
+}
+
+// ---------------------------------------------------------------------------
+// Scan cache
+// ---------------------------------------------------------------------------
+
+/// Short-TTL cache for the expensive `scan_usage` walk (reads every
+/// wire.jsonl under the sessions root and prices every record). Tab switches
+/// call get_summary repeatedly; re-walking the whole tree on every switch is
+/// the main dashboard lag. Keyed by home, expires after 8s; `refresh=true`
+/// bypasses it.
+struct SummaryCacheEntry {
+    home: String,
+    scanned_at: std::time::Instant,
+    records: Vec<UsageRecord>,
+    meta: ScanMeta,
+}
+
+static SUMMARY_CACHE: Mutex<Option<SummaryCacheEntry>> = Mutex::new(None);
+const SUMMARY_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(8);
+
+fn scan_usage_cached(home: &Path, refresh: bool) -> (Vec<UsageRecord>, ScanMeta) {
+    let home_s = home.to_string_lossy().to_string();
+    let mut cache = SUMMARY_CACHE.lock().unwrap();
+    let hit = cache
+        .as_ref()
+        .is_some_and(|e| !refresh && e.home == home_s && e.scanned_at.elapsed() < SUMMARY_CACHE_TTL);
+    if hit {
+        let e = cache.as_ref().unwrap();
+        return (e.records.clone(), e.meta.clone());
+    }
+    let (records, meta) = scan_usage(home);
+    *cache = Some(SummaryCacheEntry {
+        home: home_s,
+        scanned_at: std::time::Instant::now(),
+        records: records.clone(),
+        meta: meta.clone(),
+    });
+    (records, meta)
 }
 
 // ---------------------------------------------------------------------------
@@ -1489,13 +1537,13 @@ pub fn get_prices() -> PricesResult {
 
 #[tauri::command]
 pub fn get_summary(home_override: Option<String>, range: Option<String>, refresh: Option<bool>) -> SummaryResult {
-    let _refresh = refresh.unwrap_or(false);
+    let refresh = refresh.unwrap_or(false);
     let home = resolve_kimi_home(home_override);
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
     let r = range.unwrap_or_else(|| "30d".into());
 
-    let (records, meta) = scan_usage(&home);
+    let (records, meta) = scan_usage_cached(&home, refresh);
     let stats = aggregate(&records, &r, now_ms);
     let all_stats = aggregate(&records, "all", now_ms);
     let heatmap = build_heatmap(&records, now_ms);

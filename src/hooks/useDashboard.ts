@@ -23,11 +23,14 @@ export function useDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (force = false) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await invoke<SummaryResult>("get_summary", { range });
+      const result = await invoke<SummaryResult>("get_summary", {
+        range,
+        refresh: force,
+      });
       setData(result);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
