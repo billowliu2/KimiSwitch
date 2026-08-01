@@ -318,8 +318,7 @@ export const enTranslations: Record<TranslationKey, string> = {
 
   // Dashboard — footer / attribution
   footerScanned: "Scanned {n} files · {m} records",
-  dashboardAttribution: "Dashboard ported from",
-  sessionsAttribution: "Session manager ported from",
+  attributionPorted: "Dashboard & session manager ported from",
   attributionSuffix: "(MIT, © JochenYang)",
 
   // Sessions — preview

@@ -245,7 +245,13 @@ export function UsageFooter({
   const compactSummary = (): { icon: string; text: string; color: string } | null => {
     const d = data[0];
     if (!d) return null;
-    const isPlan = !!d.planName && d.planName !== "NewAPI";
+    // A "plan" is a quota tier (used/total, e.g. 5h / weekly limit). Balance
+    // entries carry only remaining + unit — their plan_name is a currency /
+    // brand label and must render as an amount, not a percentage.
+    const isPlan =
+      !!d.planName &&
+      d.planName !== "NewAPI" &&
+      (d.total != null || d.used != null);
     if (d.isValid === false) {
       return { icon: "⚡", text: t("usageInvalidKey"), color: "text-red-500 dark:text-red-400" };
     }
@@ -360,7 +366,12 @@ export function UsageFooter({
       }`}
     >
       {data.map((d, i) => {
-        const isPlan = !!d.planName;
+        // Same plan-vs-balance rule as compactSummary: balance rows have no
+        // quota fields (total/used), so they render as an amount.
+        const isPlan =
+          !!d.planName &&
+          d.planName !== "NewAPI" &&
+          (d.total != null || d.used != null);
         const pct = isPlan ? percentOf(d) : null;
         const color =
           pct == null

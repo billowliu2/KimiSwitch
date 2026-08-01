@@ -1,5 +1,4 @@
 import { useState, type ReactNode } from "react";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { useDashboard, type DashboardRange } from "../../hooks/useDashboard";
 import { useTranslation } from "../../i18n";
 import { fmtInt, fmtPct, fmtTime, fmtTokens, fmtUsd } from "../../lib/dashboard-format";
@@ -420,22 +419,11 @@ export function DashboardPage() {
         )}
       </Card>
 
-      {/* Footer — meta + attribution at the end of the content flow */}
+      {/* Footer — meta at the end of the content flow */}
       <div className="text-xs text-content-muted pb-2">
         <div>
           {t("footerScanned", { n: data.meta.filesScanned, m: fmtInt(data.meta.recordCount) })} ·{" "}
           {data.meta.home}
-        </div>
-        <div className="mt-0.5">
-          {t("dashboardAttribution")}{" "}
-          <button
-            type="button"
-            onClick={() => openUrl("https://github.com/JochenYang/kimicode-dashboard")}
-            className="text-blue-500 hover:text-blue-400 underline bg-transparent p-0 border-0 cursor-pointer"
-          >
-            kimicode-dashboard
-          </button>{" "}
-          {t("attributionSuffix")}
         </div>
       </div>
     </div>

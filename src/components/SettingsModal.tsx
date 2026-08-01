@@ -110,6 +110,15 @@ export function SettingsModal({
     invoke("open_installer", { path: downloadedPath }).catch(() => {});
   };
 
+  // Open an external link in the system browser. Falls back to a new tab
+  // when the opener plugin call fails, so a broken click never stays silent.
+  const openExternal = (url: string) => {
+    openUrl(url).catch(() => {
+      const w = window.open(url, "_blank");
+      if (!w) console.error(`failed to open ${url}`);
+    });
+  };
+
   if (!open) return null;
 
   const themeOptions: { value: Theme; icon: ReactNode; label: string }[] = [
@@ -253,26 +262,66 @@ export function SettingsModal({
                   type="button"
                   onClick={onCheckUpdate}
                   disabled={checking}
-                  className="px-3 py-1.5 text-sm rounded border border-border hover:bg-hover-2 disabled:opacity-50 transition-colors"
+                  className="px-3 py-1.5 text-sm rounded border border-border hover:bg-hover-2 disabled:opacity-50 transition-colors flex items-center gap-1.5"
                 >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={checking ? "animate-spin" : ""}
+                  >
+                    <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                    <polyline points="21 3 21 9 15 9" />
+                  </svg>
                   {checking ? t("checking") : t("checkUpdate")}
                 </button>
                 {updateInfo?.updateAvailable && downloadProgress === null && !downloadedPath && (
                   <button
                     type="button"
                     onClick={handleDownload}
-                    className="px-3 py-1.5 text-sm rounded bg-green-600 text-white hover:bg-green-500 transition-colors"
+                    className="px-3 py-1.5 text-sm rounded bg-green-600 text-white hover:bg-green-500 transition-colors flex items-center gap-1.5"
                   >
-                    {t("downloadUpdate")} ↓
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    {t("downloadUpdate")}
                   </button>
                 )}
                 {downloadedPath && (
                   <button
                     type="button"
                     onClick={handleInstall}
-                    className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-500 transition-colors"
+                    className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-500 transition-colors flex items-center gap-1.5"
                   >
-                    {t("install")} ⏎
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polygon points="6 3 20 12 6 21 6 3" />
+                    </svg>
+                    {t("install")}
                   </button>
                 )}
               </div>
@@ -323,18 +372,25 @@ export function SettingsModal({
               <div className="font-medium text-content-primary">Kimi Switch</div>
               <div>{t("appDescription")}</div>
               <div className="text-xs text-content-muted">v{appVersion} · MIT License</div>
-              <div className="pt-2">
-                <span className="text-content-muted">{t("referenceProject")}: </span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    openUrl("https://github.com/JochenYang/kimicode-dashboard")
-                  }
-                  className="text-blue-500 hover:text-blue-400 underline bg-transparent p-0 border-0 cursor-pointer"
-                >
-                  kimicode-dashboard
-                </button>
-                <span className="text-content-muted"> (MIT, © JochenYang)</span>
+              <div className="pt-2 space-y-1">
+                <div>
+                  {t("attributionPorted")}{" "}
+                  <span className="font-medium text-content-primary">kimicode-dashboard</span>
+                  <span className="text-content-muted"> {t("attributionSuffix")}</span>
+                </div>
+                <div className="pt-1">
+                  <span className="text-content-muted">{t("referenceProject")}: </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openExternal("https://github.com/farion1231/cc-switch")
+                    }
+                    className="text-blue-500 hover:text-blue-400 underline bg-transparent p-0 border-0 cursor-pointer"
+                  >
+                    cc-switch
+                  </button>
+                  <span className="text-content-muted"> (MIT, © Jason Young)</span>
+                </div>
               </div>
             </div>
           </section>

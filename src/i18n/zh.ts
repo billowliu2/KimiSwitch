@@ -313,8 +313,7 @@ export const zhTranslations = {
 
   // Dashboard — footer / attribution
   footerScanned: "扫描 {n} 个文件 · {m} 条记录",
-  dashboardAttribution: "仪表盘功能基于",
-  sessionsAttribution: "会话管理功能基于",
+  attributionPorted: "仪表盘与会话管理功能基于",
   attributionSuffix: "（MIT，© JochenYang）移植",
 
   // Sessions — preview

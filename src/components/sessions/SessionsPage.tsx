@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { useSessions } from "../../hooks/useSessions";
 import { fmtInt, fmtTime } from "../../lib/dashboard-format";
 import { useTranslation } from "../../i18n";
@@ -547,16 +546,6 @@ export function SessionsPage() {
       {/* Attribution */}
       <div className="text-xs text-content-muted pb-2">
         {data?.home && <>{data.home}</>}
-        <br />
-        {t("sessionsAttribution")}{" "}
-        <button
-          type="button"
-          onClick={() => openUrl("https://github.com/JochenYang/kimicode-dashboard")}
-          className="text-blue-500 hover:text-blue-400 underline bg-transparent p-0 border-0 cursor-pointer"
-        >
-          kimicode-dashboard
-        </button>{" "}
-        {t("attributionSuffix")}
       </div>
 
       {/* Confirm dialog */}

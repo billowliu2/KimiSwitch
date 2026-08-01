@@ -11,6 +11,13 @@
 - GitHub Actions Release workflow 已触发（三平台构建 → Release draft 自动上传 msi/dmg/AppImage/deb/rpm）
 - 本地 0.6.4 安装包：`src-tauri/target/release/bundle/{nsis,msi}/`
 
+**已提交并发布 v0.6.5**：
+- `feat: 优化更新检查逻辑 + 修复按量余额显示（v0.6.5）`
+- 检查更新优先私有库（git.codingplan.site），8s 超时自动回退 GitHub
+- 设置-关于：合并移植声明为一句、新增 cc-switch 链接（openUrl + window.open 兜底）、移除仪表盘/会话页脚重复声明
+- 修复按量余额不显示：UsageFooter isPlan 判定增加配额字段（total/used）条件——余额条目（DeepSeek/StepFun/SiliconFlow/Novita/Kimi 开放平台）现在正确显示 `💰 ¥x.xx`，套餐类（有 total/used）不受影响。实测 DeepSeek 官方接口返回 200 + balance_infos
+- 两仓库 main + Dev_20260801 + tag v0.6.5 已同步
+
 **历史提交**：`12dcb17` — docs: 账单查询适配调研 + OpenCode Zen 预设补推荐链接
 
 **工作区未提交改动**——用户硬约束：**实现完成不提交，等用户逐批测试确认后才提交**。

@@ -801,25 +801,55 @@ fn version_lt(current: &str, latest: &str) -> bool {
 #[tauri::command]
 pub async fn check_for_update() -> Result<UpdateInfo, String> {
     let current = env!("CARGO_PKG_VERSION").to_string();
-    // GitHub Releases API for billowliu2/KimiSwitch. Historical versions
-    // (v0.5.x and earlier) live on git.codingplan.site and are not exposed
-    // here — only v0.6.0+ is published via GitHub.
-    let url = "https://api.github.com/repos/billowliu2/KimiSwitch/releases?per_page=1";
+    // Prefer the private Gitea repo (primary release channel, all versions
+    // since v0.1.0). Fall back to GitHub Releases when it is unreachable
+    // (e.g. off the LAN/VPN) — v0.6.0+ is mirrored there.
+    let sources = [
+        "https://git.codingplan.site/api/v1/repos/admin/KimiCodeSwitch/releases?limit=1",
+        "https://api.github.com/repos/billowliu2/KimiSwitch/releases?per_page=1",
+    ];
 
-    // GitHub returns 403 without a User-Agent header. Bundle the app version
-    // so the source is identifiable in any rate-limit / abuse reports.
+    // Both hosts require a User-Agent header (GitHub returns 403 without one).
+    // Bundle the app version so the source is identifiable in any rate-limit
+    // / abuse reports. A short timeout keeps the fallback responsive when the
+    // private server is unreachable.
     let client = reqwest::Client::builder()
         .user_agent(concat!("KimiSwitch/", env!("CARGO_PKG_VERSION")))
+        .timeout(std::time::Duration::from_secs(8))
         .build()
         .map_err(|e| format!("client build failed: {e}"))?;
 
-    let resp = client
+    let mut errors: Vec<String> = Vec::new();
+    for url in sources {
+        match fetch_latest_release(&client, url).await {
+            Ok((latest, release_url, download_url)) => {
+                let update_available = version_lt(&current, &latest);
+                return Ok(UpdateInfo {
+                    current,
+                    latest,
+                    update_available,
+                    release_url,
+                    download_url,
+                });
+            }
+            Err(e) => errors.push(format!("{url}: {e}")),
+        }
+    }
+
+    Err(format!("all update sources failed: {}", errors.join("; ")))
+}
+
+/// GET a releases API (Gitea or GitHub, same array shape) and extract the
+/// latest tag, release page URL and the installer asset for the current OS.
+async fn fetch_latest_release(
+    client: &reqwest::Client,
+    url: &str,
+) -> Result<(String, String, Option<String>), String> {
+    let releases: serde_json::Value = client
         .get(url)
         .send()
         .await
-        .map_err(|e| format!("request failed: {e}"))?;
-
-    let releases: serde_json::Value = resp
+        .map_err(|e| format!("request failed: {e}"))?
         .json()
         .await
         .map_err(|e| format!("parse failed: {e}"))?;
@@ -846,15 +876,7 @@ pub async fn check_for_update() -> Result<UpdateInfo, String> {
         .and_then(|a| a.as_array())
         .and_then(|a| pick_asset_for_current_os(a));
 
-    let update_available = version_lt(&current, &latest);
-
-    Ok(UpdateInfo {
-        current,
-        latest,
-        update_available,
-        release_url,
-        download_url,
-    })
+    Ok((latest, release_url, download_url))
 }
 
 // ---------------------------------------------------------------------------
