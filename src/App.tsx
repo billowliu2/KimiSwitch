@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useConfig } from "./hooks/useConfig";
@@ -12,7 +12,7 @@ import { UsageConfigModal } from "./components/UsageConfigModal";
 import { PresetPickerModal } from "./components/PresetPickerModal";
 import { useTranslation } from "./i18n";
 import { getDefaultMaxContextSize } from "./lib/model-defaults";
-import { getModelRef } from "./lib/models-dev";
+import { getModelRef, modelsDevReady, onModelsDevReady } from "./lib/models-dev";
 import {
   presetToProviderAndModels,
   type ProviderPreset,
@@ -120,6 +120,14 @@ export default function App() {
       message: `App mounted. agent=${agent} loading=${loading} config=${config ? Object.keys(config.providers).length + " providers" : "null"}`,
     }).catch(() => {});
   }, [loading, config, agent]);
+
+  // Load the models.dev index in the background (not in the main bundle)
+  // and re-render once it lands so context/capability columns fill in.
+  const [, forceModelsDevReady] = useReducer((x: number) => x + 1, 0);
+  useEffect(() => {
+    onModelsDevReady(forceModelsDevReady);
+    void modelsDevReady();
+  }, []);
 
   const providers = useMemo(
     () => (config ? Object.values(config.providers) : []),

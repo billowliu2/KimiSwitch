@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://billowliu2.github.io/KimiSwitch/sitemap.xml

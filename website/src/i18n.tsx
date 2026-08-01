@@ -1,0 +1,575 @@
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
+
+export type Lang = "zh" | "en";
+
+const zh = {
+  nav: {
+    home: "首页",
+    features: "功能",
+    showcase: "演示",
+    performance: "性能",
+    changelog: "更新日志",
+    download: "下载",
+    downloadBtn: "下载 v0.6.7",
+  },
+  hero: {
+    badge: "开源 MIT · Windows 10 / 11",
+    titleBefore: "统一管理你的",
+    titleAccent: "AI 供应商",
+    titleAfter: "",
+    subtitle:
+      "一键切换 Kimi / 智谱 GLM / MiniMax / DeepSeek / OpenRouter / 基元律动，用量与账单一目了然。",
+    download: "免费下载",
+    source: "查看源码",
+    stats: [
+      { value: "22", label: "预设供应商" },
+      { value: "5910", label: "模型价格库" },
+      { value: "100%", label: "开源免费" },
+    ],
+  },
+  features: {
+    title: "核心功能",
+    subtitle: "从多供应商管理到用量监控，一站搞定。",
+    items: [
+      {
+        id: "multi-provider",
+        title: "多供应商管理",
+        desc: "Kimi / 智谱 GLM / MiniMax / DeepSeek / OpenRouter / 基元律动等 22 个预设，一键添加与切换。",
+        img: "screenshots/preset-picker.png",
+      },
+      {
+        id: "custom-provider",
+        title: "自定义供应商",
+        desc: "自定义 Base URL / API Key / 模型映射，支持 JSON 高级编辑。",
+        img: "screenshots/edit-provider-basic-managed.png",
+      },
+      {
+        id: "usage",
+        title: "用量与账单监控",
+        desc: "套餐类 5 小时 / 每周用量 + 按量余额，models.dev 真实价格计算成本，卡片直显。",
+        img: "screenshots/dashboard-light.png",
+      },
+      {
+        id: "sessions",
+        title: "会话管理",
+        desc: "跨供应商浏览、搜索与恢复历史会话。",
+        img: "screenshots/sessions-light.png",
+      },
+      {
+        id: "kimi-auth",
+        title: "Kimi 一键授权登录",
+        desc: "应用内置设备码授权（等同 kimi login），浏览器授权即用，15 分钟过期自动续期。",
+        img: "screenshots/kimi-oauth-dialog.png",
+      },
+      {
+        id: "usage-config",
+        title: "配置用量查询",
+        desc: "全屏配置页：NewAPI 中转站模板、超时时间、自动刷新间隔、测试查询。",
+        img: "screenshots/usage-config-page.png",
+      },
+      {
+        id: "model-discovery",
+        title: "智能模型发现",
+        desc: "模型能力 / 上下文大小自动从 models.dev 同步，构建时自动拉取，5910 模型覆盖。",
+        img: "screenshots/kimi-cli-select-model.png",
+      },
+      {
+        id: "auto-update",
+        title: "自动更新",
+        desc: "自动检测新版本，一键下载安装，始终保持最新。",
+        img: "screenshots/settings.png",
+      },
+    ],
+  },
+  showcase: {
+    title: "界面演示",
+    subtitle: "真实界面截图，所见即所得。",
+    items: [
+      {
+        src: "screenshots/usage-config-page.png",
+        title: "配置用量查询",
+        desc: "NewAPI 中转站模板、超时与自动刷新、测试查询一屏搞定",
+      },
+      {
+        src: "screenshots/preset-picker.png",
+        title: "预设供应商",
+        desc: "22 个预设开箱即用，一键添加常用厂商",
+      },
+      {
+        src: "screenshots/kimi-oauth-dialog.png",
+        title: "Kimi 授权登录",
+        desc: "设备码授权等同 kimi login，过期自动续期",
+      },
+      {
+        src: "screenshots/dashboard-daily-detail.png",
+        title: "用量明细",
+        desc: "按天查看 Token 与费用走势",
+      },
+      {
+        src: "screenshots/sessions-light.png",
+        title: "会话管理",
+        desc: "跨供应商浏览与恢复历史会话",
+      },
+      {
+        src: "screenshots/kimi-plan-quota-card.png",
+        title: "套餐余量卡",
+        desc: "5 小时 / 每周额度直读，余量一眼可见",
+      },
+    ],
+  },
+  performance: {
+    title: "轻量原生",
+    subtitle: "Tauri + Rust 内核，WebView2 前端，常驻托盘零负担。",
+    metrics: [
+      { target: 93, suffix: " MB", label: "Working Set", desc: "程序空闲态工作集内存" },
+      { target: 34, suffix: " MB", label: "Private WS", desc: "独占内存（WebView2 共享部分扣除）" },
+      { target: 0.3, decimals: 1, suffix: "%", label: "CPU 空闲", desc: "无活跃任务时几乎零占用" },
+    ],
+    lightCaption: "浅色主题",
+    darkCaption: "深色主题",
+  },
+  changelog: {
+    title: "更新日志",
+    subtitle: "每个版本的重要变更记录。",
+    syncedNote: "数据已同步 GitHub Releases",
+    fallbackNote: "内置版本记录",
+    entries: [
+      {
+        version: "v0.6.7",
+        date: "2026-08-01",
+        items: [
+          "应用内置 Kimi 设备授权登录（等同 kimi login），浏览器授权即用，过期自动续期",
+          "外链打开统一走 Rust 命令，修复部分链接无法跳转",
+        ],
+      },
+      {
+        version: "v0.6.6",
+        date: "2026-08-01",
+        items: [
+          "模型价格对标 models.dev，覆盖 5910 个模型",
+          "新增基元律动供应商与推荐链接",
+          "设置页文案与参考来源说明优化",
+        ],
+      },
+      {
+        version: "v0.6.5",
+        date: "2026-08-01",
+        items: [
+          "更新检查优化：私有仓库优先，GitHub 回退，8 秒超时",
+          "修复按量余额显示",
+        ],
+      },
+      {
+        version: "v0.6.4",
+        date: "2026-08-01",
+        items: [
+          "新增套餐账单查询（5 小时 / 每周用量卡片直显）",
+          "OpenCode Zen 预设补充推荐链接",
+        ],
+      },
+      {
+        version: "v0.6.3",
+        date: "2026-07-30",
+        items: [
+          "添加默认供应商支持，新增 StepFun Plan 套餐预设",
+          "供应商编辑页新增 API Key 获取链接（支持推广链接）",
+          "修复链接无法打开浏览器的问题",
+        ],
+      },
+      {
+        version: "v0.6.2",
+        date: "2026-07-30",
+        items: [
+          "仪表盘布局重构：每日用量趋势折线图（Token / 缓存命中率 / 请求数）",
+          "热力图独立整行，格子放大",
+          "新增 OpenCode Go / Zen 预设",
+        ],
+      },
+      {
+        version: "v0.6.0",
+        date: "2026-07-29",
+        items: [
+          "预设供应商与供应商账单查询上线",
+          "多平台打包：macOS / Linux / Windows CI 同步发布",
+        ],
+      },
+      {
+        version: "v0.5.2",
+        date: "2026-07-29",
+        items: ["用量趋势改为 tab 容器，新增供应商模型两级下钻"],
+      },
+      {
+        version: "v0.5.1",
+        date: "2026-07-29",
+        items: ["窗口与托盘行为优化；模型表格与能力编辑 UI 打磨"],
+      },
+    ],
+  },
+  privacy: {
+    title: "你的数据，只在你的电脑上",
+    subtitle: "三句话讲清楚隐私与开源承诺。",
+    items: [
+      {
+        id: "local",
+        title: "本地存储",
+        desc: "配置与用量仅存本机 ~/.kimi-switch 与 config.toml，绝不上传。",
+      },
+      {
+        id: "direct",
+        title: "官方直连",
+        desc: "账单查询直连各厂商官方 API，无中间商、无统计埋点。",
+      },
+      {
+        id: "open",
+        title: "开源可审计",
+        desc: "MIT 协议全量开源（GitHub），欢迎审阅与共建。",
+      },
+    ],
+  },
+  download: {
+    title: "下载 Kimi Switch",
+    subtitle: "当前版本 v0.6.7 · Windows 10 / 11 主推，macOS 与 Linux 路线图上。",
+    autoUpdate: "应用内置自动检测更新，新版本发布后在设置页一键升级。",
+    ready: "已发布",
+    wip: "开发中",
+    githubBtn: "GitHub 下载",
+    mirrorBtn: "镜像下载",
+    items: [
+      { id: "windows", name: "Windows", ready: true, note: ".msi 安装包，系统托盘常驻" },
+      { id: "macos", name: "macOS", ready: true, note: ".dmg 安装包（Apple Silicon），未签名需右键打开" },
+      { id: "linux", name: "Linux", ready: true, note: ".deb / .AppImage / .rpm 三格式" },
+    ],
+  },
+  cta: {
+    title: "现在就把所有供应商，放进一个应用",
+    subtitle: "免费 · 开源 MIT · 一分钟完成安装",
+    download: "免费下载",
+    source: "GitHub 源码",
+  },
+  footer: {
+    recommend: "推荐供应商",
+    mirror: "国内镜像",
+    creditBefore: "仪表盘与会话管理功能基于 ",
+    creditAfter: " (MIT, © JochenYang) 移植",
+    recommendText: {
+      Kimi: "完成 Kimi 注册，你我都能 100% 拿奖，最高可得 1 年会员等值权益",
+      "智谱 GLM":
+        "通过我的邀请链接注册 BigModel.cn，即可获得 2000 万 Tokens 大礼包，畅享新一代旗舰模型 GLM-5.2",
+      DeepSeek: "",
+      OpenCodeGo: "",
+      MiniMax:
+        "MiniMax Token Plan：订阅套餐解锁最新模型，好友订阅享 9 折 + Builder 权益，邀请人得 10% 返利",
+      基元律动: "",
+    } as Record<string, string>,
+  },
+};
+
+export type Dict = typeof zh;
+
+const en: Dict = {
+  nav: {
+    home: "Home",
+    features: "Features",
+    showcase: "Demo",
+    performance: "Performance",
+    changelog: "Changelog",
+    download: "Download",
+    downloadBtn: "Download v0.6.7",
+  },
+  hero: {
+    badge: "Open source MIT · Windows 10 / 11",
+    titleBefore: "One app for all your ",
+    titleAccent: "AI providers",
+    titleAfter: "",
+    subtitle:
+      "Switch between Kimi, Zhipu GLM, MiniMax, DeepSeek, OpenRouter and TokenRhythm in one click, with usage and billing at a glance.",
+    download: "Free Download",
+    source: "View Source",
+    stats: [
+      { value: "22", label: "Provider presets" },
+      { value: "5910", label: "Model price DB" },
+      { value: "100%", label: "Open source" },
+    ],
+  },
+  features: {
+    title: "Core Features",
+    subtitle: "From multi-provider management to usage monitoring, all in one place.",
+    items: [
+      {
+        id: "multi-provider",
+        title: "Multi-Provider Management",
+        desc: "22 presets including Kimi, Zhipu GLM, MiniMax, DeepSeek, OpenRouter and TokenRhythm. Add and switch in one click.",
+        img: "screenshots/preset-picker.png",
+      },
+      {
+        id: "custom-provider",
+        title: "Custom Providers",
+        desc: "Custom Base URL, API Key and model mapping, with advanced JSON editing.",
+        img: "screenshots/edit-provider-basic-managed.png",
+      },
+      {
+        id: "usage",
+        title: "Usage & Billing",
+        desc: "5-hour / weekly plan quotas plus pay-as-you-go balance, priced with real models.dev rates and shown on cards.",
+        img: "screenshots/dashboard-light.png",
+      },
+      {
+        id: "sessions",
+        title: "Session Manager",
+        desc: "Browse, search and resume past sessions across providers.",
+        img: "screenshots/sessions-light.png",
+      },
+      {
+        id: "kimi-auth",
+        title: "One-Click Kimi Login",
+        desc: "Built-in device-code authorization (same as kimi login). Authorize in the browser; 15-minute expiry auto-renews.",
+        img: "screenshots/kimi-oauth-dialog.png",
+      },
+      {
+        id: "usage-config",
+        title: "Usage Query Setup",
+        desc: "Full-page config: NewAPI relay templates, timeout, auto-refresh interval, and a test query.",
+        img: "screenshots/usage-config-page.png",
+      },
+      {
+        id: "model-discovery",
+        title: "Smart Model Discovery",
+        desc: "Model capabilities and context sizes sync from models.dev at build time, covering 5910 models.",
+        img: "screenshots/kimi-cli-select-model.png",
+      },
+      {
+        id: "auto-update",
+        title: "Auto Updates",
+        desc: "Automatically detects new versions and installs them in one click.",
+        img: "screenshots/settings.png",
+      },
+    ],
+  },
+  showcase: {
+    title: "Screenshots",
+    subtitle: "Real screenshots from the app. What you see is what you get.",
+    items: [
+      {
+        src: "screenshots/usage-config-page.png",
+        title: "Usage Query Setup",
+        desc: "NewAPI relay templates, timeout and auto-refresh, plus a test query, all on one page",
+      },
+      {
+        src: "screenshots/preset-picker.png",
+        title: "Provider Presets",
+        desc: "22 presets ready out of the box, add popular vendors in one click",
+      },
+      {
+        src: "screenshots/kimi-oauth-dialog.png",
+        title: "Kimi Authorization",
+        desc: "Device-code flow identical to kimi login, auto-renews on expiry",
+      },
+      {
+        src: "screenshots/dashboard-daily-detail.png",
+        title: "Usage Details",
+        desc: "Daily token and cost trends",
+      },
+      {
+        src: "screenshots/sessions-light.png",
+        title: "Session Manager",
+        desc: "Browse and resume past sessions across providers",
+      },
+      {
+        src: "screenshots/kimi-plan-quota-card.png",
+        title: "Plan Quota Card",
+        desc: "5-hour / weekly quotas at a glance",
+      },
+    ],
+  },
+  performance: {
+    title: "Lightweight & Native",
+    subtitle: "Tauri + Rust core with a WebView2 frontend. Zero tray overhead.",
+    metrics: [
+      { target: 93, suffix: " MB", label: "Working Set", desc: "Idle working-set memory" },
+      { target: 34, suffix: " MB", label: "Private WS", desc: "Private memory (shared WebView2 excluded)" },
+      { target: 0.3, decimals: 1, suffix: "%", label: "Idle CPU", desc: "Nearly zero when idle" },
+    ],
+    lightCaption: "Light theme",
+    darkCaption: "Dark theme",
+  },
+  changelog: {
+    title: "Changelog",
+    subtitle: "Notable changes in every release.",
+    syncedNote: "Synced from GitHub Releases",
+    fallbackNote: "Built-in release notes",
+    entries: [
+      {
+        version: "v0.6.7",
+        date: "2026-08-01",
+        items: [
+          "Built-in Kimi device-code login (same as kimi login): authorize in the browser, auto-renews on expiry",
+          "External links now open via a unified Rust command, fixing broken jumps",
+        ],
+      },
+      {
+        version: "v0.6.6",
+        date: "2026-08-01",
+        items: [
+          "Model pricing aligned with models.dev, covering 5910 models",
+          "New TokenRhythm provider with referral link",
+          "Settings copy and source attribution polish",
+        ],
+      },
+      {
+        version: "v0.6.5",
+        date: "2026-08-01",
+        items: [
+          "Update check rework: private mirror first, GitHub fallback, 8s timeout",
+          "Fix pay-as-you-go balance display",
+        ],
+      },
+      {
+        version: "v0.6.4",
+        date: "2026-08-01",
+        items: [
+          "Plan billing queries (5-hour / weekly usage shown on cards)",
+          "OpenCode Zen preset gains a referral link",
+        ],
+      },
+      {
+        version: "v0.6.3",
+        date: "2026-07-30",
+        items: [
+          "Default provider support and a new StepFun Plan preset",
+          "API Key helper links on the provider edit page (referral links supported)",
+          "Fix links failing to open the browser",
+        ],
+      },
+      {
+        version: "v0.6.2",
+        date: "2026-07-30",
+        items: [
+          "Dashboard layout rework: daily trend line chart (tokens / cache hit rate / requests)",
+          "Heatmap gets its own full-width row with larger cells",
+          "New OpenCode Go / Zen presets",
+        ],
+      },
+      {
+        version: "v0.6.0",
+        date: "2026-07-29",
+        items: [
+          "Provider presets and per-provider billing queries launch",
+          "Multi-platform packaging: macOS / Linux / Windows CI releases",
+        ],
+      },
+      {
+        version: "v0.5.2",
+        date: "2026-07-29",
+        items: ["Usage trends moved into a tab container with provider-model two-level drill-down"],
+      },
+      {
+        version: "v0.5.1",
+        date: "2026-07-29",
+        items: ["Window and tray behavior polish; model table and capability editor UI refinements"],
+      },
+    ],
+  },
+  privacy: {
+    title: "Your Data Stays on Your Machine",
+    subtitle: "Our privacy and open-source commitments in three sentences.",
+    items: [
+      {
+        id: "local",
+        title: "Local Storage",
+        desc: "Configs and usage data live only in ~/.kimi-switch and config.toml. Nothing is uploaded.",
+      },
+      {
+        id: "direct",
+        title: "Direct Connections",
+        desc: "Billing queries go straight to each vendor's official API. No middlemen, no tracking.",
+      },
+      {
+        id: "open",
+        title: "Open & Auditable",
+        desc: "Fully open source under MIT on GitHub. Reviews and contributions welcome.",
+      },
+    ],
+  },
+  download: {
+    title: "Download Kimi Switch",
+    subtitle: "Current version v0.6.7 · Windows 10 / 11 first, macOS and Linux on the roadmap.",
+    autoUpdate: "Built-in update detection: upgrade in one click from Settings when a new version ships.",
+    ready: "Available",
+    wip: "In development",
+    githubBtn: "Download from GitHub",
+    mirrorBtn: "China mirror",
+    items: [
+      { id: "windows", name: "Windows", ready: true, note: ".msi installer, lives in the system tray" },
+      { id: "macos", name: "macOS", ready: true, note: ".dmg installer (Apple Silicon), unsigned - right-click to open" },
+      { id: "linux", name: "Linux", ready: true, note: ".deb / .AppImage / .rpm" },
+    ],
+  },
+  cta: {
+    title: "Bring every provider into one app",
+    subtitle: "Free · Open source MIT · One-minute install",
+    download: "Free Download",
+    source: "GitHub Source",
+  },
+  footer: {
+    recommend: "Recommended Providers",
+    mirror: "China mirror",
+    creditBefore: "Dashboard & session management adapted from ",
+    creditAfter: " (MIT, © JochenYang)",
+    recommendText: {
+      Kimi: "Sign up with my invite link and we both win rewards, up to a 1-year membership equivalent",
+      "智谱 GLM":
+        "Register on BigModel.cn via my invite link and get a 20M token gift pack for the new GLM-5.2 flagship",
+      DeepSeek: "",
+      OpenCodeGo: "",
+      MiniMax:
+        "MiniMax Token Plan: subscribe to unlock the latest models. Friends get 10% off, inviters get 10% rebate",
+      基元律动: "",
+    } as Record<string, string>,
+  },
+};
+
+const dicts: Record<Lang, Dict> = { zh, en };
+
+const STORAGE_KEY = "kimi-switch-site-lang";
+
+function detect(): Lang {
+  if (typeof window === "undefined") return "zh";
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved === "zh" || saved === "en") return saved;
+  return navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
+}
+
+const LangContext = createContext<{
+  lang: Lang;
+  setLang: (l: Lang) => void;
+  t: Dict;
+}>({ lang: "zh", setLang: () => {}, t: zh });
+
+export function LangProvider({ children }: { children: ReactNode }) {
+  const [lang, setLangState] = useState<Lang>(detect);
+
+  const setLang = (l: Lang) => {
+    setLangState(l);
+    localStorage.setItem(STORAGE_KEY, l);
+  };
+
+  useEffect(() => {
+    document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+  }, [lang]);
+
+  return (
+    <LangContext.Provider value={{ lang, setLang, t: dicts[lang] }}>
+      {children}
+    </LangContext.Provider>
+  );
+}
+
+export function useLang() {
+  return useContext(LangContext);
+}

@@ -530,6 +530,15 @@ fn models_dev_cost_index() -> &'static HashMap<String, ModelsDevCost> {
     })
 }
 
+/// Warm the compiled-in models.dev price index off the first dashboard open:
+/// parsing the ~1.3 MB snapshot costs tens of milliseconds, so build it on a
+/// background thread at startup instead of lazily on the first get_summary.
+pub fn warm_price_index() {
+    std::thread::spawn(|| {
+        let _ = models_dev_cost_index();
+    });
+}
+
 /// Official providers take precedence over resellers when the same model id
 /// ships under multiple providers and no provider prefix disambiguates.
 const OFFICIAL_PROVIDERS: &[&str] = &[
@@ -581,6 +590,26 @@ fn models_dev_lookup(model_name: &str) -> Option<(String, ModelsDevCost)> {
     Some((key.clone(), *cost))
 }
 
+/// Strip a trailing context-size suffix ("-256k", "-128k", "-1m") from a model
+/// id: context variants like "k3-256k" bill at the base model's ("k3") price.
+/// Returns the stripped id (provider prefix preserved), or None when there is
+/// no such suffix.
+fn strip_context_suffix(model_name: &str) -> Option<String> {
+    let (prefix, bare) = match model_name.rsplit_once('/') {
+        Some((p, b)) => (Some(p), b),
+        None => (None, model_name),
+    };
+    let (stem, suffix) = bare.rsplit_once('-')?;
+    let digits = suffix.strip_suffix(|c| matches!(c, 'k' | 'K' | 'm' | 'M'))?;
+    if stem.is_empty() || digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    Some(match prefix {
+        Some(p) => format!("{p}/{stem}"),
+        None => stem.to_string(),
+    })
+}
+
 fn match_price(model_name: &str) -> (String, f64, f64, f64, bool) {
     let bare = match model_name.rsplit_once('/') {
         Some((_, b)) => b,
@@ -588,7 +617,26 @@ fn match_price(model_name: &str) -> (String, f64, f64, f64, bool) {
     };
     // 1) models.dev snapshot first (authoritative, all providers).
     if let Some((id, c)) = models_dev_lookup(model_name) {
+        if c.input > 0.0 || c.output > 0.0 {
+            return (id, c.cache_read, c.input, c.output, false);
+        }
+        // Zero-priced listing (subscription-plan entries such as
+        // kimi-for-coding/k3-256k): bill at the base model's list price.
+        if let Some(base) = strip_context_suffix(model_name) {
+            if let Some((base_id, base_c)) = models_dev_lookup(&base) {
+                if base_c.input > 0.0 || base_c.output > 0.0 {
+                    return (base_id, base_c.cache_read, base_c.input, base_c.output, false);
+                }
+            }
+        }
         return (id, c.cache_read, c.input, c.output, false);
+    }
+    // 1b) no direct match: retry with the context-size suffix stripped
+    // ("k3-256k" → "k3") before falling back to legacy tables.
+    if let Some(base) = strip_context_suffix(model_name) {
+        if let Some((id, c)) = models_dev_lookup(&base) {
+            return (id, c.cache_read, c.input, c.output, false);
+        }
     }
     // 2) legacy Kimi table (kept as a fallback for names not in models.dev).
     let bare_l = bare.to_ascii_lowercase();
@@ -603,10 +651,12 @@ fn match_price(model_name: &str) -> (String, f64, f64, f64, bool) {
 }
 
 fn cost_for_usage(input_other: u64, output: u64, cache_read: u64, cache_create: u64, model: &str) -> (f64, bool) {
-    let (_price_id, cache_hit, input_price, output_price, est) = match_price(model);
+    let (price_id, cache_hit, input_price, output_price, est) = match_price(model);
     // models.dev reports a separate cache_write price; fall back to input when
     // absent (models without a cache_write field bill cache creation at input).
-    let cache_write_price = models_dev_lookup(model)
+    // Resolve via the matched price id so context-suffix fallbacks (k3-256k →
+    // k3) also pick up the base model's cache_write price.
+    let cache_write_price = models_dev_lookup(&price_id)
         .and_then(|(_, c)| c.cache_write)
         .unwrap_or(input_price);
     let cost = (input_other as f64 / 1e6) * input_price
@@ -700,6 +750,45 @@ fn scan_usage(home: &Path) -> (Vec<UsageRecord>, ScanMeta) {
         sessions_root: root.to_string_lossy().to_string(),
         errors: errors.into_iter().take(20).collect(),
     })
+}
+
+// ---------------------------------------------------------------------------
+// Scan cache
+// ---------------------------------------------------------------------------
+
+/// Short-TTL cache for the expensive `scan_usage` walk (reads every
+/// wire.jsonl under the sessions root and prices every record). Tab switches
+/// call get_summary repeatedly; re-walking the whole tree on every switch is
+/// the main dashboard lag. Keyed by home, expires after 8s; `refresh=true`
+/// bypasses it.
+struct SummaryCacheEntry {
+    home: String,
+    scanned_at: std::time::Instant,
+    records: Vec<UsageRecord>,
+    meta: ScanMeta,
+}
+
+static SUMMARY_CACHE: Mutex<Option<SummaryCacheEntry>> = Mutex::new(None);
+const SUMMARY_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(8);
+
+fn scan_usage_cached(home: &Path, refresh: bool) -> (Vec<UsageRecord>, ScanMeta) {
+    let home_s = home.to_string_lossy().to_string();
+    let mut cache = SUMMARY_CACHE.lock().unwrap();
+    let hit = cache
+        .as_ref()
+        .is_some_and(|e| !refresh && e.home == home_s && e.scanned_at.elapsed() < SUMMARY_CACHE_TTL);
+    if hit {
+        let e = cache.as_ref().unwrap();
+        return (e.records.clone(), e.meta.clone());
+    }
+    let (records, meta) = scan_usage(home);
+    *cache = Some(SummaryCacheEntry {
+        home: home_s,
+        scanned_at: std::time::Instant::now(),
+        records: records.clone(),
+        meta: meta.clone(),
+    });
+    (records, meta)
 }
 
 // ---------------------------------------------------------------------------
@@ -1448,13 +1537,13 @@ pub fn get_prices() -> PricesResult {
 
 #[tauri::command]
 pub fn get_summary(home_override: Option<String>, range: Option<String>, refresh: Option<bool>) -> SummaryResult {
-    let _refresh = refresh.unwrap_or(false);
+    let refresh = refresh.unwrap_or(false);
     let home = resolve_kimi_home(home_override);
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
     let r = range.unwrap_or_else(|| "30d".into());
 
-    let (records, meta) = scan_usage(&home);
+    let (records, meta) = scan_usage_cached(&home, refresh);
     let stats = aggregate(&records, &r, now_ms);
     let all_stats = aggregate(&records, "all", now_ms);
     let heatmap = build_heatmap(&records, now_ms);
@@ -1579,6 +1668,23 @@ mod pricing_tests {
         let (id, _, input, _, _) = match_price("glm-4.6");
         assert_eq!(id, "zhipuai/glm-4.6");
         assert_eq!(input, 0.6);
+    }
+
+    #[test]
+    fn context_suffix_variant_bills_at_base_model() {
+        // kimi-code/k3-256k only exists as a zero-priced subscription entry
+        // (kimi-for-coding/k3-256k); it must bill at the k3 list price.
+        let (id, ch, input, output, est) = match_price("kimi-code/k3-256k");
+        assert!(!est);
+        assert_eq!(id, "moonshotai/kimi-k3");
+        assert_eq!(input, 3.0);
+        assert_eq!(output, 15.0);
+        assert_eq!(ch, 0.3);
+
+        // The strip helper leaves normal ids alone.
+        assert_eq!(strip_context_suffix("kimi-code/k3-256k").as_deref(), Some("kimi-code/k3"));
+        assert_eq!(strip_context_suffix("glm-4.6"), None);
+        assert_eq!(strip_context_suffix("kimi-k2-thinking"), None);
     }
 
     #[test]

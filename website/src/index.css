@@ -1,0 +1,101 @@
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/inter/800.css";
+@import "@fontsource/fira-code/400.css";
+@import "@fontsource/fira-code/500.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens — Kimi brand: neutral gray + blue accent (matches the app UI).
+   Light is the default; dark follows prefers-color-scheme. */
+@layer base {
+  :root {
+    --background: 240 11% 97%;
+    --foreground: 240 9% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 9% 11%;
+    --muted: 240 6% 94%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 240 6% 94%;
+    --accent-foreground: 240 9% 11%;
+    --border: 240 6% 90%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+    --ring: 221 83% 53%;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: 222 47% 6%;
+      --foreground: 220 20% 92%;
+      --card: 222 32% 10%;
+      --card-foreground: 220 20% 92%;
+      --muted: 222 25% 14%;
+      --muted-foreground: 220 12% 62%;
+      --accent: 222 25% 14%;
+      --accent-foreground: 220 20% 92%;
+      --border: 222 22% 17%;
+      --primary: 217 91% 60%;
+      --primary-foreground: 0 0% 100%;
+      --ring: 217 91% 60%;
+    }
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  /* 科技风底纹：固定网格线，极低透明度，不干扰阅读 */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(to right, hsl(var(--primary) / 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--primary) / 0.05) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 75%);
+  }
+  #root {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+@layer components {
+  .container-page {
+    @apply mx-auto w-full max-w-6xl px-6;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium transition-colors;
+  }
+  .btn-primary {
+    @apply btn bg-primary text-primary-foreground hover:opacity-90;
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.35);
+  }
+  .btn-ghost {
+    @apply btn border border-border text-foreground hover:bg-accent;
+  }
+  .card {
+    @apply rounded-xl border border-border bg-card p-6 transition-shadow;
+  }
+  .card:hover {
+    box-shadow: 0 0 28px hsl(var(--primary) / 0.12);
+  }
+  /* 截图容器：限定最大宽高，避免撑满页面 */
+  .screenshot {
+    @apply overflow-hidden rounded-xl border border-border bg-muted;
+    box-shadow: 0 0 36px hsl(var(--primary) / 0.1);
+  }
+  .screenshot > img {
+    @apply block h-auto w-full;
+  }
+}

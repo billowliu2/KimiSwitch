@@ -71,7 +71,7 @@ export function DashboardPage() {
           <div className="text-red-400 mb-2">{t("dashLoadFailed")}</div>
           <div className="text-sm text-content-muted">{error}</div>
           <button
-            onClick={() => refresh()}
+            onClick={() => refresh(true)}
             className="mt-4 px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm"
           >
             {t("retry")}
@@ -145,7 +145,7 @@ export function DashboardPage() {
         </div>
         <button
           type="button"
-          onClick={() => refresh()}
+          onClick={() => refresh(true)}
           disabled={loading}
           className="px-3 py-1.5 text-sm border border-border rounded hover:bg-hover-2 text-content-muted hover:text-content-primary disabled:opacity-50"
         >

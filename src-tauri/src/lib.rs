@@ -27,6 +27,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             println!("[Tauri] Setup started");
+            // Build the models.dev price index off the first dashboard query.
+            dashboard::warm_price_index();
             let window = app.get_webview_window("main").unwrap();
             println!("[Tauri] Window label: {}", window.label());
 
