@@ -86,6 +86,5 @@ jobs:
             - **Linux**: `.deb` / `.AppImage` / `.rpm`
 
             Full changelog: see commit history.
-          releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
           args: ${{ matrix.args }}
