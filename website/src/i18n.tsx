@@ -16,10 +16,10 @@ const zh = {
     performance: "性能",
     changelog: "更新日志",
     download: "下载",
-    downloadBtn: "下载 v0.6.9",
+    downloadBtn: "下载 v0.7.0",
   },
   hero: {
-    badge: "v0.6.9 · 开源 MIT · Windows / macOS / Linux",
+    badge: "v0.7.0 · 开源 MIT · Windows / macOS / Linux",
     titleBefore: "统一管理你的",
     titleAccent: "AI 供应商",
     titleAfter: "",
@@ -141,6 +141,20 @@ const zh = {
     fallbackNote: "内置版本记录",
     entries: [
       {
+        version: "v0.7.0",
+        date: "2026-08-02",
+        items: [
+          "订阅套餐模型计价修正：零价条目按官方付费模型计价（zhipuai-coding-plan/glm-5.2 按 zhipuai/glm-5.2 牌价）",
+          "-highspeed / -free 派生变体自动回退到基础模型价格",
+          "Kimi For Coding 套餐无牌价时按旗舰模型 kimi-k3 价格估算用量",
+          "设置页：识图（image_in）能力可手动编辑，原生多模态模型不再提示 kimi-eyes 插件",
+          "修复仅单个套餐档位（如 5 小时）时用量卡片不显示的问题",
+          "kimi usages 响应异常时透出原始返回，便于对照接口排查",
+          "models.dev 价格快照同步",
+          "关于页新增官方网站链接",
+        ],
+      },
+      {
         version: "v0.6.9",
         date: "2026-08-01",
         items: [
@@ -245,7 +259,7 @@ const zh = {
   },
   download: {
     title: "下载 Kimi Switch",
-    subtitle: "当前版本 v0.6.9 · Windows / macOS / Linux 三平台已发布",
+    subtitle: "当前版本 v0.7.0 · Windows / macOS / Linux 三平台已发布",
     autoUpdate: "应用内置自动检测更新，新版本发布后在设置页一键升级。",
     ready: "已发布",
     wip: "开发中",
@@ -313,10 +327,10 @@ const en: Dict = {
     performance: "Performance",
     changelog: "Changelog",
     download: "Download",
-    downloadBtn: "Download v0.6.9",
+    downloadBtn: "Download v0.7.0",
   },
   hero: {
-    badge: "v0.6.9 · Open source MIT · Windows / macOS / Linux",
+    badge: "v0.7.0 · Open source MIT · Windows / macOS / Linux",
     titleBefore: "One app for all your ",
     titleAccent: "AI providers",
     titleAfter: "",
@@ -438,6 +452,20 @@ const en: Dict = {
     fallbackNote: "Built-in release notes",
     entries: [
       {
+        version: "v0.7.0",
+        date: "2026-08-02",
+        items: [
+          "Plan-entry pricing fix: zero-price plan listings bill at the official priced model (zhipuai-coding-plan/glm-5.2 → zhipuai/glm-5.2)",
+          "-highspeed / -free derived variants fall back to the base model price",
+          "Kimi For Coding (no list price) estimates usage at the flagship kimi-k3 rate",
+          "Settings: image_in capability is now manually editable; native multimodal models no longer show the kimi-eyes plugin hint",
+          "Fix single-tier plans (e.g. 5-hour only) showing no usage card",
+          "kimi usages failure now exposes the raw response for easier debugging",
+          "models.dev price snapshot sync",
+          "About page gains an official website link",
+        ],
+      },
+      {
         version: "v0.6.9",
         date: "2026-08-01",
         items: [
@@ -550,7 +578,7 @@ const en: Dict = {
   },
   download: {
     title: "Download Kimi Switch",
-    subtitle: "Current version v0.6.9 · Windows, macOS and Linux now released",
+    subtitle: "Current version v0.7.0 · Windows, macOS and Linux now released",
     autoUpdate: "Built-in update detection: upgrade in one click from Settings when a new version ships.",
     ready: "Available",
     wip: "In development",

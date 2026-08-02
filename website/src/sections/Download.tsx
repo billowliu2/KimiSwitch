@@ -8,25 +8,25 @@ const icons: Record<string, Icon> = {
   linux: LinuxLogo,
 };
 
-const VERSION = "0.6.9";
+const VERSION = "0.7.0";
 const GITHUB = "https://github.com/billowliu2/KimiSwitch";
 const MIRROR_RELEASES = "https://git.codingplan.site/admin/KimiCodeSwitch/releases";
 const dl = (file: string) => `${GITHUB}/releases/download/v${VERSION}/${file}`;
 
 /** Per-platform download assets for the current release (names match the CI
- *  release workflow, e.g. Kimi.Switch_0.6.9_x64_en-US.msi). */
+ *  release workflow, e.g. Kimi.Switch_0.7.0_x64_en-US.msi). */
 const assets: Record<string, { label: string; href: string }[]> = {
   windows: [
-    { label: "MSI", href: dl("Kimi.Switch_0.6.9_x64_en-US.msi") },
+    { label: "MSI", href: dl("Kimi.Switch_0.7.0_x64_en-US.msi") },
     { label: "镜像", href: MIRROR_RELEASES },
   ],
   macos: [
-    { label: "Apple Silicon (.dmg)", href: dl("Kimi.Switch_0.6.9_aarch64.dmg") },
+    { label: "Apple Silicon (.dmg)", href: dl("Kimi.Switch_0.7.0_aarch64.dmg") },
   ],
   linux: [
-    { label: ".deb", href: dl("Kimi.Switch_0.6.9_amd64.deb") },
-    { label: ".AppImage", href: dl("Kimi.Switch_0.6.9_amd64.AppImage") },
-    { label: ".rpm", href: dl("Kimi.Switch-0.6.9-1.x86_64.rpm") },
+    { label: ".deb", href: dl("Kimi.Switch_0.7.0_amd64.deb") },
+    { label: ".AppImage", href: dl("Kimi.Switch_0.7.0_amd64.AppImage") },
+    { label: ".rpm", href: dl("Kimi.Switch-0.7.0-1.x86_64.rpm") },
   ],
 };
 
