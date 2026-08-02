@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-08-01",
+  "last_updated": "2026-08-02",
   "zhipuai/glm-5": {
     "name": "GLM-5",
     "context": 204800,
@@ -598,6 +598,18 @@
       "input": 1.74,
       "output": 3.48,
       "cache_read": 0.145
+    }
+  },
+  "fireworks-ai/accounts/fireworks/models/deepseek-v4-flash-0731": {
+    "name": "DeepSeek V4 Flash 0731",
+    "context": 1000000,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 0.14,
+      "output": 0.28,
+      "cache_read": 0.028
     }
   },
   "fireworks-ai/accounts/fireworks/models/kimi-k2p7-code": {
@@ -1307,6 +1319,21 @@
   },
   "crossmodel/gemini/gemini-2.5-flash": {
     "name": "Gemini 2.5 Flash",
+    "context": 1048576,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "video": true,
+    "cost": {
+      "input": 0.3,
+      "output": 2.5,
+      "cache_read": 0.03,
+      "cache_write": 0.3
+    }
+  },
+  "crossmodel/gemini/gemini-3.5-flash-lite": {
+    "name": "Gemini 3.5 Flash Lite",
     "context": 1048576,
     "reasoning": true,
     "tool_call": true,
@@ -3884,6 +3911,19 @@
       "cache_read": 0.12
     }
   },
+  "baseten/thinkingmachines/inkling-small": {
+    "name": "Inkling Small",
+    "context": 1048576,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "cost": {
+      "input": 0.5,
+      "output": 1.2,
+      "cache_read": 0.1
+    }
+  },
   "baseten/thinkingmachines/inkling": {
     "name": "Inkling",
     "context": 1048576,
@@ -3964,6 +4004,18 @@
     "cost": {
       "input": 0.3,
       "output": 1.2
+    }
+  },
+  "baseten/deepseek-ai/DeepSeek-V4-Flash-0731": {
+    "name": "DeepSeek V4 Flash 0731",
+    "context": 1048576,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 0.13,
+      "output": 0.26,
+      "cache_read": 0.028
     }
   },
   "baseten/deepseek-ai/DeepSeek-V3.1": {
@@ -6220,7 +6272,7 @@
       "cache_write": 0
     }
   },
-  "zhipuai-coding-plan/glm-5.2-highspeed[1m]": {
+  "zhipuai-coding-plan/glm-5.2-highspeed": {
     "name": "GLM-5.2 Highspeed",
     "context": 1000000,
     "reasoning": true,
@@ -38091,7 +38143,7 @@
       "cache_write": 0
     }
   },
-  "zai-coding-plan/glm-5.2-highspeed[1m]": {
+  "zai-coding-plan/glm-5.2-highspeed": {
     "name": "GLM-5.2 Highspeed",
     "context": 1000000,
     "reasoning": true,
@@ -46335,6 +46387,109 @@
       "output": 2.92
     }
   },
+  "modelis/claude-sonnet-4-6": {
+    "name": "Claude Sonnet 4.6",
+    "context": 1000000,
+    "reasoning": true,
+    "tool_call": true,
+    "image": true,
+    "cost": {
+      "input": 3,
+      "output": 15
+    }
+  },
+  "modelis/gemini-2.5-flash": {
+    "name": "Gemini 2.5 Flash",
+    "context": 1048576,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "video": true,
+    "cost": {
+      "input": 0.3,
+      "output": 2.5
+    }
+  },
+  "modelis/claude-fable-5": {
+    "name": "Claude Fable 5",
+    "context": 1000000,
+    "reasoning": true,
+    "tool_call": true,
+    "image": true,
+    "cost": {
+      "input": 10,
+      "output": 50
+    }
+  },
+  "modelis/deepseek-v4-flash": {
+    "name": "DeepSeek V4 Flash",
+    "context": 1000000,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 0.0983,
+      "output": 0.1966
+    }
+  },
+  "modelis/claude-opus-4-8": {
+    "name": "Claude Opus 4.8",
+    "context": 1000000,
+    "reasoning": true,
+    "tool_call": true,
+    "image": true,
+    "cost": {
+      "input": 5,
+      "output": 25
+    }
+  },
+  "modelis/deepseek-v4-pro": {
+    "name": "DeepSeek V4 Pro",
+    "context": 1000000,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 0.435,
+      "output": 0.87
+    }
+  },
+  "modelis/gemini-2.5-pro": {
+    "name": "Gemini 2.5 Pro",
+    "context": 1048576,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "video": true,
+    "cost": {
+      "input": 1.25,
+      "output": 10
+    }
+  },
+  "modelis/qwen/qwen3.7-plus": {
+    "name": "Qwen3.7 Plus",
+    "context": 1000000,
+    "reasoning": true,
+    "tool_call": true,
+    "image": true,
+    "video": true,
+    "cost": {
+      "input": 0.768,
+      "output": 3.072
+    }
+  },
+  "modelis/qwen/qwen3.7-max": {
+    "name": "Qwen3.7 Max",
+    "context": 1000000,
+    "reasoning": true,
+    "tool_call": true,
+    "cost": {
+      "input": 3,
+      "output": 9
+    }
+  },
   "subconscious/subconscious/glm-5.2": {
     "name": "GLM-5.2",
     "context": 1000000,
@@ -53164,11 +53319,12 @@
     "name": "Inkling Small",
     "context": 524288,
     "reasoning": true,
+    "tool_call": true,
     "image": true,
     "cost": {
-      "input": 0.58,
-      "output": 1.44,
-      "cache_read": 0.116
+      "input": 0.5,
+      "output": 1.2,
+      "cache_read": 0.1
     }
   },
   "openrouter/thinkingmachines/inkling": {
@@ -53198,6 +53354,18 @@
     "cost": {
       "input": 1,
       "output": 3
+    }
+  },
+  "openrouter/~deepseek/deepseek-v4-flash-latest": {
+    "name": "DeepSeek V4 Flash Latest",
+    "context": 1048576,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 0.09,
+      "output": 0.18,
+      "cache_read": 0.018
     }
   },
   "openrouter/perceptron/perceptron-mk1": {
@@ -53359,7 +53527,7 @@
     "structured_output": true,
     "cost": {
       "input": 0.07,
-      "output": 0.27
+      "output": 0.28
     }
   },
   "openrouter/qwen/qwen3.5-plus-02-15": {
@@ -54560,10 +54728,11 @@
     "context": 1048576,
     "reasoning": true,
     "tool_call": true,
+    "structured_output": true,
     "cost": {
-      "input": 0.14,
-      "output": 0.28,
-      "cache_read": 0.0028
+      "input": 0.09,
+      "output": 0.18,
+      "cache_read": 0.018
     }
   },
   "openrouter/deepseek/deepseek-v3.2": {
@@ -55297,9 +55466,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 1.12,
-      "output": 3.52,
-      "cache_read": 0.208
+      "input": 0.4186,
+      "output": 1.3156,
+      "cache_read": 0.07774
     }
   },
   "openrouter/z-ai/glm-4.6": {
@@ -55442,9 +55611,9 @@
     "structured_output": true,
     "image": true,
     "cost": {
-      "input": 0.589,
-      "output": 2.48,
-      "cache_read": 0.0992
+      "input": 0.6,
+      "output": 3.41,
+      "cache_read": 0.2
     }
   },
   "openrouter/moonshotai/kimi-k2.7-code": {
@@ -55657,7 +55826,8 @@
     "structured_output": true,
     "cost": {
       "input": 0.03,
-      "output": 0.14
+      "output": 0.13,
+      "cache_read": 0.03
     }
   },
   "openrouter/openai/gpt-oss-safeguard-20b": {

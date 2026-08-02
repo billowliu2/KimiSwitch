@@ -699,6 +699,7 @@ function ModelMapping({
                   <td className="px-4 py-2">
                     <CapabilitiesCell
                       capabilities={m.capabilities || []}
+                      nativeImage={getModelRef(m.model)?.image === true}
                       onChange={(next) =>
                         onModelChange({ ...m, capabilities: next })
                       }
@@ -822,9 +823,13 @@ function JsonPreview({
 function CapabilitiesCell({
   capabilities,
   onChange,
+  nativeImage,
 }: {
   capabilities: string[];
   onChange: (next: string[]) => void;
+  /** 模型本身是否原生支持图像输入（models.dev `image` 能力）。原生多模态
+   *  模型无需 kimi-eyes 插件，提示不展示。 */
+  nativeImage?: boolean;
 }) {
   const { t } = useTranslation();
 
@@ -838,13 +843,12 @@ function CapabilitiesCell({
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-      {/* Only `thinking` is user-editable. The other capabilities
-          (always_thinking / image_in / video_in / tool_use) are still
-          auto-derived from models.dev via `capabilitiesFromRef` and saved
-          to config.toml — they just aren't exposed for manual editing.
-          To restore the full editor, drop the `.filter(...)` below and
-          re-add the custom-capabilities input (see git history). */}
-      {KNOWN_CAPABILITIES.filter((cap) => cap === "thinking").map((cap) => (
+      {/* `thinking` 与 `image_in`（识图）可手动编辑；其余能力
+          (always_thinking / video_in / tool_use) 仍由 models.dev 自动派生，
+          保存时照常写入 config.toml。 */}
+      {KNOWN_CAPABILITIES.filter(
+        (cap) => cap === "thinking" || cap === "image_in",
+      ).map((cap) => (
         <label
           key={cap}
           className="flex items-center gap-1 text-xs text-content-muted cursor-pointer"
@@ -858,6 +862,11 @@ function CapabilitiesCell({
           {t(CAPABILITY_LABELS[cap])}
         </label>
       ))}
+      {capabilities.includes("image_in") && !nativeImage && (
+        <span className="w-full text-[11px] text-content-muted">
+          {t("capImageInHint")}
+        </span>
+      )}
     </div>
   );
 }

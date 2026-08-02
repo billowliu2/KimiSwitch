@@ -79,7 +79,20 @@ pub async fn query_kimi_coding(api_key: &str, timeout: Duration) -> Result<Usage
     )
     .await?
     {
-        Fetched::Body(body) => Ok(UsageResult::ok(parse_kimi_coding(&body))),
+        Fetched::Body(body) => {
+            let tiers = parse_kimi_coding(&body);
+            if tiers.is_empty() {
+                // 响应里没有可解析的套餐档位（limits/usage 缺失或字段变了）。
+                // 把原始响应（仅用量数字，无密钥）透出，方便对照接口结构修复。
+                let preview = serde_json::to_string(&body)
+                    .unwrap_or_else(|_| "<unserializable body>".into());
+                let trimmed: String = preview.chars().take(400).collect();
+                return Ok(UsageResult::failure(format!(
+                    "kimi usages 响应无套餐数据，原始返回: {trimmed}"
+                )));
+            }
+            Ok(UsageResult::ok(tiers))
+        }
         Fetched::Failed(err) => Ok(err),
     }
 }

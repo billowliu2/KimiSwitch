@@ -357,7 +357,9 @@ export function UsageFooter({
   // success, or error/loading with last-good data (ghost).
   // Compact header already shows the primary entry; detail only adds value
   // when there are multiple tiers (e.g. 5h + weekly) or on error ghost.
-  if (data.length <= 1 && status === "success") return null;
+  // NOTE: single-tier plans (e.g. only five_hour) must still render — hiding
+  // them made kimi-for-coding look like it had no plan quota at all.
+  if (data.length === 0 && status === "success") return null;
   const ghost = status !== "success";
   return (
     <div

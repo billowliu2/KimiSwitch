@@ -161,6 +161,7 @@ export const zhTranslations = {
   capThinking: "思考",
   capAlwaysThinking: "始终思考",
   capImageIn: "图像输入",
+  capImageInHint: "文本推理模型实际需要搭配 plugin-kimi-eyes:kimi-eyes 插件才能识图",
   capVideoIn: "视频输入",
   capToolUse: "工具调用",
   customCapabilities: "其他能力（逗号分隔）",

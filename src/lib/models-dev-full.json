@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-08-01",
+  "last_updated": "2026-08-02",
   "providers": {
     "zhipuai": {
       "id": "zhipuai",
@@ -759,6 +759,20 @@
             "input": 1.74,
             "output": 3.48,
             "cache_read": 0.145
+          },
+          "context": 1000000,
+          "output_limit": 384000,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true
+        },
+        {
+          "id": "accounts/fireworks/models/deepseek-v4-flash-0731",
+          "name": "DeepSeek V4 Flash 0731",
+          "cost": {
+            "input": 0.14,
+            "output": 0.28,
+            "cache_read": 0.028
           },
           "context": 1000000,
           "output_limit": 384000,
@@ -1616,6 +1630,23 @@
         {
           "id": "gemini/gemini-2.5-flash",
           "name": "Gemini 2.5 Flash",
+          "cost": {
+            "input": 0.3,
+            "output": 2.5,
+            "cache_read": 0.03,
+            "cache_write": 0.3
+          },
+          "context": 1048576,
+          "output_limit": 65536,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
+        },
+        {
+          "id": "gemini/gemini-3.5-flash-lite",
+          "name": "Gemini 3.5 Flash Lite",
           "cost": {
             "input": 0.3,
             "output": 2.5,
@@ -4721,6 +4752,21 @@
           "structured_output": true
         },
         {
+          "id": "thinkingmachines/inkling-small",
+          "name": "Inkling Small",
+          "cost": {
+            "input": 0.5,
+            "output": 1.2,
+            "cache_read": 0.1
+          },
+          "context": 1048576,
+          "output_limit": 32768,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true
+        },
+        {
           "id": "thinkingmachines/inkling",
           "name": "Inkling",
           "cost": {
@@ -4815,6 +4861,20 @@
           "output_limit": 204000,
           "reasoning": true,
           "tool_call": true
+        },
+        {
+          "id": "deepseek-ai/DeepSeek-V4-Flash-0731",
+          "name": "DeepSeek V4 Flash 0731",
+          "cost": {
+            "input": 0.13,
+            "output": 0.26,
+            "cache_read": 0.028
+          },
+          "context": 1048576,
+          "output_limit": 1048576,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true
         },
         {
           "id": "deepseek-ai/DeepSeek-V3.1",
@@ -7573,7 +7633,7 @@
           "tool_call": true
         },
         {
-          "id": "glm-5.2-highspeed[1m]",
+          "id": "glm-5.2-highspeed",
           "name": "GLM-5.2 Highspeed",
           "cost": {
             "input": 0,
@@ -46613,7 +46673,7 @@
           "structured_output": true
         },
         {
-          "id": "glm-5.2-highspeed[1m]",
+          "id": "glm-5.2-highspeed",
           "name": "GLM-5.2 Highspeed",
           "cost": {
             "input": 0,
@@ -56446,6 +56506,133 @@
         }
       ]
     },
+    "modelis": {
+      "id": "modelis",
+      "name": "Modelis",
+      "models": [
+        {
+          "id": "claude-sonnet-4-6",
+          "name": "Claude Sonnet 4.6",
+          "cost": {
+            "input": 3,
+            "output": 15
+          },
+          "context": 1000000,
+          "output_limit": 64000,
+          "reasoning": true,
+          "tool_call": true,
+          "image": true
+        },
+        {
+          "id": "gemini-2.5-flash",
+          "name": "Gemini 2.5 Flash",
+          "cost": {
+            "input": 0.3,
+            "output": 2.5
+          },
+          "context": 1048576,
+          "output_limit": 65536,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
+        },
+        {
+          "id": "claude-fable-5",
+          "name": "Claude Fable 5",
+          "cost": {
+            "input": 10,
+            "output": 50
+          },
+          "context": 1000000,
+          "output_limit": 128000,
+          "reasoning": true,
+          "tool_call": true,
+          "image": true
+        },
+        {
+          "id": "deepseek-v4-flash",
+          "name": "DeepSeek V4 Flash",
+          "cost": {
+            "input": 0.0983,
+            "output": 0.1966
+          },
+          "context": 1000000,
+          "output_limit": 384000,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true
+        },
+        {
+          "id": "claude-opus-4-8",
+          "name": "Claude Opus 4.8",
+          "cost": {
+            "input": 5,
+            "output": 25
+          },
+          "context": 1000000,
+          "output_limit": 128000,
+          "reasoning": true,
+          "tool_call": true,
+          "image": true
+        },
+        {
+          "id": "deepseek-v4-pro",
+          "name": "DeepSeek V4 Pro",
+          "cost": {
+            "input": 0.435,
+            "output": 0.87
+          },
+          "context": 1000000,
+          "output_limit": 384000,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true
+        },
+        {
+          "id": "gemini-2.5-pro",
+          "name": "Gemini 2.5 Pro",
+          "cost": {
+            "input": 1.25,
+            "output": 10
+          },
+          "context": 1048576,
+          "output_limit": 65536,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
+        },
+        {
+          "id": "qwen/qwen3.7-plus",
+          "name": "Qwen3.7 Plus",
+          "cost": {
+            "input": 0.768,
+            "output": 3.072
+          },
+          "context": 1000000,
+          "output_limit": 64000,
+          "reasoning": true,
+          "tool_call": true,
+          "image": true,
+          "video": true
+        },
+        {
+          "id": "qwen/qwen3.7-max",
+          "name": "Qwen3.7 Max",
+          "cost": {
+            "input": 3,
+            "output": 9
+          },
+          "context": 1000000,
+          "output_limit": 65536,
+          "reasoning": true,
+          "tool_call": true
+        }
+      ]
+    },
     "subconscious": {
       "id": "subconscious",
       "name": "Subconscious",
@@ -64671,13 +64858,14 @@
           "id": "thinkingmachines/inkling-small",
           "name": "Inkling Small",
           "cost": {
-            "input": 0.58,
-            "output": 1.44,
-            "cache_read": 0.116
+            "input": 0.5,
+            "output": 1.2,
+            "cache_read": 0.1
           },
           "context": 524288,
           "output_limit": 262144,
           "reasoning": true,
+          "tool_call": true,
           "image": true
         },
         {
@@ -64714,6 +64902,20 @@
           "context": 256000,
           "output_limit": 128000,
           "tool_call": true
+        },
+        {
+          "id": "~deepseek/deepseek-v4-flash-latest",
+          "name": "DeepSeek V4 Flash Latest",
+          "cost": {
+            "input": 0.09,
+            "output": 0.18,
+            "cache_read": 0.018
+          },
+          "context": 1048576,
+          "output_limit": 65536,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true
         },
         {
           "id": "perceptron/perceptron-mk1",
@@ -64896,10 +65098,10 @@
           "name": "Qwen3-Coder 30B-A3B Instruct",
           "cost": {
             "input": 0.07,
-            "output": 0.27
+            "output": 0.28
           },
           "context": 262144,
-          "output_limit": 32768,
+          "output_limit": 262144,
           "tool_call": true,
           "structured_output": true
         },
@@ -66316,14 +66518,15 @@
           "id": "deepseek/deepseek-v4-flash-0731",
           "name": "DeepSeek V4 Flash 0731",
           "cost": {
-            "input": 0.14,
-            "output": 0.28,
-            "cache_read": 0.0028
+            "input": 0.09,
+            "output": 0.18,
+            "cache_read": 0.018
           },
           "context": 1048576,
-          "output_limit": 384000,
+          "output_limit": 65536,
           "reasoning": true,
-          "tool_call": true
+          "tool_call": true,
+          "structured_output": true
         },
         {
           "id": "deepseek/deepseek-v3.2",
@@ -67178,12 +67381,12 @@
           "id": "z-ai/glm-5.2",
           "name": "GLM-5.2",
           "cost": {
-            "input": 1.12,
-            "output": 3.52,
-            "cache_read": 0.208
+            "input": 0.4186,
+            "output": 1.3156,
+            "cache_read": 0.07774
           },
           "context": 1048576,
-          "output_limit": 128000,
+          "output_limit": 131072,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -67348,9 +67551,9 @@
           "id": "moonshotai/kimi-k2.6",
           "name": "Kimi K2.6",
           "cost": {
-            "input": 0.589,
-            "output": 2.48,
-            "cache_read": 0.0992
+            "input": 0.6,
+            "output": 3.41,
+            "cache_read": 0.2
           },
           "context": 262144,
           "output_limit": 262144,
@@ -67605,7 +67808,8 @@
           "name": "GPT OSS 20B",
           "cost": {
             "input": 0.03,
-            "output": 0.14
+            "output": 0.13,
+            "cache_read": 0.03
           },
           "context": 131072,
           "output_limit": 131072,

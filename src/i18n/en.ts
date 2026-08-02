@@ -163,6 +163,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   capThinking: "Thinking",
   capAlwaysThinking: "Always Thinking",
   capImageIn: "Image Input",
+  capImageInHint: "Text models actually need the plugin-kimi-eyes:kimi-eyes plugin for image recognition",
   capVideoIn: "Video Input",
   capToolUse: "Tool Use",
   customCapabilities: "Other capabilities (comma-separated)",

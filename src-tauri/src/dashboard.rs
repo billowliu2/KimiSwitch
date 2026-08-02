@@ -590,6 +590,20 @@ fn models_dev_lookup(model_name: &str) -> Option<(String, ModelsDevCost)> {
     Some((key.clone(), *cost))
 }
 
+/// Strip a trailing derived-variant suffix ("-highspeed", "-free") from a
+/// model id: plan endpoints expose e.g. `glm-5.2-highspeed`, which bills at
+/// the base model's price.
+fn strip_variant_suffix(model_name: &str) -> Option<String> {
+    for suffix in ["-highspeed", "-free"] {
+        if let Some(base) = model_name.strip_suffix(suffix) {
+            if !base.is_empty() {
+                return Some(base.to_string());
+            }
+        }
+    }
+    None
+}
+
 /// Strip a trailing context-size suffix ("-256k", "-128k", "-1m") from a model
 /// id: context variants like "k3-256k" bill at the base model's ("k3") price.
 /// Returns the stripped id (provider prefix preserved), or None when there is
@@ -629,6 +643,42 @@ fn match_price(model_name: &str) -> (String, f64, f64, f64, bool) {
     result
 }
 
+/// Suffix-match a model against the models.dev index, skipping zero-priced
+/// (subscription-plan) listings so a paid official entry wins. Used as the
+/// fallback when the exact hit resolves to a zero-cost plan entry such as
+/// `zhipuai-coding-plan/glm-5.2` or `kimi-for-coding/kimi-for-coding`.
+fn priced_suffix_lookup(model_name: &str) -> Option<(String, ModelsDevCost)> {
+    let bare = model_name.rsplit_once('/').map(|(_, b)| b).unwrap_or(model_name);
+    let bare_l = bare.to_ascii_lowercase();
+    let mut matches: Vec<(&String, &ModelsDevCost)> = models_dev_cost_index()
+        .iter()
+        .filter(|(key, cost)| {
+            (cost.input > 0.0 || cost.output > 0.0)
+                && key
+                    .rsplit_once('/')
+                    .map(|(_, model)| model.ends_with(&bare_l))
+                    .unwrap_or(false)
+        })
+        .collect();
+    if matches.is_empty() {
+        return None;
+    }
+    matches.sort_by(|(a, _), (b, _)| {
+        provider_rank(a)
+            .cmp(&provider_rank(b))
+            .then_with(|| a.cmp(b))
+    });
+    let (key, cost) = matches[0];
+    Some((key.clone(), *cost))
+}
+
+/// Subscription-plan models without any priced counterpart in the snapshot
+/// (e.g. the "Kimi For Coding" plan endpoint has no per-token price) bill at
+/// the flagship model of the same family for cost estimation.
+const PLAN_MODEL_FALLBACK: &[(&str, &str)] = &[
+    ("kimi-for-coding", "moonshotai/kimi-k3"),
+];
+
 fn match_price_inner(model_name: &str) -> (String, f64, f64, f64, bool) {
     let bare = match model_name.rsplit_once('/') {
         Some((_, b)) => b,
@@ -640,11 +690,30 @@ fn match_price_inner(model_name: &str) -> (String, f64, f64, f64, bool) {
             return (id, c.cache_read, c.input, c.output, false);
         }
         // Zero-priced listing (subscription-plan entries such as
-        // kimi-for-coding/k3-256k): bill at the base model's list price.
-        if let Some(base) = strip_context_suffix(model_name) {
-            if let Some((base_id, base_c)) = models_dev_lookup(&base) {
-                if base_c.input > 0.0 || base_c.output > 0.0 {
-                    return (base_id, base_c.cache_read, base_c.input, base_c.output, false);
+        // zhipuai-coding-plan/glm-5.2 or kimi-for-coding/kimi-for-coding):
+        // bill at a priced equivalent — the full id first, then derived
+        // variants (-highspeed / -free), then the context-size base, then the
+        // curated flagship fallback.
+        for base in [
+            Some(model_name.to_string()),
+            strip_variant_suffix(model_name),
+            strip_context_suffix(model_name),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if let Some((bid, bc)) = priced_suffix_lookup(&base) {
+                if bc.input > 0.0 || bc.output > 0.0 {
+                    return (bid, bc.cache_read, bc.input, bc.output, false);
+                }
+            }
+        }
+        let bare = model_name.rsplit_once('/').map(|(_, b)| b).unwrap_or(model_name);
+        let bare_l = bare.to_ascii_lowercase();
+        for (plan, flagship) in PLAN_MODEL_FALLBACK {
+            if bare_l.contains(plan) {
+                if let Some((fid, fc)) = models_dev_lookup(flagship) {
+                    return (fid, fc.cache_read, fc.input, fc.output, false);
                 }
             }
         }
@@ -1715,6 +1784,35 @@ mod pricing_tests {
         assert_eq!(strip_context_suffix("kimi-code/k3-256k").as_deref(), Some("kimi-code/k3"));
         assert_eq!(strip_context_suffix("glm-4.6"), None);
         assert_eq!(strip_context_suffix("kimi-k2-thinking"), None);
+    }
+
+    #[test]
+    fn subscription_plan_models_bill_at_priced_equivalent() {
+        // zhipuai-coding-plan/glm-5.2 is a zero-cost plan entry; the priced
+        // official zhipuai/glm-5.2 must win.
+        let (id, ch, input, output, est) = match_price("zhipuai-coding-plan/glm-5.2");
+        assert!(!est);
+        assert_eq!(id, "zhipuai/glm-5.2");
+        assert_eq!(input, 1.4);
+        assert_eq!(output, 4.4);
+        assert_eq!(ch, 0.26);
+
+        // Kimi For Coding has no priced counterpart at all → curated flagship.
+        let (id, _, input, _, est) = match_price("kimi-code/kimi-for-coding");
+        assert!(!est);
+        assert_eq!(id, "moonshotai/kimi-k3");
+        assert_eq!(input, 3.0);
+
+        // -highspeed variants strip back to the priced base model.
+        let (id, _, input, _, est) = match_price("zhipuai-coding-plan/glm-5.2-highspeed");
+        assert!(!est);
+        assert_eq!(id, "zhipuai/glm-5.2");
+        assert_eq!(input, 1.4);
+        assert_eq!(
+            strip_variant_suffix("glm-5.2-highspeed").as_deref(),
+            Some("glm-5.2")
+        );
+        assert_eq!(strip_variant_suffix("glm-5.2"), None);
     }
 
     #[test]
