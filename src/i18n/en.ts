@@ -263,6 +263,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   lastChecked: "Last checked",
   appDescription: "Windows desktop LLM provider config manager",
   settingsWebsite: "Official website",
+  kimiEyesSite: "Kimi Eyes plugin site",
   referenceProject: "Reference project",
 
   // Validation errors

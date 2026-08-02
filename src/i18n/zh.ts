@@ -258,6 +258,7 @@ export const zhTranslations = {
   lastChecked: "上次检查",
   appDescription: "Windows 桌面端 LLM 供应商配置管理器",
   settingsWebsite: "官方网站",
+  kimiEyesSite: "Kimi Eyes 插件站",
   referenceProject: "引用项目",
 
   // Validation errors

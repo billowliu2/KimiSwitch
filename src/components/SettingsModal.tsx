@@ -385,6 +385,18 @@ export function SettingsModal({
                   </button>
                 </div>
                 <div>
+                  {t("kimiEyesSite")}:{" "}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openExternal("https://billowliu2.github.io/kimi-eyes")
+                    }
+                    className="text-blue-500 hover:text-blue-400 underline bg-transparent p-0 border-0 cursor-pointer"
+                  >
+                    billowliu2.github.io/kimi-eyes
+                  </button>
+                </div>
+                <div>
                   {t("attributionPorted")}{" "}
                   <button
                     type="button"
