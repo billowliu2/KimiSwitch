@@ -152,6 +152,7 @@ const zh = {
           "kimi usages 响应异常时透出原始返回，便于对照接口排查",
           "models.dev 价格快照同步",
           "关于页新增官方网站链接",
+          "设置-关于页新增 Kimi Eyes 识图插件站链接",
         ],
       },
       {
@@ -463,6 +464,7 @@ const en: Dict = {
           "kimi usages failure now exposes the raw response for easier debugging",
           "models.dev price snapshot sync",
           "About page gains an official website link",
+          "Settings-About page gains a Kimi Eyes plugin site link",
         ],
       },
       {
