@@ -19,7 +19,7 @@ export default function Footer() {
       <div className="container-page space-y-8">
         {/* 推荐链接 */}
         <div>
-          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          <h3 className="mb-4 text-sm font-semibold text-muted-foreground">
             {t.footer.recommend}
           </h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -32,9 +32,10 @@ export default function Footer() {
                   href={link.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="group flex items-start gap-3 rounded-xl border border-border bg-card p-4 transition-all hover:-translate-y-0.5 hover:border-primary/50"
+                  className="group flex items-start gap-3 rounded-2xl border border-border bg-card p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40"
+                  style={{ boxShadow: "var(--shadow-soft)" }}
                 >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-white">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-white">
                     {logo ? (
                       <img
                         src={asset(logo)}
@@ -48,11 +49,11 @@ export default function Footer() {
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="font-semibold group-hover:text-primary">
+                    <div className="font-semibold tracking-tight group-hover:text-primary">
                       {link.name}
                     </div>
                     {text && (
-                      <p className="mt-1 line-clamp-3 text-xs text-muted-foreground">
+                      <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
                         {text}
                       </p>
                     )}

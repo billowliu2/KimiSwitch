@@ -25,12 +25,12 @@ export default function SectionShell({ id, title, subtitle, children }: SectionS
         <div className="mb-12 max-w-3xl">
           <h2
             id={`${id}-title`}
-            className="text-3xl font-bold tracking-tight md:text-4xl"
+            className="text-3xl font-bold tracking-[-0.03em] md:text-4xl"
           >
             {title}
           </h2>
           {subtitle && (
-            <p className="mt-3 text-base text-muted-foreground">{subtitle}</p>
+            <p className="mt-3 text-base leading-relaxed text-muted-foreground">{subtitle}</p>
           )}
         </div>
         {children}

@@ -45,14 +45,14 @@ export default function Download() {
           return (
             <div key={p.id} className="card flex flex-col">
               <div className="mb-3 flex items-center justify-between">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary">
+                <div className="icon-chip">
                   <Icon className="h-5 w-5" weight="duotone" />
                 </div>
-                <span className="rounded-full border border-primary/25 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                <span className="rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-medium tracking-wide text-primary">
                   {t.download.ready}
                 </span>
               </div>
-              <h3 className="mb-2 text-lg font-semibold">{p.name}</h3>
+              <h3 className="mb-2 text-lg font-semibold tracking-tight">{p.name}</h3>
               <p className="text-sm text-muted-foreground">{p.note}</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {links.map((l) => (

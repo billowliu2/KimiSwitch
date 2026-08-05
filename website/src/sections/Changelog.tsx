@@ -18,12 +18,38 @@ function cacheKey(embedded: ChangelogEntry[]) {
   return `kimi-switch-changelog-${embedded[0]?.version ?? "v1"}`;
 }
 
-/** Parse a GitHub release body into bullet items. */
+/** Compare semantic versions like "v0.7.1" for descending order. */
+function compareVersionsDesc(a: string, b: string): number {
+  const parse = (v: string) =>
+    v.replace(/^v/, "").split(".").map((n) => Number(n) || 0);
+  const pa = parse(a);
+  const pb = parse(b);
+  for (let i = 0; i < 3; i++) {
+    const da = pa[i] ?? 0;
+    const db = pb[i] ?? 0;
+    if (da !== db) return db - da;
+  }
+  return 0;
+}
+
+/** Parse a GitHub release body into bullet items, stripping markdown syntax
+ *  and the release-template "Downloads by platform" section (changelog entries
+ *  are about changes, not installers). */
 function parseBody(body: string): string[] {
-  return body
-    .split("\n")
-    .map((l) => l.replace(/^\s*[-*]\s+/, "").trim())
-    .filter((l) => l.length > 0 && l !== "---");
+  const items: string[] = [];
+  for (const raw of body.split("\n")) {
+    const line = raw.replace(/^\s*[-*]\s+/, "").trim();
+    if (line.length === 0 || line === "---") continue;
+    // Drop the release template's download section and everything after it.
+    if (/downloads?\s+by\s+platform/i.test(line)) break;
+    const cleaned = line
+      .replace(/^#{1,6}\s+/, "") // markdown heading markers
+      .replace(/\*\*(.+?)\*\*/g, "$1") // bold
+      .replace(/`([^`]+)`/g, "$1") // inline code
+      .trim();
+    if (cleaned.length > 0) items.push(cleaned);
+  }
+  return items;
 }
 
 async function fetchReleases(): Promise<ChangelogEntry[]> {
@@ -94,12 +120,13 @@ export default function Changelog() {
   }, []);
 
   // 远端拉到的版本优先显示（含未翻译的新版本），内置列表补齐缺失版本。
+  // 合并后按版本倒序排序，避免未翻译版本被无脑塞到最前导致时间轴顺序错乱。
   const entries: ChangelogEntry[] = [
     ...(remote ?? []).filter(
       (r) => !embedded.some((e) => e.version === r.version),
     ),
     ...embedded,
-  ];
+  ].sort((a, b) => compareVersionsDesc(a.version, b.version));
 
   return (
     <SectionShell
@@ -107,16 +134,16 @@ export default function Changelog() {
       title={t.changelog.title}
       subtitle={t.changelog.subtitle}
     >
-      <ol className="relative space-y-8 border-l border-border pl-8">
+      <ol className="relative space-y-10 border-l border-border pl-7">
         {entries.map((e) => (
           <li key={e.version} className="relative">
-            <span className="absolute -left-[37px] top-1.5 h-2.5 w-2.5 rounded-full bg-primary" />
+            <span className="absolute -left-[34px] top-[5px] h-3 w-3 rounded-full border-2 border-background bg-primary ring-4 ring-primary/10" />
             <div className="flex flex-wrap items-baseline gap-3">
-              <h3 className="font-mono text-lg font-semibold">{e.version}</h3>
+              <h3 className="font-mono text-lg font-semibold tracking-tight">{e.version}</h3>
               <time className="text-xs text-muted-foreground">{e.date}</time>
             </div>
             {e.items.length > 0 && (
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-relaxed text-muted-foreground">
                 {e.items.map((item) => (
                   <li key={item}>{item}</li>
                 ))}

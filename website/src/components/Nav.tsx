@@ -11,7 +11,7 @@ export default function Nav() {
     { to: "/download", label: t.nav.download },
   ];
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-border bg-background/70 backdrop-blur-md">
       <div className="container-page flex h-14 items-center justify-between gap-4">
         <NavLink
           to="/"

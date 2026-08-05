@@ -1,8 +1,8 @@
-@import "@fontsource/inter/400.css";
-@import "@fontsource/inter/500.css";
-@import "@fontsource/inter/600.css";
-@import "@fontsource/inter/700.css";
-@import "@fontsource/inter/800.css";
+@import "@fontsource/geist/400.css";
+@import "@fontsource/geist/500.css";
+@import "@fontsource/geist/600.css";
+@import "@fontsource/geist/700.css";
+@import "@fontsource/geist/800.css";
 @import "@fontsource/fira-code/400.css";
 @import "@fontsource/fira-code/500.css";
 
@@ -26,6 +26,11 @@
     --primary: 221 83% 53%;
     --primary-foreground: 0 0% 100%;
     --ring: 221 83% 53%;
+    /* 克制分层阴影（色相一致的 tinted shadow，非荧光发光） */
+    --shadow-soft: 0 1px 2px hsl(240 9% 11% / 0.05),
+      0 8px 24px hsl(240 9% 11% / 0.06);
+    --shadow-lift: 0 1px 2px hsl(240 9% 11% / 0.05),
+      0 12px 36px hsl(240 9% 11% / 0.1);
   }
 
   @media (prefers-color-scheme: dark) {
@@ -42,6 +47,10 @@
       --primary: 217 91% 60%;
       --primary-foreground: 0 0% 100%;
       --ring: 217 91% 60%;
+      --shadow-soft: 0 1px 2px hsl(222 47% 2% / 0.5),
+        0 8px 24px hsl(222 47% 2% / 0.45);
+      --shadow-lift: 0 1px 2px hsl(222 47% 2% / 0.5),
+        0 12px 36px hsl(222 47% 2% / 0.55);
     }
   }
 
@@ -59,14 +68,29 @@
     z-index: 0;
     pointer-events: none;
     background-image:
-      linear-gradient(to right, hsl(var(--primary) / 0.05) 1px, transparent 1px),
-      linear-gradient(to bottom, hsl(var(--primary) / 0.05) 1px, transparent 1px);
+      linear-gradient(to right, hsl(var(--primary) / 0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--primary) / 0.04) 1px, transparent 1px);
     background-size: 44px 44px;
     mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 75%);
   }
   #root {
     position: relative;
     z-index: 1;
+  }
+
+  /* 选中色与键盘焦点（无障碍） */
+  ::selection {
+    background: hsl(var(--primary) / 0.16);
+  }
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+  /* 展示标题：更紧字距 + 防孤词 */
+  h1,
+  h2 {
+    text-wrap: balance;
+    letter-spacing: -0.02em;
   }
 }
 
@@ -75,27 +99,41 @@
     @apply mx-auto w-full max-w-6xl px-6;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium transition-colors;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium transition-all duration-200;
   }
   .btn-primary {
-    @apply btn bg-primary text-primary-foreground hover:opacity-90;
-    box-shadow: 0 0 20px hsl(var(--primary) / 0.35);
+    @apply btn bg-primary text-primary-foreground hover:bg-primary/90 hover:-translate-y-px active:translate-y-0 active:scale-[0.98];
+    box-shadow: 0 1px 2px hsl(var(--primary) / 0.3),
+      0 6px 16px hsl(var(--primary) / 0.22);
+  }
+  .btn-primary:hover {
+    box-shadow: 0 1px 2px hsl(var(--primary) / 0.3),
+      0 10px 24px hsl(var(--primary) / 0.3);
   }
   .btn-ghost {
-    @apply btn border border-border text-foreground hover:bg-accent;
+    @apply btn border border-border bg-card/60 text-foreground hover:border-foreground/25 hover:bg-accent active:scale-[0.98];
   }
   .card {
-    @apply rounded-xl border border-border bg-card p-6 transition-shadow;
+    @apply rounded-2xl border border-border bg-card p-6;
+    box-shadow: var(--shadow-soft);
+    transition:
+      box-shadow 0.3s ease,
+      transform 0.3s ease,
+      border-color 0.3s ease;
   }
   .card:hover {
-    box-shadow: 0 0 28px hsl(var(--primary) / 0.12);
+    box-shadow: var(--shadow-lift);
   }
   /* 截图容器：限定最大宽高，避免撑满页面 */
   .screenshot {
-    @apply overflow-hidden rounded-xl border border-border bg-muted;
-    box-shadow: 0 0 36px hsl(var(--primary) / 0.1);
+    @apply overflow-hidden rounded-2xl border border-border bg-muted;
+    box-shadow: var(--shadow-lift);
   }
   .screenshot > img {
     @apply block h-auto w-full;
+  }
+  /* 图标容器：统一的蓝色徽标容器 */
+  .icon-chip {
+    @apply flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary;
   }
 }

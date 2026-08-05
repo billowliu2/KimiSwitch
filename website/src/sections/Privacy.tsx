@@ -21,10 +21,10 @@ export default function Privacy() {
           const Icon = icons[it.id] ?? Database;
           return (
             <div key={it.id} className="card">
-              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary">
+              <div className="icon-chip mb-3">
                 <Icon className="h-5 w-5" weight="duotone" />
               </div>
-              <h3 className="mb-2 text-lg font-semibold">{it.title}</h3>
+              <h3 className="mb-2 text-lg font-semibold tracking-tight">{it.title}</h3>
               <p className="text-sm leading-relaxed text-muted-foreground">
                 {it.desc}
               </p>

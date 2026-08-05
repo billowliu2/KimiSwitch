@@ -65,7 +65,7 @@ function Counter({
   const v = useCountUp(target, inView);
   return (
     <div ref={ref} className="card text-center">
-      <div className="font-mono text-4xl font-bold tracking-tight tabular-nums">
+      <div className="font-mono text-4xl font-bold tracking-[-0.03em] tabular-nums">
         {v.toFixed(decimals)}
         {suffix}
       </div>

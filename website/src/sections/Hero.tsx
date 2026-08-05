@@ -23,29 +23,29 @@ export default function Hero() {
       aria-labelledby="hero-title"
       className="relative overflow-hidden pt-16 pb-20 md:pt-24"
     >
-      {/* 科技风光晕 */}
+      {/* 克制的同色系光晕（去紫，统一蓝色 + 中性） */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -top-32 right-[-10%] h-[420px] w-[420px] rounded-full bg-primary/15 blur-3xl"
+        className="pointer-events-none absolute -top-32 right-[-10%] h-[420px] w-[420px] rounded-full bg-primary/10 blur-3xl"
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -left-40 top-1/2 h-[320px] w-[320px] rounded-full bg-violet-500/10 blur-3xl"
+        className="pointer-events-none absolute -left-40 top-1/2 h-[320px] w-[320px] rounded-full bg-primary/5 blur-3xl"
       />
       <div className="container-page relative grid grid-cols-1 gap-10 md:grid-cols-2 md:items-center">
         <div>
           <div {...reveal(0)}>
-            <span className="inline-block rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+            <span className="inline-block rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-medium tracking-wide text-primary">
               {t.hero.badge}
             </span>
           </div>
           <h1
             id="hero-title"
-            {...reveal(100, "mt-4 text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl")}
+            {...reveal(100, "mt-5 text-4xl font-bold leading-[1.05] tracking-[-0.03em] md:text-5xl lg:text-6xl")}
           >
             {t.hero.titleBefore}
             <br />
-            <span className="whitespace-nowrap bg-gradient-to-r from-blue-500 to-violet-500 bg-clip-text text-transparent">
+            <span className="whitespace-nowrap text-primary">
               {t.hero.titleAccent}
             </span>
             {t.hero.titleAfter}

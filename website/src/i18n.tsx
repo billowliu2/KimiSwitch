@@ -165,6 +165,15 @@ const zh = {
         ],
       },
       {
+        version: "v0.6.7",
+        date: "2026-08-01",
+        items: [
+          "应用内置 Kimi 授权登录（Device Code Flow，等同 kimi login）：浏览器授权即用，无需命令行",
+          "授权后凭据自动写入，15 分钟过期自动续期，用量查询直接可用",
+          "修复外链打开问题：授权页 / 设置页超链接统一走 Rust 侧 opener 命令（更可靠）",
+        ],
+      },
+      {
         version: "v0.6.8",
         date: "2026-08-01",
         items: [
@@ -310,7 +319,7 @@ const zh = {
       "智谱 GLM":
         "通过我的邀请链接注册 BigModel.cn，即可获得 2000 万 Tokens 大礼包，畅享新一代旗舰模型 GLM-5.2",
       DeepSeek: "",
-      OpenCodeGo: "",
+      OpenCodeGo: "好友订阅后，您可获得 $5，对方也可获得 $5。",
       MiniMax:
         "MiniMax Token Plan：订阅套餐解锁最新模型，好友订阅享 9 折 + Builder 权益，邀请人得 10% 返利",
       基元律动: "",
@@ -630,7 +639,7 @@ const en: Dict = {
       "智谱 GLM":
         "Register on BigModel.cn via my invite link and get a 20M token gift pack for the new GLM-5.2 flagship",
       DeepSeek: "",
-      OpenCodeGo: "",
+      OpenCodeGo: "When a friend subscribes, you get $5 and they get $5.",
       MiniMax:
         "MiniMax Token Plan: subscribe to unlock the latest models. Friends get 10% off, inviters get 10% rebate",
       基元律动: "",
