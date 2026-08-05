@@ -25,6 +25,10 @@ export function DailyDetailModal({ day, dimension, colorMap, unknownProviderLabe
   const { t } = useTranslation();
   const { money } = useCurrency();
 
+  /** Subagent records (Kimi Code `__secondary__` marker) show their own label. */
+  const modelName = (model: string) =>
+    model === "__secondary__" ? t("subagentModel") : shortModel(model);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -143,7 +147,7 @@ export function DailyDetailModal({ day, dimension, colorMap, unknownProviderLabe
                       <div className="mt-1 ml-5 space-y-0.5">
                         {p.models.map((m) => (
                           <div key={m.model} className="flex items-baseline justify-between gap-2 text-xs">
-                            <span className="truncate text-content-muted" title={m.model}>{shortModel(m.model)}</span>
+                            <span className="truncate text-content-muted" title={m.model}>{modelName(m.model)}</span>
                             <span className="shrink-0 text-content-muted tabular-nums">{fmtTokens(m.tokens)}</span>
                           </div>
                         ))}
@@ -167,7 +171,7 @@ export function DailyDetailModal({ day, dimension, colorMap, unknownProviderLabe
                       <span className="inline-block h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: modelColor(i) }} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline justify-between gap-2">
-                          <span className="truncate text-content-primary" title={s.model}>{shortModel(s.model)}</span>
+                          <span className="truncate text-content-primary" title={s.model}>{modelName(s.model)}</span>
                           <span className="shrink-0 text-xs text-content-muted tabular-nums">
                             {fmtTokens(s.tokens)} <span className="text-content-muted">· {s.pct.toFixed(1)}%</span>
                           </span>

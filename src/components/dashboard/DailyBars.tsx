@@ -59,6 +59,10 @@ export function DailyBars({ daily, dimension, names, unknownProviderLabel }: Dai
     if (dimension === "provider") {
       return key === "unknown" ? unknownProviderLabel : key;
     }
+    // Subagent records (Kimi Code `__secondary__` marker) show their own label.
+    if (key === "__secondary__") {
+      return t("subagentModel");
+    }
     return shortModel(key);
   };
 

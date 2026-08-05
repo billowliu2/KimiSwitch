@@ -343,6 +343,39 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
     }
     root.insert("models".to_string(), TomlValue::Table(models_table));
 
+    // Sync UI-managed top-level sections (thinking, experimental,
+    // secondary_model, ...) from config.raw_other back into the root.
+    // At import time every top-level key except default_model/providers/
+    // models was collected into raw_other, so raw_other is the authoritative
+    // snapshot of those sections. This both persists UI edits to those
+    // sections and drops sections the user explicitly removed (absent from
+    // raw_other but still present in `existing`).
+    let mut managed_keys = std::collections::HashSet::new();
+    if let TomlValue::Table(extra) =
+        json_to_toml(&config.raw_other).unwrap_or(TomlValue::Table(Table::new()))
+    {
+        for (k, v) in extra {
+            if k == "default_model" || k == "providers" || k == "models" {
+                continue;
+            }
+            managed_keys.insert(k.clone());
+            root.insert(k, v);
+        }
+    }
+    let stale_keys: Vec<String> = root
+        .keys()
+        .filter(|k| {
+            *k != "default_model"
+                && *k != "providers"
+                && *k != "models"
+                && !managed_keys.contains(*k)
+        })
+        .cloned()
+        .collect();
+    for k in stale_keys {
+        root.remove(&k);
+    }
+
     TomlValue::Table(root)
 }
 
@@ -550,6 +583,76 @@ api_key = ""
         assert_eq!(model.get("model").and_then(|v| v.as_str()), Some("glm-5.2"));
         let caps = model.get("capabilities").unwrap().as_array().unwrap();
         assert!(caps.iter().any(|v| v.as_str() == Some("thinking")));
+    }
+
+    #[test]
+    fn kimi_code_export_syncs_raw_other_top_level_sections() {
+        // Regression: UI-managed top-level sections ([thinking],
+        // [experimental], [secondary_model], ...) collected into raw_other at
+        // import time must be written back on export; sections removed from
+        // raw_other must be dropped from the output.
+        let toml_str = r#"
+default_model = "glm-5.2"
+default_thinking = true
+
+[providers."glmzhongzhuan"]
+type = "anthropic"
+api_key = "sk-test"
+
+[models."glm-5.2"]
+provider = "glmzhongzhuan"
+model = "glm-5.2"
+max_context_size = 900000
+
+[thinking]
+enabled = true
+
+[experimental]
+secondary-model = true
+
+[secondary_model]
+model = "glm-5.2"
+default_effort = "low"
+"#;
+        let value: TomlValue = toml_str.parse().unwrap();
+        let mut config = kimi_code_to_config(&value);
+
+        // raw_other collected the unknown top-level sections
+        let raw = config.raw_other.as_object().unwrap();
+        assert!(raw.contains_key("thinking"));
+        assert!(raw.contains_key("experimental"));
+        assert!(raw.contains_key("secondary_model"));
+
+        // UI edit: flip the experimental flag off and drop secondary_model
+        let mut raw = config.raw_other.as_object().unwrap().clone();
+        raw.insert(
+            "experimental".to_string(),
+            serde_json::json!({"secondary-model": false}),
+        );
+        raw.remove("secondary_model");
+        config.raw_other = serde_json::Value::Object(raw);
+
+        let exported = config_to_kimi_code(&config, Some(&value));
+        let root = exported.as_table().unwrap();
+
+        // Updated section is written back
+        let exp = root.get("experimental").unwrap().as_table().unwrap();
+        assert_eq!(
+            exp.get("secondary-model").and_then(|v| v.as_bool()),
+            Some(false)
+        );
+        // Removed section is dropped
+        assert!(root.get("secondary_model").is_none());
+        // Untouched sections are preserved
+        let thinking = root.get("thinking").unwrap().as_table().unwrap();
+        assert_eq!(
+            thinking.get("enabled").and_then(|v| v.as_bool()),
+            Some(true)
+        );
+        assert_eq!(
+            root.get("default_thinking").and_then(|v| v.as_bool()),
+            Some(true)
+        );
     }
 
     #[test]

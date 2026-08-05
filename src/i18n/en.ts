@@ -320,6 +320,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   colCacheRead: "Cache read",
   unitTimes: "requests",
   estimate: "est.",
+  subagentModel: "Subagent model",
   collapse: "Collapse",
   expandAll: "Expand all ({n})",
 
@@ -447,4 +448,34 @@ export const enTranslations: Record<TranslationKey, string> = {
   trendLineShowRequests: "Show requests",
   trendLineTooltip: "{date}\nTokens: {tokens}\nCache hit: {cache}\nRequests: {req}",
   trendLineNoData: "No data",
+
+  // Subagent settings page (experimental flags + secondary model)
+  subagentSettings: "Subagent Settings",
+  experimentalFlags: "Experimental Features",
+  otherExperimentalFlags: "Other Experimental Features",
+  experimentalFlagsHint:
+    "Toggles are written to the [experimental] section of config.toml; env vars take precedence and locked toggles cannot be changed here",
+  flagSecondaryModel: "Subagent Secondary Model",
+  flagSecondaryModelDesc: "Newly spawned subagents bind a second (usually cheaper) model config",
+  flagToolSelect: "Tool Select",
+  flagToolSelectDesc: "Enable the experimental tool selection feature",
+  flagAcpV2: "ACP v2 Protocol",
+  flagAcpV2Desc: "Enable Agent Communication Protocol v2",
+  flagMinidbReadmodel: "MiniDB Read Model",
+  flagMinidbReadmodelDesc: "Enable the v2 engine MiniDB read-model backend",
+  lockedByEnv: "Locked by env var",
+  masterEnvOnHint: "KIMI_CODE_EXPERIMENTAL_FLAG is set: all experimental features are forced on by the env var",
+  secondaryModelSection: "Subagent Model (Secondary Model)",
+  secondaryModelDisabledHint:
+    "The experimental flag \"Subagent Secondary Model\" is off and this config will not take effect — enable the toggle above first",
+  secondaryModelLabel: "Secondary model",
+  secondaryModelUnset: "Not configured",
+  secondaryModelInheritedContext: "Inherited context",
+  secondaryModelInheritedEffort: "Inherited effort",
+  secondaryModelInheritedHint:
+    "Subagents bind the selected model directly and inherit its context size and effort — no patch needed",
+  secondaryModelHint:
+    "Second model config bound to subagents by default; when unset, subagents inherit the primary model. Only the model reference is stored; subagents inherit all of that model's settings",
+  secondaryModelPriorityHint:
+    "Priority: explicit tool model param > profile model_preference > this config > inherit primary model",
 };

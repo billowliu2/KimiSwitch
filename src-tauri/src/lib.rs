@@ -111,6 +111,7 @@ pub fn run() {
             commands::open_external_url,
             commands::kimi_oauth_start,
             commands::kimi_oauth_poll,
+            commands::get_experimental_env_status,
             dashboard::get_paths,
             dashboard::get_prices,
             dashboard::get_summary,

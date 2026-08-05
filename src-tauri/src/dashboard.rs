@@ -149,6 +149,9 @@ pub struct ModelRow {
     pub model_resolved: String,
     pub price_id: String,
     pub cost_estimated: bool,
+    /// True when any aggregated record came from a subagent request (Kimi Code
+    /// `__secondary__` marker, resolved to the configured secondary model).
+    pub is_secondary: bool,
     pub requests: usize,
     pub input_other: u64,
     pub output: u64,
@@ -175,6 +178,9 @@ pub struct RecentRow {
     pub cost_estimated: bool,
     pub price_id: String,
     pub from_env: bool,
+    /// True when the record is a subagent request bound to the configured
+    /// secondary model (Kimi Code `__secondary__` marker).
+    pub is_secondary: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -330,6 +336,9 @@ pub struct UsageRecord {
     pub model_display: String,
     pub provider: Option<String>,
     pub from_env: bool,
+    /// True when the record is a subagent request bound to the configured
+    /// secondary model (Kimi Code `__secondary__` marker).
+    pub is_secondary: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -398,6 +407,26 @@ fn build_alias_provider_map(home: &Path) -> HashMap<String, String> {
         }
     }
     map
+}
+
+/// Read `[secondary_model] model` from the Kimi Code config.toml — the alias
+/// subagents bind to when the experimental secondary-model feature is on.
+/// Kimi Code emits usage records with the internal marker `__secondary__` for
+/// those requests; the marker is resolved to this alias so prices and display
+/// line up with the actual model.
+fn read_secondary_model_alias(home: &Path) -> Option<String> {
+    let path = home.join("config.toml");
+    if !path.is_file() {
+        return None;
+    }
+    let content = std::fs::read_to_string(&path).ok()?;
+    let parsed: toml::Value = toml::from_str(&content).ok()?;
+    parsed
+        .get("secondary_model")
+        .and_then(|s| s.get("model"))
+        .and_then(|m| m.as_str())
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
 }
 
 /// Resolve the provider for a usage record's raw model key: prefer the `provider/`
@@ -726,6 +755,15 @@ fn match_price_inner(model_name: &str) -> (String, f64, f64, f64, bool) {
             return (id, c.cache_read, c.input, c.output, false);
         }
     }
+    // 1c) still no exact match: fall back to a cross-provider bare-name
+    // suffix lookup in the models.dev snapshot. Custom-gateway aliases (e.g.
+    // "CodingPlan.site/deepseek-v4-flash", not catalogued in models.dev)
+    // then price against the official listing of the same model id.
+    if let Some((id, c)) = priced_suffix_lookup(model_name) {
+        if c.input > 0.0 || c.output > 0.0 {
+            return (id, c.cache_read, c.input, c.output, false);
+        }
+    }
     // 2) legacy Kimi table (kept as a fallback for names not in models.dev).
     let bare_l = bare.to_ascii_lowercase();
     for p in &list_prices() {
@@ -758,9 +796,30 @@ fn cost_for_usage(input_other: u64, output: u64, cache_read: u64, cache_create: 
 // Scanner
 // ---------------------------------------------------------------------------
 
+/// Settings key caching the last configured secondary-model alias. Historical
+/// `__secondary__` usage records carry no model identity, so billing follows
+/// the currently configured secondary model; this cache keeps a stable basis
+/// even after the secondary config is removed or changed.
+const SECONDARY_MODEL_CACHE_KEY: &str = "dashboard.secondary_model_cache";
+
 fn scan_usage(home: &Path) -> (Vec<UsageRecord>, ScanMeta) {
     let root = sessions_root(home);
     let alias2prov = build_alias_provider_map(home);
+    // Resolve the `__secondary__` marker (subagent requests bound to the
+    // configured secondary model) to the real model alias once per scan.
+    // Prefer the current config; fall back to the persisted cache so records
+    // keep a stable billing basis after the secondary config is removed or
+    // changed. When the config still declares a secondary model, refresh the
+    // cache with it.
+    let current_secondary = read_secondary_model_alias(home);
+    let cached_secondary = crate::db::get_setting_pub(SECONDARY_MODEL_CACHE_KEY)
+        .ok()
+        .flatten()
+        .filter(|s| !s.is_empty());
+    let secondary_alias = current_secondary.clone().or(cached_secondary);
+    if let Some(alias) = &current_secondary {
+        let _ = crate::db::set_setting_pub(SECONDARY_MODEL_CACHE_KEY, alias);
+    }
     let mut records = Vec::new();
     let mut files_scanned = 0;
     let mut lines_seen = 0;
@@ -800,6 +859,21 @@ fn scan_usage(home: &Path) -> (Vec<UsageRecord>, ScanMeta) {
             if scope != "turn" { continue; }
 
             let model_raw = obj.get("model").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
+            // Kimi Code writes the internal marker `__secondary__` as the model
+            // key for usage records emitted by subagents bound to the
+            // configured secondary model. The record stays keyed on that
+            // stable marker so historical records keep their semantics if the
+            // secondary config changes later; cost billing follows the
+            // currently configured secondary model, and the record is flagged
+            // is_secondary so the UI shows it as its own "subagent model"
+            // entry.
+            let is_secondary = model_raw == "__secondary__";
+            let from_env = model_raw == "__kimi_env_model__";
+            let price_model = if is_secondary {
+                secondary_alias.clone().unwrap_or_else(|| model_raw.clone())
+            } else {
+                model_raw.clone()
+            };
             let time = obj.get("time").and_then(|v| v.as_u64()).unwrap_or(0);
             let usage = &obj["usage"];
             let input_other = usage.get("inputOther").and_then(|v| v.as_u64()).unwrap_or(0);
@@ -809,16 +883,22 @@ fn scan_usage(home: &Path) -> (Vec<UsageRecord>, ScanMeta) {
 
             // Resolve model display
             let bare = model_raw.rsplit_once('/').map(|x| x.1).unwrap_or(&model_raw);
-            let (cost, est) = cost_for_usage(input_other, output, cache_read, cache_create, &model_raw);
-            let (pid, _ch, _ip, _op, _) = match_price(&model_raw);
+            let (cost, est) = cost_for_usage(input_other, output, cache_read, cache_create, &price_model);
+            // Subagent records are inherently estimates: the `__secondary__`
+            // marker carries no model identity, so the cost is flagged as
+            // estimated even when the current secondary config resolves to a
+            // priced listing.
+            let est = est || is_secondary;
+            let (pid, _ch, _ip, _op, _) = match_price(&price_model);
 
             records.push(UsageRecord {
                 time,
                 model: model_raw.clone(),
                 model_resolved: bare.to_string(),
                 model_display: model_raw.clone(),
-                provider: resolve_provider(&model_raw, &alias2prov),
-                from_env: model_raw == "__kimi_env_model__",
+                provider: resolve_provider(&price_model, &alias2prov),
+                from_env,
+                is_secondary,
                 input_other,
                 output,
                 input_cache_read: cache_read,
@@ -925,6 +1005,7 @@ fn aggregate(records: &[UsageRecord], range: &str, now_ms: u64) -> RangeStats {
                 model_resolved: r.model_resolved.clone(),
                 price_id: r.price_id.clone(),
                 cost_estimated: r.cost_estimated,
+                is_secondary: r.is_secondary,
                 requests: 0, input_other: 0, output: 0,
                 input_cache_read: 0, input_cache_creation: 0,
                 cost_usd: 0.0, total_tokens: 0, cache_hit_rate: 0.0,
@@ -933,6 +1014,7 @@ fn aggregate(records: &[UsageRecord], range: &str, now_ms: u64) -> RangeStats {
         });
         entry.1.add(r);
         entry.0.cost_estimated = entry.0.cost_estimated || r.cost_estimated;
+        entry.0.is_secondary = entry.0.is_secondary || r.is_secondary;
     }
 
     let total_input = totals.input_other + totals.input_cache_read + totals.input_cache_creation;
@@ -979,6 +1061,7 @@ fn aggregate(records: &[UsageRecord], range: &str, now_ms: u64) -> RangeStats {
         total_tokens: r.input_other + r.output + r.input_cache_read + r.input_cache_creation,
         cost_usd: r.cost_usd, cost_estimated: r.cost_estimated,
         price_id: r.price_id.clone(), from_env: r.from_env,
+        is_secondary: r.is_secondary,
     }).collect();
 
     RangeStats {
@@ -1758,6 +1841,19 @@ mod pricing_tests {
 
         let (_, _, _, _, est) = match_price("totally-unknown-model");
         assert!(est, "unknown models must be flagged as estimated");
+    }
+
+    #[test]
+    fn custom_gateway_alias_bills_at_official_listing() {
+        // Custom-gateway aliases not catalogued in models.dev (e.g. the user's
+        // aggregated gateway "CodingPlan.site/deepseek-v4-flash") must resolve
+        // via the cross-provider bare-name lookup to a priced official entry
+        // instead of falling into the last-resort estimate.
+        let (id, _, input, output, est) = match_price("CodingPlan.site/deepseek-v4-flash");
+        assert!(!est, "resolved via models.dev, not estimated");
+        assert_eq!(id, "deepseek/deepseek-v4-flash");
+        assert_eq!(input, 0.14);
+        assert_eq!(output, 0.28);
     }
 
     #[test]

@@ -310,7 +310,9 @@ export function DashboardPage() {
                             }}
                           />
                           <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="text-content-primary whitespace-nowrap truncate">{m.modelDisplay || m.model}</span>
+                            <span className="text-content-primary whitespace-nowrap truncate">
+                              {m.isSecondary ? t("subagentModel") : m.modelDisplay || m.model}
+                            </span>
                             {m.costEstimated && (
                               <span className="text-[10px] text-yellow-600 shrink-0">({t("estimate")})</span>
                             )}
@@ -371,7 +373,13 @@ export function DashboardPage() {
                       <td className="py-1.5 pr-4 text-content-muted whitespace-nowrap">
                         {fmtTime(r.time)}
                       </td>
-                      <td className="py-1.5 pr-4 text-content-primary">{r.modelDisplay || r.model}</td>
+                      <td className="py-1.5 pr-4 text-content-primary">
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span className="truncate">
+                            {r.isSecondary ? t("subagentModel") : r.modelDisplay || r.model}
+                          </span>
+                        </span>
+                      </td>
                       <td className="py-1.5 pr-4 text-right text-content-muted">{fmtTokens(r.inputOther)}</td>
                       <td className="py-1.5 pr-4 text-right text-content-muted">{fmtTokens(r.output)}</td>
                       <td className="py-1.5 pr-4 text-right text-content-muted">{fmtTokens(r.inputCacheRead)}</td>

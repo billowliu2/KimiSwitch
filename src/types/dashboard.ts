@@ -24,6 +24,8 @@ export interface ModelRow extends TotalsRow {
   modelResolved: string;
   priceId: string;
   costEstimated: boolean;
+  /** True when any record in this row came from a subagent (secondary-model) request. */
+  isSecondary: boolean;
 }
 
 export interface RecentRow {
@@ -40,6 +42,8 @@ export interface RecentRow {
   costEstimated: boolean;
   priceId: string;
   fromEnv: boolean;
+  /** True when this request came from a subagent (secondary-model) call. */
+  isSecondary: boolean;
 }
 
 export interface RangeStats {

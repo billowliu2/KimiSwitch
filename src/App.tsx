@@ -5,6 +5,7 @@ import { useConfig } from "./hooks/useConfig";
 import { useUpdateCheck } from "./hooks/useUpdateCheck";
 import { ProviderList } from "./components/ProviderList";
 import { ProviderEdit } from "./components/ProviderEdit";
+import { SubagentSettingsPage } from "./components/SubagentSettingsPage";
 import { DashboardPage } from "./components/dashboard/DashboardPage";
 import { SessionsPage } from "./components/sessions/SessionsPage";
 import { SettingsModal } from "./components/SettingsModal";
@@ -70,7 +71,7 @@ export default function App() {
     updateConfig,
   } = useConfig(agent);
 
-  const [view, setView] = useState<"list" | "edit" | "dashboard" | "sessions">("list");
+  const [view, setView] = useState<"list" | "edit" | "subagent" | "dashboard" | "sessions">("list");
   const [editingProvider, setEditingProvider] = useState<string>("");
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [switchMessage, setSwitchMessage] = useState<string | null>(null);
@@ -573,7 +574,7 @@ export default function App() {
             type="button"
             onClick={() => setView("list")}
             className={`px-3 py-1 text-sm rounded transition-colors ${
-              view === "list" || view === "edit"
+              view === "list" || view === "edit" || view === "subagent"
                 ? "bg-blue-600 text-white"
                 : "text-content-muted hover:text-content-primary"
             }`}
@@ -649,6 +650,15 @@ export default function App() {
           <DashboardPage />
         ) : view === "sessions" ? (
           <SessionsPage />
+        ) : view === "subagent" ? (
+          <SubagentSettingsPage
+            rawOther={config.raw_other}
+            models={config.models}
+            onChange={(nextRawOther) =>
+              updateConfig((cfg) => ({ ...cfg, raw_other: nextRawOther }))
+            }
+            onBack={() => setView("list")}
+          />
         ) : view === "list" ? (
           <ProviderList
             providers={providers}
@@ -813,6 +823,15 @@ export default function App() {
           >
             {t("openConfigDir")}
           </button>
+          {view === "list" && (
+            <button
+              type="button"
+              onClick={() => setView("subagent")}
+              className="px-3 py-1.5 text-sm border border-border rounded hover:bg-hover-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            >
+              {t("subagentSettings")}
+            </button>
+          )}
         </div>
       </footer>
       )}

@@ -1078,3 +1078,34 @@ pub async fn kimi_oauth_poll(
 ) -> Result<crate::oauth::DevicePollStatus, String> {
     crate::oauth::poll_device_token(&device_code, interval).await
 }
+
+// ---------------------------------------------------------------------------
+// Experimental feature env-var probe (Kimi Code secondary model etc.)
+// ---------------------------------------------------------------------------
+
+/// Read the Kimi Code experimental-feature environment variables that are
+/// currently set (non-empty) in this process's environment. The frontend
+/// uses the result to mark config.toml `[experimental]` toggles as locked:
+/// env vars outrank the config file in Kimi Code's flag resolution.
+///
+/// Truthy values per the CLI: `1` / `true` / `yes` / `on` (case-insensitive);
+/// the raw values are returned and the truthy check happens on the frontend.
+#[tauri::command]
+pub fn get_experimental_env_status() -> HashMap<String, String> {
+    const VARS: [&str; 5] = [
+        "KIMI_CODE_EXPERIMENTAL_FLAG",
+        "KIMI_CODE_EXPERIMENTAL_SECONDARY_MODEL",
+        "KIMI_CODE_EXPERIMENTAL_TOOL_SELECT",
+        "KIMI_CODE_EXPERIMENTAL_ACP_V2",
+        "KIMI_CODE_EXPERIMENTAL_PERSISTENCE_MINIDB_READMODEL",
+    ];
+    let mut out = HashMap::new();
+    for name in VARS {
+        if let Ok(value) = std::env::var(name) {
+            if !value.trim().is_empty() {
+                out.insert(name.to_string(), value);
+            }
+        }
+    }
+    out
+}

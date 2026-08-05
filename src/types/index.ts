@@ -127,3 +127,19 @@ export interface AgentSettings {
   permission?: { rules?: PermissionRule[] };
   hooks?: Hook[];
 }
+
+/**
+ * Kimi Code `[secondary_model]` section of config.toml: the secondary model
+ * bound to newly spawned subagents (experimental feature).
+ * `model` points at an alias defined in `[models]`; the remaining fields are
+ * a patch applied on top of the referenced entry (subagents only).
+ */
+export interface SecondaryModelConfig {
+  model?: string;
+  default_effort?: string;
+  max_output_size?: number;
+  max_context_size?: number;
+}
+
+/** Values of experimental env vars that are currently set (non-empty). */
+export type ExperimentalEnvStatus = Record<string, string>;

@@ -315,6 +315,7 @@ export const zhTranslations = {
   colCacheRead: "缓存读",
   unitTimes: "次",
   estimate: "估算",
+  subagentModel: "子代理模型",
   collapse: "收起",
   expandAll: "展开全部 ({n})",
 
@@ -442,6 +443,36 @@ export const zhTranslations = {
   trendLineShowRequests: "显示请求数",
   trendLineTooltip: "{date}\nToken: {tokens}\n命中率: {cache}\n请求: {req}",
   trendLineNoData: "暂无数据",
+
+  // Subagent settings page (experimental flags + secondary model)
+  subagentSettings: "子代理设置",
+  experimentalFlags: "实验功能开关",
+  otherExperimentalFlags: "其他实验功能",
+  experimentalFlagsHint:
+    "开关写入 config.toml 的 [experimental] 节；环境变量优先级更高，被锁定的开关无法在此修改",
+  flagSecondaryModel: "子代理次主力模型",
+  flagSecondaryModelDesc: "子代理派发时绑定第二份（通常更便宜的）模型配置",
+  flagToolSelect: "工具选择",
+  flagToolSelectDesc: "启用实验性工具选择功能",
+  flagAcpV2: "ACP v2 协议",
+  flagAcpV2Desc: "启用 Agent Communication Protocol v2",
+  flagMinidbReadmodel: "MiniDB 读模型",
+  flagMinidbReadmodelDesc: "启用 v2 引擎 MiniDB 读模型后端",
+  lockedByEnv: "被环境变量锁定",
+  masterEnvOnHint: "KIMI_CODE_EXPERIMENTAL_FLAG 已设置：全部实验功能被环境变量强制开启",
+  secondaryModelSection: "子代理模型（次主力模型）",
+  secondaryModelDisabledHint:
+    "实验开关「子代理次主力模型」未启用，本配置不会生效——请先在上方打开对应开关",
+  secondaryModelLabel: "次主力模型",
+  secondaryModelUnset: "未配置",
+  secondaryModelInheritedContext: "继承上下文长度",
+  secondaryModelInheritedEffort: "继承思考模式",
+  secondaryModelInheritedHint:
+    "子代理直接绑定所选模型，继承其上下文长度与思考设置，无需单独配置补丁",
+  secondaryModelHint:
+    "子代理默认绑定的第二份模型配置；未配置时子代理继承主模型；仅保存模型引用，子代理继承该模型的全部设置",
+  secondaryModelPriorityHint:
+    "优先级：工具显式 model 参数 > 子代理 profile 的 model_preference > 本配置 > 继承主模型",
 } as const;
 
 export type TranslationKey = keyof typeof zhTranslations;
