@@ -15,7 +15,7 @@ import {
   setSecondaryModelOnly,
   type ExperimentalFlagDef,
 } from "../lib/subagent-settings";
-import { Card, Checkbox } from "./ui/controls";
+import { Card, Toggle } from "./ui/controls";
 
 interface SubagentSettingsPageProps {
   /** config.raw_other — hosts the `[experimental]` and `[secondary_model]` sections. */
@@ -71,6 +71,7 @@ export function SubagentSettingsPage({
     : isFlagLockedByEnv(env, secondaryFlag)
       ? forcedEnvValue(env, secondaryFlag)
       : flags["secondary-model"] === true;
+  const secondaryLocked = masterOn || isFlagLockedByEnv(env, secondaryFlag);
 
   const aliasList = Object.keys(models).sort();
 
@@ -127,10 +128,10 @@ export function SubagentSettingsPage({
             🔒 {t("lockedByEnv")}
           </span>
         )}
-        <Checkbox
-          label=""
+        <Toggle
           checked={on}
           disabled={locked}
+          ariaLabel={t(labels.name)}
           onChange={(checked) =>
             onChange(setExperimentalFlag(rawOther, flag.id, checked))
           }
@@ -160,17 +161,8 @@ export function SubagentSettingsPage({
           </div>
         )}
 
-        {/* Subagent: experimental flag + secondary model in one card */}
+        {/* Subagent: secondary model picker + inherited settings */}
         <Card title={t("secondaryModelSection")}>
-          {renderFlagRow(secondaryFlag)}
-          <div className="border-t border-border" />
-
-          {!secondaryEnabled && (
-            <div className="bg-amber-100 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-500/30 rounded-lg px-3 py-2 text-sm text-amber-800 dark:text-amber-400">
-              {t("secondaryModelDisabledHint")}
-            </div>
-          )}
-
           <label className="flex items-center gap-3 text-sm text-content-primary">
             <span className="text-content-muted">{t("secondaryModelLabel")}</span>
             <select
@@ -200,21 +192,44 @@ export function SubagentSettingsPage({
             </select>
           </label>
 
+          <div className="border-t border-border" />
+          <div className="flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="text-xs text-content-muted">
+                {t(FLAG_LABELS[secondaryFlag.id].desc)}
+                <code className="ml-2">{secondaryFlag.envVar}</code>
+              </div>
+            </div>
+            {secondaryLocked && (
+              <span className="text-xs text-content-muted shrink-0">
+                🔒 {t("lockedByEnv")}
+              </span>
+            )}
+            <Toggle
+              checked={secondaryEnabled}
+              disabled={secondaryLocked}
+              ariaLabel={t(FLAG_LABELS[secondaryFlag.id].name)}
+              onChange={(checked) =>
+                onChange(setExperimentalFlag(rawOther, secondaryFlag.id, checked))
+              }
+            />
+          </div>
+
           {secondary.model !== undefined && (
-            <div className="rounded-lg border border-border bg-input/40 px-3 py-2 space-y-1.5">
-              <div className="flex items-center gap-3 text-sm">
-                <span className="text-content-muted w-24 shrink-0">
+            <div className="rounded-lg border border-border bg-input/40 px-3 py-2.5 space-y-2">
+              <div className="flex items-baseline gap-2 text-sm">
+                <span className="shrink-0 text-content-muted">
                   {t("secondaryModelInheritedContext")}
                 </span>
-                <span className="text-content-primary">
+                <span className="font-medium text-content-primary">
                   {inheritedContext ? fmtContext(inheritedContext) : "—"}
                 </span>
               </div>
-              <div className="flex items-center gap-3 text-sm">
-                <span className="text-content-muted w-24 shrink-0">
+              <div className="flex items-baseline gap-2 text-sm">
+                <span className="shrink-0 text-content-muted">
                   {t("secondaryModelInheritedEffort")}
                 </span>
-                <span className="text-content-primary">
+                <span className="font-medium text-content-primary">
                   {inheritedEffort ? effortLabel(inheritedEffort) : "—"}
                 </span>
               </div>
@@ -224,7 +239,6 @@ export function SubagentSettingsPage({
             </div>
           )}
 
-          <p className="text-xs text-content-muted">{t("secondaryModelHint")}</p>
           <p className="text-xs text-content-muted">{t("secondaryModelPriorityHint")}</p>
         </Card>
 
