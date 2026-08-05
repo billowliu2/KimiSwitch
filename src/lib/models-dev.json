@@ -16192,9 +16192,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.14,
-      "output": 0.28,
-      "cache_read": 0.0028
+      "input": 0.076,
+      "output": 0.153,
+      "cache_read": 0.014
     }
   },
   "llmgateway/kimi-k2.5": {
@@ -23183,7 +23183,7 @@
     "image": true,
     "video": true,
     "cost": {
-      "input": 0.73,
+      "input": 0.7,
       "output": 3.5,
       "cache_read": 0.15,
       "cache_write": 0
@@ -44882,7 +44882,7 @@
   },
   "kilo/upstage/solar-pro-3": {
     "name": "Upstage: Solar Pro 3",
-    "context": 128000,
+    "context": 131072,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
@@ -47727,6 +47727,36 @@
       "output": 0.4
     }
   },
+  "merge-gateway/google/gemini-3.1-flash-image": {
+    "name": "Gemini 3.1 Flash Image",
+    "context": 32768,
+    "reasoning": true,
+    "image": true,
+    "cost": {
+      "input": 0.5,
+      "output": 3
+    }
+  },
+  "merge-gateway/google/gemini-2.5-flash-image": {
+    "name": "Gemini 2.5 Flash Image",
+    "context": 32768,
+    "reasoning": true,
+    "image": true,
+    "cost": {
+      "input": 0.3,
+      "output": 2.5
+    }
+  },
+  "merge-gateway/google/gemini-3-pro-image": {
+    "name": "Gemini 3 Pro Image",
+    "context": 65536,
+    "reasoning": true,
+    "image": true,
+    "cost": {
+      "input": 2,
+      "output": 12
+    }
+  },
   "merge-gateway/google/gemini-3.1-pro-preview": {
     "name": "Gemini 3.1 Pro Preview",
     "context": 1048576,
@@ -48067,10 +48097,9 @@
   },
   "merge-gateway/qwen/qwen3.5-122b-a10b": {
     "name": "Qwen3.5 122B A10B",
-    "context": 256000,
+    "context": 131072,
     "reasoning": true,
     "tool_call": true,
-    "image": true,
     "cost": {
       "input": 0.115,
       "output": 0.917,
@@ -48474,7 +48503,7 @@
     }
   },
   "merge-gateway/minimax/minimax-m2": {
-    "name": "MiniMax-M2",
+    "name": "MiniMax M2",
     "context": 204800,
     "reasoning": true,
     "tool_call": true,
@@ -50974,6 +51003,9 @@
     "name": "FLUX.1 Kontext Pro",
     "context": 512
   },
+  "vercel/bfl/flux-3-video": {
+    "name": "Flux 3"
+  },
   "vercel/bfl/flux-2-klein-4b": {
     "name": "FLUX.2 [klein] 4B"
   },
@@ -52253,20 +52285,6 @@
       "output": 15,
       "cache_read": 0.3,
       "cache_write": 3.75
-    }
-  },
-  "vercel/anthropic/claude-opus-4.1": {
-    "name": "Claude Opus 4.1",
-    "context": 200000,
-    "reasoning": true,
-    "tool_call": true,
-    "structured_output": true,
-    "image": true,
-    "cost": {
-      "input": 15,
-      "output": 75,
-      "cache_read": 1.5,
-      "cache_write": 18.75
     }
   },
   "vercel/perplexity/pplx-embed-v1-0.6b": {
@@ -56585,7 +56603,7 @@
   },
   "openrouter/upstage/solar-pro-3": {
     "name": "Solar Pro 3",
-    "context": 128000,
+    "context": 131072,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
@@ -57154,7 +57172,7 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.15,
+      "input": 0.22,
       "output": 0.9,
       "cache_read": 0.05
     }
@@ -57976,9 +57994,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.966,
-      "output": 3.036,
-      "cache_read": 0.1794
+      "input": 0.952,
+      "output": 2.992,
+      "cache_read": 0.1768
     }
   },
   "openrouter/z-ai/glm-4.7-flash": {
@@ -58158,7 +58176,7 @@
     "structured_output": true,
     "image": true,
     "cost": {
-      "input": 0.73,
+      "input": 0.7,
       "output": 3.5,
       "cache_read": 0.15
     }
@@ -66437,9 +66455,9 @@
     "reasoning": true,
     "tool_call": true,
     "cost": {
-      "input": 0.258,
-      "output": 0.31,
-      "cache_read": 0.0645
+      "input": 0.25,
+      "output": 0.3,
+      "cache_read": 0.062
     }
   },
   "cortecs/mixtral-8x7B-instruct-v0.1": {
