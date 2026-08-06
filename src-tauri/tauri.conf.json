@@ -37,6 +37,7 @@
       "icons/icon.ico",
       "icons/icon.icns"
     ],
+    "publisher": "codingplan.site",
     "windows": {
       "webviewInstallMode": {
         "type": "downloadBootstrapper"

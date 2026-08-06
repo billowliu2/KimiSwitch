@@ -2,7 +2,7 @@
 name = "kimiswitch"
 version = "0.7.1"
 description = "Kimi Switch - model config manager"
-authors = ["you"]
+authors = ["codingplan.site"]
 edition = "2021"
 
 [build-dependencies]
