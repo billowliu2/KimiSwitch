@@ -345,6 +345,7 @@ const zh = {
   footer: {
     recommend: "推荐供应商",
     mirror: "国内镜像",
+    downloads: "GitHub 累计下载 {n} 次",
     creditBefore: "仪表盘与会话管理功能基于 ",
     creditAfter: " (MIT, © JochenYang) 移植",
     recommendText: {
@@ -698,6 +699,7 @@ const en: Dict = {
   footer: {
     recommend: "Recommended Providers",
     mirror: "China mirror",
+    downloads: "Total GitHub downloads: {n}",
     creditBefore: "Dashboard & session management adapted from ",
     creditAfter: " (MIT, © JochenYang)",
     recommendText: {
