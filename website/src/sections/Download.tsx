@@ -14,21 +14,21 @@ const MIRROR_RELEASES = "https://git.codingplan.site/admin/KimiCodeSwitch/releas
 const dl = (file: string) => `${GITHUB}/releases/download/v${VERSION}/${file}`;
 
 /** Per-platform download assets for the current release (names match the CI
- *  release workflow. NOTE: tauri-bundler keeps the productName verbatim, so the
- *  real asset is "Kimi Switch_0.7.3_…" (space), URL-encoded as %20. */
+ *  release workflow exactly — verified against the published v0.7.3 assets:
+ *  tauri-bundler on CI produces `Kimi.Switch_…` (dots) on every platform). */
 const assets: Record<string, { label: string; href: string }[]> = {
   windows: [
-    { label: "MSI", href: dl("Kimi%20Switch_0.7.3_x64_en-US.msi") },
+    { label: "MSI", href: dl("Kimi.Switch_0.7.3_x64_en-US.msi") },
     { label: "镜像", href: MIRROR_RELEASES },
   ],
   macos: [
-    { label: "Apple Silicon (.dmg)", href: dl("Kimi%20Switch_0.7.3_aarch64.dmg") },
+    { label: "Apple Silicon (.dmg)", href: dl("Kimi.Switch_0.7.3_aarch64.dmg") },
     { label: "安装脚本", href: dl("install-macos.sh") },
   ],
   linux: [
-    { label: ".deb", href: dl("Kimi%20Switch_0.7.3_amd64.deb") },
-    { label: ".AppImage", href: dl("Kimi%20Switch_0.7.3_amd64.AppImage") },
-    { label: ".rpm", href: dl("Kimi%20Switch-0.7.3-1.x86_64.rpm") },
+    { label: ".deb", href: dl("Kimi.Switch_0.7.3_amd64.deb") },
+    { label: ".AppImage", href: dl("Kimi.Switch_0.7.3_amd64.AppImage") },
+    { label: ".rpm", href: dl("Kimi.Switch-0.7.3-1.x86_64.rpm") },
   ],
 };
 

@@ -95,7 +95,7 @@ jobs:
 
             ### macOS 安装说明（无开发者账号签名，需一次手动绕过）
 
-            1. 下载 `KimiSwitch_*.dmg`，双击挂载后把 `Kimi Switch.app` 拖入「应用程序」文件夹
+            1. 下载 `Kimi.Switch_*.dmg`，双击挂载后把 `Kimi Switch.app` 拖入「应用程序」文件夹
             2. 下载本 Release 附带的 `install-macos.sh`，在终端运行：
 
                ```bash
