@@ -7,7 +7,7 @@ const DEFAULT_SETTINGS: AgentSettings = {
     keep: "all",
   },
   loop_control: {
-    max_retries_per_step: 3,
+    max_attempts_per_step: 3,
     reserved_context_size: 50000,
   },
   background: {
@@ -32,15 +32,29 @@ function getSection<T>(rawOther: unknown, key: string): T | undefined {
 }
 
 export function getAgentSettings(rawOther: unknown): AgentSettings {
+  const sectionLoop = getSection<AgentSettings["loop_control"]>(
+    rawOther,
+    "loop_control"
+  );
+  const loop: AgentSettings["loop_control"] = {
+    ...DEFAULT_SETTINGS.loop_control,
+    ...sectionLoop,
+  };
+  // kimi-code 0.33+ (v2 engine) renamed max_retries_per_step →
+  // max_attempts_per_step; migrate legacy values so they still show and edit.
+  if (
+    sectionLoop &&
+    sectionLoop.max_attempts_per_step === undefined &&
+    sectionLoop.max_retries_per_step !== undefined
+  ) {
+    loop.max_attempts_per_step = sectionLoop.max_retries_per_step;
+  }
   return {
     thinking: {
       ...DEFAULT_SETTINGS.thinking,
       ...getSection<AgentSettings["thinking"]>(rawOther, "thinking"),
     },
-    loop_control: {
-      ...DEFAULT_SETTINGS.loop_control,
-      ...getSection<AgentSettings["loop_control"]>(rawOther, "loop_control"),
-    },
+    loop_control: loop,
     background: {
       ...DEFAULT_SETTINGS.background,
       ...getSection<AgentSettings["background"]>(rawOther, "background"),

@@ -55,7 +55,13 @@
 ## 下载
 
 - **Windows**: [GitHub Releases](https://github.com/billowliu2/KimiSwitch/releases/latest) → `.msi`
-- **macOS**: [GitHub Releases](https://github.com/billowliu2/KimiSwitch/releases/latest) → `.dmg`（**未签名** —— 首次启动请右键 → 打开绕过 Gatekeeper）
+- **macOS**: [GitHub Releases](https://github.com/billowliu2/KimiSwitch/releases/latest) → `.dmg`（**未签名**，仅 Apple Silicon / M 系列芯片）。安装请下载 Release 附带的 `install-macos.sh` 一键处理：
+
+  ```bash
+  bash install-macos.sh
+  ```
+
+  或手动：把 `Kimi Switch.app` 拖入「应用程序」→ 右键 → 打开 → 点「打开」绕过 Gatekeeper。
 - **Linux**: [GitHub Releases](https://github.com/billowliu2/KimiSwitch/releases/latest) → `.deb` / `.AppImage` / `.rpm`
 
 历史版本（v0.5.x 及之前）请前往 [git.codingplan.site 仓库](https://git.codingplan.site/admin/KimiCodeSwitch/releases)。

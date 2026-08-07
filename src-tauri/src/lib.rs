@@ -109,6 +109,7 @@ pub fn run() {
             commands::download_update,
             commands::open_installer,
             commands::open_external_url,
+            commands::open_kimi_web,
             commands::kimi_oauth_start,
             commands::kimi_oauth_poll,
             commands::get_experimental_env_status,

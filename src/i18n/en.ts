@@ -136,7 +136,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   thinkingMax: "Max",
   thinkingContextHint: "Thinking uses more context. Ensure the model context length and reserved size are sufficient.",
   loopControlSettings: "Loop Control",
-  maxRetriesPerStep: "Max retries per step",
+  maxAttemptsPerStep: "Max attempts per step",
   reservedContextSize: "Reserved context size",
   backgroundSettings: "Background Tasks",
   maxRunningTasks: "Max running tasks",
@@ -449,8 +449,8 @@ export const enTranslations: Record<TranslationKey, string> = {
   trendLineTooltip: "{date}\nTokens: {tokens}\nCache hit: {cache}\nRequests: {req}",
   trendLineNoData: "No data",
 
-  // Subagent settings page (experimental flags + secondary model)
-  subagentSettings: "Subagent Settings",
+  // Advanced settings page (WebUI quick open + experimental flags + secondary model)
+  subagentSettings: "Advanced Settings",
   experimentalFlags: "Experimental Features",
   otherExperimentalFlags: "Other Experimental Features",
   experimentalFlagsHint:
@@ -478,4 +478,10 @@ export const enTranslations: Record<TranslationKey, string> = {
     "Second model config bound to subagents by default; when unset, subagents inherit the primary model. Only the model reference is stored; subagents inherit all of that model's settings",
   secondaryModelPriorityHint:
     "Priority: explicit tool model param > profile model_preference > this config > inherit primary model",
+
+  // Kimi Code WebUI quick open
+  webuiSection: "Kimi Code WebUI",
+  webuiDesc:
+    "Launch `kimi web` to open the new Web UI in your browser (built into kimi-code 0.33+). Requires the kimi CLI on PATH.",
+  openWebUI: "Open WebUI",
 };

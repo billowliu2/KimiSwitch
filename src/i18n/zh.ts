@@ -134,7 +134,7 @@ export const zhTranslations = {
   thinkingMax: "最大",
   thinkingContextHint: "启用思考会占用更多上下文，请确保模型上下文长度和预留空间足够。",
   loopControlSettings: "循环控制",
-  maxRetriesPerStep: "单步重试次数",
+  maxAttemptsPerStep: "单步最大尝试次数",
   reservedContextSize: "上下文预留大小",
   backgroundSettings: "后台任务",
   maxRunningTasks: "最大并发数",
@@ -444,8 +444,8 @@ export const zhTranslations = {
   trendLineTooltip: "{date}\nToken: {tokens}\n命中率: {cache}\n请求: {req}",
   trendLineNoData: "暂无数据",
 
-  // Subagent settings page (experimental flags + secondary model)
-  subagentSettings: "子代理设置",
+  // Advanced settings page (WebUI quick open + experimental flags + secondary model)
+  subagentSettings: "高级设置",
   experimentalFlags: "实验功能开关",
   otherExperimentalFlags: "其他实验功能",
   experimentalFlagsHint:
@@ -473,6 +473,12 @@ export const zhTranslations = {
     "子代理默认绑定的第二份模型配置；未配置时子代理继承主模型；仅保存模型引用，子代理继承该模型的全部设置",
   secondaryModelPriorityHint:
     "优先级：工具显式 model 参数 > 子代理 profile 的 model_preference > 本配置 > 继承主模型",
+
+  // Kimi Code WebUI quick open
+  webuiSection: "Kimi Code WebUI",
+  webuiDesc:
+    "启动 kimi web，在浏览器中打开新版 Web 界面（kimi-code 0.33+ 内置 code-app）。需要 kimi 命令在 PATH 中。",
+  openWebUI: "打开 WebUI",
 } as const;
 
 export type TranslationKey = keyof typeof zhTranslations;

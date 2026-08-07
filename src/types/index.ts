@@ -97,6 +97,11 @@ export interface ThinkingConfig {
 }
 
 export interface LoopControlConfig {
+  /** v2 engine key (kimi-code 0.33+): `max_retries_per_step` was renamed. */
+  max_attempts_per_step?: number;
+  /** v2 engine key (kimi-code 0.33+): `max_steps_per_run` was renamed. */
+  max_steps_per_turn?: number;
+  /** Legacy v1 key — written in sync so KIMI_CODE_LEGACY_FLAG=1 still works. */
   max_retries_per_step?: number;
   reserved_context_size?: number;
 }

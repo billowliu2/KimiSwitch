@@ -24,7 +24,18 @@ const PERMISSION_LABELS: Record<(typeof PERMISSION_DECISIONS)[number], Translati
   ask: "permissionAsk",
 };
 
-const COMMON_EVENTS = ["PreToolUse", "PostToolUse"] as const;
+// kimi-code 0.33+ added TurnStarted / UserPromptQueued / TaskStarted /
+// SessionHeartbeat hook events (plus SessionStart / SessionEnd).
+const COMMON_EVENTS = [
+  "PreToolUse",
+  "PostToolUse",
+  "TurnStarted",
+  "UserPromptQueued",
+  "TaskStarted",
+  "SessionHeartbeat",
+  "SessionStart",
+  "SessionEnd",
+] as const;
 
 export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelProps) {
   const { t } = useTranslation();
@@ -91,9 +102,18 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
 
       <Card title={t("loopControlSettings")}>
         <NumberField
-          label={t("maxRetriesPerStep")}
-          value={settings.loop_control?.max_retries_per_step ?? 3}
-          onChange={(v) => updateLoopControl({ max_retries_per_step: v })}
+          label={t("maxAttemptsPerStep")}
+          value={
+            settings.loop_control?.max_attempts_per_step ??
+            settings.loop_control?.max_retries_per_step ??
+            3
+          }
+          onChange={(v) =>
+            updateLoopControl({
+              max_attempts_per_step: v,
+              max_retries_per_step: v,
+            })
+          }
         />
         <NumberField
           label={t("reservedContextSize")}

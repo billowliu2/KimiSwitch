@@ -949,6 +949,32 @@ pub fn open_installer(app: tauri::AppHandle, path: String) -> Result<(), String>
         .open_path(&path, None::<&str>)
         .map_err(|e| e.to_string())
 }
+
+/// Launch `kimi web` — starts the local Kimi Code Web UI server and opens it
+/// in the default browser (the code-app web bundle built into kimi-code 0.33+).
+/// The kimi CLI must be on PATH; the spawned process is detached so the server
+/// keeps running while Kimi Switch stays open.
+#[tauri::command]
+pub fn open_kimi_web() -> Result<(), String> {
+    use std::process::Command;
+    let mut cmd = Command::new("kimi");
+    cmd.arg("web");
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // CREATE_NO_WINDOW: avoid a console window flashing next to the GUI.
+        cmd.creation_flags(0x08000000);
+    }
+    cmd.spawn()
+        .map(|_| ())
+        .map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                "kimi executable not found on PATH — install Kimi Code CLI first".to_string()
+            } else {
+                format!("failed to start `kimi web`: {e}")
+            }
+        })
+}
 /// Preference for Linux is AppImage (portable, no install). If the preferred
 /// extension is not present, returns None so the UI can fall back to
 /// "open release page" instead of guessing a less-preferred format.

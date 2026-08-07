@@ -26,7 +26,9 @@ npm run tauri build -- --bundles app,dmg
 
 Output: `src-tauri/target/release/bundle/{macos,dmg}/`.
 
-Unsigned: first launch requires right-click → Open to bypass Gatekeeper.
+Unsigned (no Developer ID account): downloaded copies are blocked by Gatekeeper.
+For end users, attach `install-macos.sh` (auto-uploaded to each Release) or instruct:
+right-click → Open, or `xattr -cr "/Applications/Kimi Switch.app"`.
 
 ### Linux (native)
 

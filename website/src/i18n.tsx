@@ -16,10 +16,10 @@ const zh = {
     performance: "性能",
     changelog: "更新日志",
     download: "下载",
-    downloadBtn: "下载 v0.7.0",
+    downloadBtn: "下载 v0.7.2",
   },
   hero: {
-    badge: "v0.7.0 · 开源 MIT · Windows / macOS / Linux",
+    badge: "v0.7.2 · 开源 MIT · Windows / macOS / Linux",
     titleBefore: "统一管理你的",
     titleAccent: "AI 供应商",
     titleAfter: "",
@@ -140,6 +140,26 @@ const zh = {
     syncedNote: "数据已同步 GitHub Releases",
     fallbackNote: "内置版本记录",
     entries: [
+      {
+        version: "v0.7.2",
+        date: "2026-08-07",
+        items: [
+          "子代理模型指定（实验功能）：设置中为子代理选择次主力模型，子代理不再默认继承主模型",
+          "实验开关改为滑动开关，修复开启态因样式缺失而不可见的问题",
+          "models.dev 模型列表与价格数据同步更新",
+          "官网企业版视觉升级；出品公司标识统一为 codingplan.site",
+          "macOS 安装优化：Release 附带 install-macos.sh 一键脚本，自动清除下载隔离，免去手动右键打开",
+        ],
+      },
+      {
+        version: "v0.7.1",
+        date: "2026-08-05",
+        items: [
+          "实验功能设置新增「子代理模型（次主力模型）」配置：选择后子代理绑定该模型，不再继承主模型",
+          "仪表盘用量统计识别子代理请求（__secondary__）独立展示，并缓存次主力模型定价",
+          "自定义网关模型按官方同名模型跨 provider 匹配价格，不再落入兜底估算",
+        ],
+      },
       {
         version: "v0.7.0",
         date: "2026-08-02",
@@ -269,7 +289,7 @@ const zh = {
   },
   download: {
     title: "下载 Kimi Switch",
-    subtitle: "当前版本 v0.7.0 · Windows / macOS / Linux 三平台已发布",
+    subtitle: "当前版本 v0.7.2 · Windows / macOS / Linux 三平台已发布",
     autoUpdate: "应用内置自动检测更新，新版本发布后在设置页一键升级。",
     ready: "已发布",
     wip: "开发中",
@@ -277,7 +297,7 @@ const zh = {
     mirrorBtn: "镜像下载",
     items: [
       { id: "windows", name: "Windows", ready: true, note: ".msi 安装包，系统托盘常驻" },
-      { id: "macos", name: "macOS", ready: true, note: ".dmg 安装包（Apple Silicon），未签名需右键打开" },
+      { id: "macos", name: "macOS", ready: true, note: ".dmg 安装包（Apple Silicon），未签名：下载 install-macos.sh 后运行 bash install-macos.sh 一键安装" },
       { id: "linux", name: "Linux", ready: true, note: ".deb / .AppImage / .rpm 三格式" },
     ],
   },
@@ -337,10 +357,10 @@ const en: Dict = {
     performance: "Performance",
     changelog: "Changelog",
     download: "Download",
-    downloadBtn: "Download v0.7.0",
+    downloadBtn: "Download v0.7.2",
   },
   hero: {
-    badge: "v0.7.0 · Open source MIT · Windows / macOS / Linux",
+    badge: "v0.7.2 · Open source MIT · Windows / macOS / Linux",
     titleBefore: "One app for all your ",
     titleAccent: "AI providers",
     titleAfter: "",
@@ -461,6 +481,26 @@ const en: Dict = {
     syncedNote: "Synced from GitHub Releases",
     fallbackNote: "Built-in release notes",
     entries: [
+      {
+        version: "v0.7.2",
+        date: "2026-08-07",
+        items: [
+          "Subagent model assignment (experimental): pick a secondary model for subagents so they no longer inherit the main model by default",
+          "Experiment toggle converted to a sliding switch, fixing the invisible enabled state",
+          "models.dev model list and pricing snapshot synced",
+          "Enterprise-style website refresh; publisher identity unified as codingplan.site",
+          "macOS install polish: releases now ship install-macos.sh, a one-click script that clears the download quarantine",
+        ],
+      },
+      {
+        version: "v0.7.1",
+        date: "2026-08-05",
+        items: [
+          "Experimental settings gain a secondary-model picker for subagents, decoupling them from the main model",
+          "Dashboard usage stats identify subagent requests (__secondary__) and show them separately with cached secondary-model pricing",
+          "Custom gateway models match prices against the same-named official model across providers",
+        ],
+      },
       {
         version: "v0.7.0",
         date: "2026-08-02",
@@ -589,7 +629,7 @@ const en: Dict = {
   },
   download: {
     title: "Download Kimi Switch",
-    subtitle: "Current version v0.7.0 · Windows, macOS and Linux now released",
+    subtitle: "Current version v0.7.2 · Windows, macOS and Linux now released",
     autoUpdate: "Built-in update detection: upgrade in one click from Settings when a new version ships.",
     ready: "Available",
     wip: "In development",
@@ -597,7 +637,7 @@ const en: Dict = {
     mirrorBtn: "China mirror",
     items: [
       { id: "windows", name: "Windows", ready: true, note: ".msi installer, lives in the system tray" },
-      { id: "macos", name: "macOS", ready: true, note: ".dmg installer (Apple Silicon), unsigned - right-click to open" },
+      { id: "macos", name: "macOS", ready: true, note: ".dmg installer (Apple Silicon), unsigned: download install-macos.sh and run bash install-macos.sh for one-click install" },
       { id: "linux", name: "Linux", ready: true, note: ".deb / .AppImage / .rpm" },
     ],
   },
