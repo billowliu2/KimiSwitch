@@ -141,6 +141,15 @@ export default function Footer() {
               {t.footer.mirror}
             </a>{" "}
             · MIT License
+            {downloadCount !== null && (
+              <>
+                {" "}
+                ·{" "}
+                <span className="opacity-60">
+                  {t.footer.downloads.replace("{n}", downloadCount.toLocaleString())}
+                </span>
+              </>
+            )}
           </div>
           <div className="text-xs opacity-80">
             {t.footer.creditBefore}
@@ -155,13 +164,6 @@ export default function Footer() {
             {t.footer.creditAfter}
           </div>
         </div>
-
-        {/* 下载统计（低调展示，仅 GitHub 下载量） */}
-        {downloadCount !== null && (
-          <p className="pt-1 text-center text-xs opacity-50">
-            {t.footer.downloads.replace("{n}", downloadCount.toLocaleString())}
-          </p>
-        )}
       </div>
     </footer>
   );
