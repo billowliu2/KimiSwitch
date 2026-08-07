@@ -164,19 +164,34 @@ export function SubagentSettingsPage({
         {/* Kimi Code WebUI quick open */}
         <Card title={t("webuiSection")}>
           <p className="text-xs text-content-muted">{t("webuiDesc")}</p>
-          <button
-            type="button"
-            onClick={async () => {
-              try {
-                await invoke("open_kimi_web");
-              } catch (err) {
-                alert(err instanceof Error ? err.message : String(err));
-              }
-            }}
-            className="mt-3 px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-          >
-            {t("openWebUI")}
-          </button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await invoke("open_kimi_web_embedded");
+                } catch (err) {
+                  alert(err instanceof Error ? err.message : String(err));
+                }
+              }}
+              className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            >
+              {t("openWebUIEmbedded")}
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await invoke("open_kimi_web");
+                } catch (err) {
+                  alert(err instanceof Error ? err.message : String(err));
+                }
+              }}
+              className="px-3 py-1.5 text-sm border border-border rounded hover:bg-hover-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            >
+              {t("openWebUIBrowser")}
+            </button>
+          </div>
         </Card>
 
         {/* Subagent: secondary model picker + inherited settings */}

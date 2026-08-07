@@ -79,6 +79,14 @@ jobs:
           releaseBody: |
             ## ${{ github.ref_name }}
 
+            ### 本次更新
+
+            - **高级设置**：原「子代理设置」升级为「高级设置」，聚合子代理模型指定、实验功能开关与 WebUI 快捷入口
+            - **Kimi Code WebUI 应用内嵌窗口**：高级设置页可将新版 Web 界面以**独立顶层窗口**在应用内打开（单例、可缩放，关闭自动清理服务器进程），也可在系统浏览器打开（复用已运行的本地服务器）
+            - **子代理模型指定（实验功能）**：为子代理绑定次主力模型，不再默认继承主模型；实验开关改为滑动开关并修复开启态隐形
+            - **兼容 kimi-code 0.33+（v2 引擎）**：`loop_control` 写入新键名 `max_attempts_per_step`，旧配置自动迁移并保留旧键兼容 `KIMI_CODE_LEGACY_FLAG=1`；hooks 候选补充新事件
+            - models.dev 模型数据同步；官网企业版视觉升级；出品公司标识统一
+
             ### Downloads by platform
 
             - **Windows**: `.msi` installer

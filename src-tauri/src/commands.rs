@@ -7,6 +7,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
+use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 
 fn fmt_anyhow(err: anyhow::Error) -> String {
@@ -950,14 +951,19 @@ pub fn open_installer(app: tauri::AppHandle, path: String) -> Result<(), String>
         .map_err(|e| e.to_string())
 }
 
-/// Launch `kimi web` — starts the local Kimi Code Web UI server and opens it
-/// in the default browser (the code-app web bundle built into kimi-code 0.33+).
-/// The kimi CLI must be on PATH; the spawned process is detached so the server
-/// keeps running while Kimi Switch stays open.
+/// Open the Kimi Code WebUI in the system default browser. Reuses an
+/// already-running local `kimi web` server (embedded window, terminal, …);
+/// otherwise spawns `kimi web`, which starts the server and opens the browser.
 #[tauri::command]
-pub fn open_kimi_web() -> Result<(), String> {
-    use std::process::Command;
-    let mut cmd = Command::new("kimi");
+pub async fn open_kimi_web(app: tauri::AppHandle) -> Result<(), String> {
+    if kimi_web_alive(Duration::from_millis(800)).await {
+        // Server already running — just open the browser at the local origin.
+        return app
+            .opener()
+            .open_url(kimi_web_url(), None::<&str>)
+            .map_err(|e| e.to_string());
+    }
+    let mut cmd = std::process::Command::new("kimi");
     cmd.arg("web");
     #[cfg(windows)]
     {
@@ -974,6 +980,162 @@ pub fn open_kimi_web() -> Result<(), String> {
                 format!("failed to start `kimi web`: {e}")
             }
         })
+}
+
+// ---------------------------------------------------------------------------
+// Kimi Code WebUI — embedded in-app window
+//
+// `open_kimi_web_embedded` opens the Kimi Code Web UI inside a dedicated,
+// independent top-level window (no parent/child relationship with the main
+// window). At most one such window exists: re-invoking focuses it. The local
+// `kimi web` server is reused when already running; otherwise one is spawned
+// (`--no-open`) and terminated when the window closes or the app exits.
+// ---------------------------------------------------------------------------
+
+/// Shared state for the embedded WebUI window and the server we may have spawned.
+#[derive(Default)]
+pub struct KimiWebState {
+    /// The embedded WebUI window (at most one).
+    window: Mutex<Option<tauri::WebviewWindow>>,
+    /// The `kimi web` child spawned by this app (None when reusing a server).
+    child: Mutex<Option<std::process::Child>>,
+}
+
+const KIMI_WEB_PORT: u16 = 58627;
+const KIMI_WEB_ORIGIN: &str = "http://127.0.0.1:58627";
+const KIMI_WEB_WINDOW_LABEL: &str = "kimi-web-ui";
+
+/// Build the Web UI URL; the home-wide bearer token rides in the `#token=`
+/// fragment (same as the `kimi web` ready banner, see kimi-code
+/// `cli/sub/web/access-urls.ts`).
+fn kimi_web_url() -> String {
+    let token = dirs::home_dir()
+        .map(|h| h.join(".kimi-code").join("server.token"))
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    match token {
+        Some(t) => format!("{KIMI_WEB_ORIGIN}/#token={t}"),
+        None => format!("{KIMI_WEB_ORIGIN}/"),
+    }
+}
+
+/// Best-effort probe of the local Kimi web server root.
+async fn kimi_web_alive(timeout: Duration) -> bool {
+    let Ok(client) = reqwest::Client::builder().timeout(timeout).build() else {
+        return false;
+    };
+    client
+        .get(KIMI_WEB_ORIGIN)
+        .send()
+        .await
+        .map(|r| r.status().is_success())
+        .unwrap_or(false)
+}
+
+/// Kill the `kimi web` server spawned by this app (no-op when reusing one).
+pub fn kill_spawned_kimi_web(state: &tauri::State<'_, KimiWebState>) {
+    if let Ok(mut guard) = state.child.lock() {
+        if let Some(mut child) = guard.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+/// Open the Kimi Code WebUI in an embedded, independent top-level window.
+#[tauri::command]
+pub async fn open_kimi_web_embedded(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, KimiWebState>,
+) -> Result<(), String> {
+    // Singleton: focus the existing window instead of creating a second one.
+    if let Ok(guard) = state.window.lock() {
+        if let Some(w) = guard.as_ref() {
+            if w.is_visible().unwrap_or(false) {
+                let _ = w.unminimize();
+                let _ = w.set_focus();
+                return Ok(());
+            }
+        }
+    }
+
+    // Reuse an already-running server, otherwise spawn `kimi web --no-open`.
+    if !kimi_web_alive(Duration::from_millis(800)).await {
+        let mut cmd = std::process::Command::new("kimi");
+        cmd.args(["web", "--no-open", "--port", &KIMI_WEB_PORT.to_string()]);
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW — no console flash
+        }
+        let child = cmd.spawn().map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                "kimi executable not found on PATH — install Kimi Code CLI first".to_string()
+            } else {
+                format!("failed to start `kimi web`: {e}")
+            }
+        })?;
+        if let Ok(mut guard) = state.child.lock() {
+            *guard = Some(child);
+        }
+    }
+
+    // Wait for the server to come up (fresh start takes a moment).
+    if !kimi_web_alive(Duration::from_secs(8)).await {
+        kill_spawned_kimi_web(&state);
+        return Err(format!("kimi web did not come up within 8s ({KIMI_WEB_ORIGIN})"));
+    }
+
+    // Create the window on the main thread (required on macOS).
+    let url: tauri::Url = match kimi_web_url().parse() {
+        Ok(u) => u,
+        Err(_) => return Err("invalid kimi web url".to_string()),
+    };
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let builder_app = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            match tauri::WebviewWindowBuilder::new(
+                &builder_app,
+                KIMI_WEB_WINDOW_LABEL,
+                tauri::WebviewUrl::External(url),
+            )
+            .title("Kimi Code WebUI")
+            .inner_size(1100.0, 750.0)
+            .resizable(true)
+            .center()
+            .build()
+            {
+                Ok(window) => {
+                    // Track the window for the singleton check.
+                    if let Ok(mut guard) = builder_app.state::<KimiWebState>().window.lock() {
+                        *guard = Some(window.clone());
+                    }
+                    // Clean up when the window closes: forget it and stop the
+                    // `kimi web` server we spawned (reused servers are untouched).
+                    let w = window.clone();
+                    window.on_window_event(move |event| match event {
+                        tauri::WindowEvent::Destroyed => {
+                            let app = w.app_handle().clone();
+                            let state = app.state::<KimiWebState>();
+                            if let Ok(mut guard) = state.window.lock() {
+                                *guard = None;
+                            }
+                            kill_spawned_kimi_web(&state);
+                        }
+                        _ => {}
+                    });
+                }
+                Err(_) => {
+                    // Window creation failed (e.g. rapid double-click racing
+                    // the singleton check): don't leak the server we spawned.
+                    kill_spawned_kimi_web(&builder_app.state::<KimiWebState>());
+                }
+            }
+        });
+    });
+    Ok(())
 }
 /// Preference for Linux is AppImage (portable, no install). If the preferred
 /// extension is not present, returns None so the UI can fall back to

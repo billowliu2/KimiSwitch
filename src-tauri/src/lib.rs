@@ -110,6 +110,7 @@ pub fn run() {
             commands::open_installer,
             commands::open_external_url,
             commands::open_kimi_web,
+            commands::open_kimi_web_embedded,
             commands::kimi_oauth_start,
             commands::kimi_oauth_poll,
             commands::get_experimental_env_status,
@@ -123,6 +124,15 @@ pub fn run() {
             dashboard::delete_workspace,
             dashboard::get_session_preview,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .manage(commands::KimiWebState::default())
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|app: &tauri::AppHandle, event| {
+            // Ensure a `kimi web` server spawned for the embedded WebUI window
+            // is stopped when the app exits (windows already destroyed first).
+            if let tauri::RunEvent::Exit = event {
+                let state = app.state::<commands::KimiWebState>();
+                commands::kill_spawned_kimi_web(&state);
+            }
+        });
 }

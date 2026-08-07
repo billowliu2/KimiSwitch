@@ -16,10 +16,10 @@ const zh = {
     performance: "性能",
     changelog: "更新日志",
     download: "下载",
-    downloadBtn: "下载 v0.7.2",
+    downloadBtn: "下载 v0.7.3",
   },
   hero: {
-    badge: "v0.7.2 · 开源 MIT · Windows / macOS / Linux",
+    badge: "v0.7.3 · 开源 MIT · Windows / macOS / Linux",
     titleBefore: "统一管理你的",
     titleAccent: "AI 供应商",
     titleAfter: "",
@@ -141,11 +141,24 @@ const zh = {
     fallbackNote: "内置版本记录",
     entries: [
       {
+        version: "v0.7.3",
+        date: "2026-08-07",
+        items: [
+          "高级设置新增 Kimi Code WebUI 应用内嵌窗口：新版 Web 界面以独立顶层窗口打开（单例、可缩放、居中），不再跳转外部浏览器",
+          "WebUI 两个入口并存：应用内独立窗口 / 系统浏览器（复用已运行的 kimi web 服务器，不重复拉起）",
+          "服务器进程自动管理：自己启动的服务器随窗口关闭/应用退出清理，不留残留；窗口创建失败不再泄漏进程",
+          "最小化窗口再次打开可恢复；发布说明文案同步更新",
+        ],
+      },
+      {
         version: "v0.7.2",
         date: "2026-08-07",
         items: [
+          "「子代理设置」升级为「高级设置」：聚合子代理模型指定、实验功能开关与 WebUI 快捷入口",
+          "新增 Kimi Code WebUI 快捷打开：高级设置页可将新版 Web 界面以独立窗口在应用内打开，也可在系统浏览器打开（kimi-code 0.33+）",
           "子代理模型指定（实验功能）：设置中为子代理选择次主力模型，子代理不再默认继承主模型",
           "实验开关改为滑动开关，修复开启态因样式缺失而不可见的问题",
+          "兼容 kimi-code 0.33+（v2 引擎）：循环控制改用新键 max_attempts_per_step，旧配置自动迁移",
           "models.dev 模型列表与价格数据同步更新",
           "官网企业版视觉升级；出品公司标识统一为 codingplan.site",
           "macOS 安装优化：Release 附带 install-macos.sh 一键脚本，自动清除下载隔离，免去手动右键打开",
@@ -289,7 +302,7 @@ const zh = {
   },
   download: {
     title: "下载 Kimi Switch",
-    subtitle: "当前版本 v0.7.2 · Windows / macOS / Linux 三平台已发布",
+    subtitle: "当前版本 v0.7.3 · Windows / macOS / Linux 三平台已发布",
     autoUpdate: "应用内置自动检测更新，新版本发布后在设置页一键升级。",
     ready: "已发布",
     wip: "开发中",
@@ -357,10 +370,10 @@ const en: Dict = {
     performance: "Performance",
     changelog: "Changelog",
     download: "Download",
-    downloadBtn: "Download v0.7.2",
+    downloadBtn: "Download v0.7.3",
   },
   hero: {
-    badge: "v0.7.2 · Open source MIT · Windows / macOS / Linux",
+    badge: "v0.7.3 · Open source MIT · Windows / macOS / Linux",
     titleBefore: "One app for all your ",
     titleAccent: "AI providers",
     titleAfter: "",
@@ -482,11 +495,24 @@ const en: Dict = {
     fallbackNote: "Built-in release notes",
     entries: [
       {
+        version: "v0.7.3",
+        date: "2026-08-07",
+        items: [
+          "Advanced Settings gains an embedded Kimi Code WebUI window: the new Web UI opens in an independent top-level window (singleton, resizable, centered) instead of the external browser",
+          "Two WebUI entries coexist: in-app independent window / system browser (reuses an already-running kimi web server, no duplicate spawn)",
+          "Server process is managed automatically: servers we start are cleaned up when the window closes or the app exits; a failed window creation no longer leaks the process",
+          "Re-opening focuses and restores a minimized window; release notes wording synced",
+        ],
+      },
+      {
         version: "v0.7.2",
         date: "2026-08-07",
         items: [
+          "Subagent settings upgraded to an Advanced Settings page: subagent model assignment, experimental toggles and a WebUI quick launcher",
+          "New Kimi Code WebUI quick open: open the new Web UI in an independent in-app window from Advanced Settings, or in your system browser (kimi-code 0.33+)",
           "Subagent model assignment (experimental): pick a secondary model for subagents so they no longer inherit the main model by default",
           "Experiment toggle converted to a sliding switch, fixing the invisible enabled state",
+          "Compatible with kimi-code 0.33+ (v2 engine): loop control now writes max_attempts_per_step with auto-migration",
           "models.dev model list and pricing snapshot synced",
           "Enterprise-style website refresh; publisher identity unified as codingplan.site",
           "macOS install polish: releases now ship install-macos.sh, a one-click script that clears the download quarantine",
@@ -629,7 +655,7 @@ const en: Dict = {
   },
   download: {
     title: "Download Kimi Switch",
-    subtitle: "Current version v0.7.2 · Windows, macOS and Linux now released",
+    subtitle: "Current version v0.7.3 · Windows, macOS and Linux now released",
     autoUpdate: "Built-in update detection: upgrade in one click from Settings when a new version ships.",
     ready: "Available",
     wip: "In development",

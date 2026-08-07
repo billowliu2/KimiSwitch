@@ -482,6 +482,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   // Kimi Code WebUI quick open
   webuiSection: "Kimi Code WebUI",
   webuiDesc:
-    "Launch `kimi web` to open the new Web UI in your browser (built into kimi-code 0.33+). Requires the kimi CLI on PATH.",
-  openWebUI: "Open WebUI",
+    "Open the new Web UI in an independent in-app window, or in your system browser (built into kimi-code 0.33+). Requires the kimi CLI on PATH.",
+  openWebUIEmbedded: "Open in App",
+  openWebUIBrowser: "Open in Browser",
 };

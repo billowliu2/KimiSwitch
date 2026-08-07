@@ -1,5 +1,10 @@
 ## v0.7.2
 
+### 高级设置与 WebUI（本次新增）
+
+- 「子代理设置」升级为「**高级设置**」：聚合子代理模型指定、实验功能开关与 WebUI 快捷入口
+- 新增 **Kimi Code WebUI 快捷打开**：高级设置页可将新版 Web 界面以独立窗口在应用内打开，也可在系统浏览器打开（kimi-code 0.33+ 内置 code-app；需要 kimi 命令在 PATH 中）
+
 ### 子代理模型指定（实验功能）
 
 - 新增「子代理模型（次主力模型）」指定：在实验功能设置中为子代理选择次主力模型后，子代理默认绑定该模型，不再继承主模型
@@ -9,6 +14,7 @@
 ### 模型数据与发布
 
 - models.dev 模型列表与价格数据同步更新
+- 兼容 kimi-code 0.33+（v2 引擎）：`loop_control` 改用新键名 `max_attempts_per_step`（旧配置自动迁移，并保留旧键兼容 `KIMI_CODE_LEGACY_FLAG=1`）
 - 官网企业版视觉升级；出品公司标识统一为 codingplan.site
 - macOS 发布优化：Release 附带 `install-macos.sh` 一键安装脚本（见下方说明）
 
