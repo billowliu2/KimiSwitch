@@ -16,10 +16,10 @@ const zh = {
     performance: "性能",
     changelog: "更新日志",
     download: "下载",
-    downloadBtn: "下载 v0.7.3",
+    downloadBtn: "下载 v0.7.4",
   },
   hero: {
-    badge: "v0.7.3 · 开源 MIT · Windows / macOS / Linux",
+    badge: "v0.7.4 · 开源 MIT · Windows / macOS / Linux",
     titleBefore: "统一管理你的",
     titleAccent: "AI 供应商",
     titleAfter: "",
@@ -140,6 +140,15 @@ const zh = {
     syncedNote: "数据已同步 GitHub Releases",
     fallbackNote: "内置版本记录",
     entries: [
+      {
+        version: "v0.7.4",
+        date: "2026-08-09",
+        items: [
+          "仪表盘热力图双击弹窗：双击方块查看当日模型用量分布，每种模型展示 Token / 请求次数 / 费用 / 命中率",
+          "后端 by_model 数据结构升级：从纯 token 数升级为结构化对象，柱状图双击弹窗也同步展示全量指标",
+          "范围外日期不可双击、无放大效果",
+        ],
+      },
       {
         version: "v0.7.3",
         date: "2026-08-07",
@@ -302,7 +311,7 @@ const zh = {
   },
   download: {
     title: "下载 Kimi Switch",
-    subtitle: "当前版本 v0.7.3 · Windows / macOS / Linux 三平台已发布",
+    subtitle: "当前版本 v0.7.4 · Windows / macOS / Linux 三平台已发布",
     autoUpdate: "应用内置自动检测更新，新版本发布后在设置页一键升级。",
     ready: "已发布",
     wip: "开发中",
@@ -371,10 +380,10 @@ const en: Dict = {
     performance: "Performance",
     changelog: "Changelog",
     download: "Download",
-    downloadBtn: "Download v0.7.3",
+    downloadBtn: "Download v0.7.4",
   },
   hero: {
-    badge: "v0.7.3 · Open source MIT · Windows / macOS / Linux",
+    badge: "v0.7.4 · Open source MIT · Windows / macOS / Linux",
     titleBefore: "One app for all your ",
     titleAccent: "AI providers",
     titleAfter: "",
@@ -495,6 +504,15 @@ const en: Dict = {
     syncedNote: "Synced from GitHub Releases",
     fallbackNote: "Built-in release notes",
     entries: [
+      {
+        version: "v0.7.4",
+        date: "2026-08-09",
+        items: [
+          "Dashboard heatmap double-click: click any heatmap cell to see per-model breakdown with Token / requests / cost / cache hit rate",
+          "Backend by_model data structure upgraded from plain token counts to structured objects; bar chart double-click modal also shows full metrics",
+          "Out-of-range dates are not double-clickable and have no hover zoom",
+        ],
+      },
       {
         version: "v0.7.3",
         date: "2026-08-07",
@@ -656,7 +674,7 @@ const en: Dict = {
   },
   download: {
     title: "Download Kimi Switch",
-    subtitle: "Current version v0.7.3 · Windows, macOS and Linux now released",
+    subtitle: "Current version v0.7.4 · Windows, macOS and Linux now released",
     autoUpdate: "Built-in update detection: upgrade in one click from Settings when a new version ships.",
     ready: "Available",
     wip: "In development",

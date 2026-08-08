@@ -1,11 +1,14 @@
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useDashboard, type DashboardRange } from "../../hooks/useDashboard";
 import { useCurrency } from "../../hooks/useCurrency";
 import { useTranslation } from "../../i18n";
 import { fmtInt, fmtPct, fmtTime, fmtTokens } from "../../lib/dashboard-format";
-import { DailyBars } from "./DailyBars";
+import { DailyBars, modelColor } from "./DailyBars";
+import { DailyDetailModal } from "./DailyDetailModal";
 import { Heatmap } from "./Heatmap";
 import { TrendLineChart } from "./TrendLineChart";
+import type { DailyRow, HeatmapCell } from "../../types/dashboard";
 
 const RANGES: DashboardRange[] = ["today", "7d", "30d", "all"];
 
@@ -56,6 +59,14 @@ export function DashboardPage() {
   const [showAllModels, setShowAllModels] = useState(false);
   const [recentPage, setRecentPage] = useState(1);
   const [trendTab, setTrendTab] = useState<"daily" | "model" | "provider">("daily");
+  const [heatmapSelected, setHeatmapSelected] = useState<DailyRow | null>(null);
+
+  const daily = data?.stats.daily ?? [];
+  const detailDates = useMemo(() => new Set(daily.map((d) => d.date)), [daily]);
+  const heatmapColorMap = useMemo(() => {
+    const unique = [...new Set(daily.flatMap((d) => Object.keys(d.byModel || {})))];
+    return Object.fromEntries(unique.map((m, i) => [m, modelColor(i)]));
+  }, [daily]);
 
   const RANGE_LABELS: Record<DashboardRange, string> = {
     today: t("rangeToday"),
@@ -92,12 +103,16 @@ export function DashboardPage() {
   if (!data) return null;
 
   const totals = data.stats.totals;
-  const daily = data.stats.daily;
   const models = data.stats.models;
   const recent = data.stats.recent;
   const heatmap = data.heatmap;
   const rangeTotals = data.rangeTotals;
   const visibleModels = showAllModels ? models : models.slice(0, 8);
+
+  const onHeatmapCellDoubleClick = (cell: HeatmapCell) => {
+    const row = daily.find((d) => d.date === cell.date);
+    if (row) setHeatmapSelected(row);
+  };
 
   // Recent pagination
   const RECENT_PAGE_SIZE = 30;
@@ -206,7 +221,7 @@ export function DashboardPage() {
 
       {/* Heatmap — full row */}
       <Card title={t("cardHeatmap")} subtitle={t("cardHeatmapSub")}>
-        <Heatmap heatmap={heatmap} />
+        <Heatmap heatmap={heatmap} detailDates={detailDates} onCellDoubleClick={onHeatmapCellDoubleClick} />
       </Card>
 
       {/* Usage-trend tabs + Model table side by side */}
@@ -451,6 +466,19 @@ export function DashboardPage() {
           {data.meta.home}
         </div>
       </div>
+
+      {/* Heatmap double-click detail modal */}
+      {heatmapSelected &&
+        createPortal(
+          <DailyDetailModal
+            day={heatmapSelected}
+            dimension="model"
+            colorMap={heatmapColorMap}
+            unknownProviderLabel={t("providerUnknown")}
+            onClose={() => setHeatmapSelected(null)}
+          />,
+          document.body,
+        )}
     </div>
   );
 }

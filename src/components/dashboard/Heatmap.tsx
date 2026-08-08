@@ -7,6 +7,10 @@ import type { HeatmapCell, HeatmapData } from "../../types/dashboard";
 
 interface HeatmapProps {
   heatmap: HeatmapData;
+  /** Set of dates (YYYY-MM-DD) that have detail data in the current range. */
+  detailDates?: Set<string>;
+  /** Called when a cell with detail data is double-clicked. */
+  onCellDoubleClick?: (cell: HeatmapCell) => void;
 }
 
 const LEVEL_BG = [
@@ -30,7 +34,7 @@ interface HoverState {
   y: number;
 }
 
-export function Heatmap({ heatmap }: HeatmapProps) {
+export function Heatmap({ heatmap, detailDates, onCellDoubleClick }: HeatmapProps) {
   const { t, lang } = useTranslation();
   const cells = heatmap?.cells || [];
   const monthLabels = heatmap?.monthLabels || [];
@@ -172,6 +176,7 @@ export function Heatmap({ heatmap }: HeatmapProps) {
                       );
                     }
                     const level = cell.level ?? 0;
+                    const hasDetail = detailDates ? detailDates.has(cell.date) : level > 0;
                     return (
                       <button
                         key={cell.date}
@@ -182,7 +187,8 @@ export function Heatmap({ heatmap }: HeatmapProps) {
                         onMouseLeave={hideTooltip}
                         onFocus={() => showTooltipFromFocus(cell)}
                         onBlur={hideTooltip}
-                        className={`rounded-[3px] ring-1 ring-inset ring-white/5 transition-transform hover:scale-[1.35] focus:scale-[1.35] outline-none ${LEVEL_BG[level] || LEVEL_BG[0]}`}
+                        onDoubleClick={hasDetail && onCellDoubleClick ? () => onCellDoubleClick(cell) : undefined}
+                        className={`rounded-[3px] ring-1 ring-inset ring-white/5 transition-transform outline-none ${LEVEL_BG[level] || LEVEL_BG[0]} ${hasDetail && onCellDoubleClick ? "cursor-pointer hover:scale-[1.35] focus:scale-[1.35]" : "cursor-default"}`}
                         style={{ width: CELL, height: CELL }}
                       />
                     );

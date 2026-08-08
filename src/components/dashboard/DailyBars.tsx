@@ -97,7 +97,12 @@ export function DailyBars({ daily, dimension, names, unknownProviderLabel }: Dai
           const h = Math.max(4, Math.round(((d.totalTokens || 0) / max) * 170));
           const total = d.totalTokens || 1;
 
-          const breakdown = dimension === "provider" ? d.byProvider : d.byModel;
+          const breakdown =
+            dimension === "provider"
+              ? d.byProvider
+              : Object.fromEntries(
+                  Object.entries(d.byModel || {}).map(([k, v]) => [k, v.totalTokens])
+                );
           const segments = Object.entries(breakdown || {})
             .map(([key, tokens]) => ({
               key,

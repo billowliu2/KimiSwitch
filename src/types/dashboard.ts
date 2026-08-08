@@ -13,7 +13,8 @@ export interface TotalsRow {
 
 export interface DailyRow extends TotalsRow {
   date: string;
-  byModel: Record<string, number>;
+  /** Per-model structured breakdown (tokens / requests / cost / cacheHitRate). */
+  byModel: Record<string, TotalsRow>;
   byProvider: Record<string, number>;
   byProviderModel: Record<string, Record<string, number>>;
 }

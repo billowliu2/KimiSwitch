@@ -48,12 +48,15 @@ export function DailyDetailModal({ day, dimension, colorMap, unknownProviderLabe
   const total = day.totalTokens || 1;
   const isProvider = dimension === "provider";
 
-  // Flat per-model breakdown (model tab)
+  // Flat per-model breakdown (model tab) — structured TotalsRow per model
   const modelSegments = Object.entries(day.byModel || {})
-    .map(([model, tokens]) => ({
+    .map(([model, row]) => ({
       model,
-      tokens,
-      pct: (tokens / total) * 100,
+      tokens: row.totalTokens,
+      requests: row.requests,
+      costUsd: row.costUsd,
+      cacheHitRate: row.cacheHitRate,
+      pct: ((row.totalTokens || 0) / total) * 100,
     }))
     .sort((a, b) => b.tokens - a.tokens);
 
@@ -165,20 +168,22 @@ export function DailyDetailModal({ day, dimension, colorMap, unknownProviderLabe
               {modelSegments.length === 0 ? (
                 <div className="py-6 text-center text-sm text-content-muted">{t("noData")}</div>
               ) : (
-                <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                   {modelSegments.map((s, i) => (
-                    <div key={s.model} className="flex items-center gap-3 text-sm">
-                      <span className="inline-block h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: modelColor(i) }} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className="truncate text-content-primary" title={s.model}>{modelName(s.model)}</span>
-                          <span className="shrink-0 text-xs text-content-muted tabular-nums">
-                            {fmtTokens(s.tokens)} <span className="text-content-muted">· {s.pct.toFixed(1)}%</span>
-                          </span>
-                        </div>
-                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-border">
-                          <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(2, s.pct)}%`, backgroundColor: modelColor(i) }} />
-                        </div>
+                    <div key={s.model} className="rounded-lg bg-hover/50 px-3 py-2">
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="inline-block h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: modelColor(i) }} />
+                        <span className="truncate flex-1 text-content-primary" title={s.model}>{modelName(s.model)}</span>
+                        <span className="shrink-0 text-xs text-content-muted tabular-nums">{s.pct.toFixed(1)}%</span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-border">
+                        <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(2, s.pct)}%`, backgroundColor: modelColor(i) }} />
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-content-muted tabular-nums">
+                        <span>{t("totalTokens")}: <span className="text-content-primary font-medium">{fmtTokens(s.tokens)}</span></span>
+                        <span>{t("requests")}: <span className="text-content-primary font-medium">{s.requests.toLocaleString()}</span></span>
+                        {s.costUsd > 0 && <span>{t("cost")}: <span className="text-content-primary font-medium">{money(s.costUsd)}</span></span>}
+                        <span>{t("cacheHitRate")}: <span className="text-content-primary font-medium">{fmtPct(s.cacheHitRate)}</span></span>
                       </div>
                     </div>
                   ))}
