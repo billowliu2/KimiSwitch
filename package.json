@@ -1,7 +1,7 @@
 {
   "name": "kimiswitch",
   "private": true,
-  "version": "0.7.4",
+  "version": "0.7.5",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,6 +9,7 @@
     "build": "tsc && vite build",
     "fetch-models-dev": "node scripts/fetch-models-dev.mjs",
     "preview": "vite preview",
+    "test": "vitest run",
     "tauri": "tauri",
     "pretauri": "node scripts/fetch-models-dev.mjs || echo fetch-models-dev failed, using existing snapshot",
     "tauri-dev": "tauri dev",
@@ -31,6 +32,7 @@
     "postcss": "^8.4.41",
     "tailwindcss": "^3.4.10",
     "typescript": "^5.5.4",
-    "vite": "^5.4.2"
+    "vite": "^5.4.2",
+    "vitest": "^3.2.7"
   }
 }

@@ -117,6 +117,7 @@ pub fn run() {
             dashboard::get_paths,
             dashboard::get_prices,
             dashboard::get_summary,
+            dashboard::get_day_detail,
             dashboard::list_sessions,
             dashboard::archive_session,
             dashboard::unarchive_session,

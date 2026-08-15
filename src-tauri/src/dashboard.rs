@@ -1753,10 +1753,9 @@ pub fn get_summary(home_override: Option<String>, range: Option<String>, refresh
     let t2 = std::time::Instant::now();
     let scan_ms = t1.duration_since(t0).as_secs_f64() * 1000.0;
     let aggregate_ms = t2.duration_since(t1).as_secs_f64() * 1000.0;
-    let total_ms = t2.duration_since(t0).as_secs_f64() * 1000.0;
     eprintln!(
         "[dashboard] get_summary range={} records={} scan={:.0}ms aggregate={:.0}ms total={:.0}ms",
-        r, records.len(), scan_ms, aggregate_ms, total_ms
+        r, records.len(), scan_ms, aggregate_ms, t2.duration_since(t0).as_secs_f64() * 1000.0
     );
 
     SummaryResult {
@@ -1772,6 +1771,68 @@ pub fn get_summary(home_override: Option<String>, range: Option<String>, refresh
         all_model_count,
         range_totals,
     }
+}
+
+/// Aggregate a single calendar day into a `DailyRow` — lazy detail for the
+/// heatmap double-click modal. Returns `None` when the date has no records.
+fn build_day_detail(date: &str, records: &[UsageRecord]) -> Option<DailyRow> {
+    let mut t = TotalsRow::default();
+    let mut by_model: HashMap<String, TotalsRow> = HashMap::new();
+    let mut by_provider_model: HashMap<String, HashMap<String, u64>> = HashMap::new();
+    let mut found = false;
+    for r in records {
+        if day_key(r.time) != date {
+            continue;
+        }
+        found = true;
+        t.add(r);
+        by_model.entry(r.model.clone()).or_default().add(r);
+        let p = r.provider.clone().unwrap_or_else(|| "unknown".to_string());
+        *by_provider_model
+            .entry(p)
+            .or_default()
+            .entry(r.model.clone())
+            .or_insert(0) += r.input_other + r.output + r.input_cache_read + r.input_cache_creation;
+    }
+    if !found {
+        return None;
+    }
+    let ti = t.input_other + t.input_cache_read + t.input_cache_creation;
+    let ch = if ti > 0 { t.input_cache_read as f64 / ti as f64 } else { 0.0 };
+    let by_model: HashMap<String, TotalsRow> = by_model
+        .into_iter()
+        .map(|(k, mut mt)| {
+            let mi = mt.input_other + mt.input_cache_read + mt.input_cache_creation;
+            mt.cache_hit_rate = if mi > 0 { mt.input_cache_read as f64 / mi as f64 } else { 0.0 };
+            (k, mt)
+        })
+        .collect();
+    Some(DailyRow {
+        date: date.to_string(),
+        requests: t.requests,
+        input_other: t.input_other,
+        output: t.output,
+        input_cache_read: t.input_cache_read,
+        input_cache_creation: t.input_cache_creation,
+        cost_usd: t.cost_usd,
+        total_tokens: t.total_tokens,
+        cache_hit_rate: ch,
+        by_model,
+        by_provider: by_provider_model
+            .iter()
+            .map(|(p, m)| (p.clone(), m.values().sum::<u64>()))
+            .collect(),
+        by_provider_model,
+    })
+}
+
+/// Lazy per-day detail for the heatmap double-click modal (fetched on demand,
+/// so `get_summary` stays lean). Returns null when the date has no records.
+#[tauri::command]
+pub fn get_day_detail(home_override: Option<String>, date: String) -> Option<DailyRow> {
+    let home = resolve_kimi_home(home_override);
+    let (records, _) = scan_usage_cached(&home, false);
+    build_day_detail(&date, &records)
 }
 
 #[tauri::command]

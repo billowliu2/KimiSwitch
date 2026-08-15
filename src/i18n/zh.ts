@@ -222,6 +222,7 @@ export const zhTranslations = {
 
   // Daily detail modal
   dayDetail: "每日用量详情",
+  dayDetailNoData: "「{date}」当日无用量数据",
   close: "关闭",
   totalTokens: "总 Token",
   cost: "费用",
@@ -472,7 +473,32 @@ export const zhTranslations = {
   secondaryModelHint:
     "子代理默认绑定的第二份模型配置；未配置时子代理继承主模型；仅保存模型引用，子代理继承该模型的全部设置",
   secondaryModelPriorityHint:
-    "优先级：工具显式 model 参数 > 子代理 profile 的 model_preference > 本配置 > 继承主模型",
+    "优先级（v2）：工具 model 参数（池别名或 primary）> default_model > 继承主模型；（v1 legacy）：工具参数 > model_preference > model > 继承主模型",
+
+  // Subagent model pool (secondary_model v2 keys)
+  secondaryPoolUpgrade: "升级为模型池",
+  secondaryPoolUpgradeDesc:
+    "为旧式配置补写 default_model，与 model 双写一致；之后可继续添加多个池条目",
+  secondaryPoolAddLabel: "添加池条目",
+  secondaryPoolAddPlaceholder: "选择要加入模型池的模型…",
+  secondaryPoolRemove: "移除",
+  secondaryPoolDescPlaceholder: "该模型的子代理路由描述…",
+  secondaryPoolDescHint:
+    "描述会渲染进主 Agent 的工具描述（Agent/AgentSwarm），直接影响主模型挑选子代理模型的路由质量",
+  secondaryPoolForce: "强制使用默认模型",
+  secondaryPoolForceDesc:
+    "开启后所有子代理固定使用默认模型；force 与模型池条目互斥，条目将被移除",
+  secondaryPoolForceOn: "force 已开启：子代理固定使用「{alias}」",
+  secondaryPoolForceConfirm:
+    "开启 force 将移除模型池中的所有条目，只保留默认模型。确定继续？",
+  secondaryModelClear: "不再配置",
+  secondaryModelForceBadge: "force 已开启：子代理固定使用该模型",
+  secondaryPoolErrorPrimaryReserved: "「{alias}」是保留别名，不能用作模型池条目",
+  secondaryPoolErrorDefaultRequired: "存在模型池条目时 default_model 必填",
+  secondaryPoolErrorDefaultNotInPool: "默认模型「{alias}」不在模型池中",
+  secondaryPoolErrorAliasNotInModels: "模型「{alias}」未在 [models] 中注册",
+  secondaryPoolErrorForceRequiresDefault: "开启 force 前必须设置默认模型",
+  secondaryPoolErrorForceExcludesModels: "force 与模型池条目互斥",
 
   // Kimi Code WebUI quick open
   webuiSection: "Kimi Code WebUI",

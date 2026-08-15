@@ -134,13 +134,28 @@ export interface AgentSettings {
 }
 
 /**
- * Kimi Code `[secondary_model]` section of config.toml: the secondary model
- * bound to newly spawned subagents (experimental feature).
- * `model` points at an alias defined in `[models]`; the remaining fields are
- * a patch applied on top of the referenced entry (subagents only).
+ * Kimi Code `[secondary_model]` section of config.toml: the subagent model
+ * pool (experimental feature).
+ *
+ * v2 engine (default) reads the pool keys: `default_model` + `[models]` table
+ * (alias → description) + `force`. `model` is ignored by the v2 validator when
+ * pool keys are present, but is kept in sync with `default_model` so the v1
+ * engine (KIMI_CODE_LEGACY_FLAG=1) resolves the same alias.
+ *
+ * v1 engine reads only the recipe key `model` plus the patch fields; pool keys
+ * are ignored by it. Pool resolution order: `models` table → `default_model` →
+ * `model`.
  */
 export interface SecondaryModelConfig {
+  /** v2: default subagent alias in the pool (a key of `models`). */
+  default_model?: string;
+  /** v2: alias → description table for the subagent model pool. */
+  models?: Record<string, string>;
+  /** v2: force subagents onto the default alias (excludes `models`). */
+  force?: boolean;
+  /** Legacy v1 recipe key — written in sync so KIMI_CODE_LEGACY_FLAG=1 works. */
   model?: string;
+  /** v1 patch fields, applied on top of the referenced entry (v1 only). */
   default_effort?: string;
   max_output_size?: number;
   max_context_size?: number;

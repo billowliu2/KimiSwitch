@@ -227,6 +227,7 @@ export const enTranslations: Record<TranslationKey, string> = {
 
   // Daily detail modal
   dayDetail: "Daily usage detail",
+  dayDetailNoData: "No usage data for {date}",
   close: "Close",
   totalTokens: "Total tokens",
   cost: "Cost",
@@ -477,7 +478,35 @@ export const enTranslations: Record<TranslationKey, string> = {
   secondaryModelHint:
     "Second model config bound to subagents by default; when unset, subagents inherit the primary model. Only the model reference is stored; subagents inherit all of that model's settings",
   secondaryModelPriorityHint:
-    "Priority: explicit tool model param > profile model_preference > this config > inherit primary model",
+    "Priority (v2): tool model param (pool alias or primary) > default_model > inherit primary; (v1 legacy): tool param > model_preference > model > inherit primary",
+
+  // Subagent model pool (secondary_model v2 keys)
+  secondaryPoolUpgrade: "Upgrade to model pool",
+  secondaryPoolUpgradeDesc:
+    "Writes default_model in sync with model (dual-write for both engines); more pool entries can be added afterwards",
+  secondaryPoolAddLabel: "Add pool entry",
+  secondaryPoolAddPlaceholder: "Select a model to add to the pool…",
+  secondaryPoolRemove: "Remove",
+  secondaryPoolDescPlaceholder: "Subagent routing description for this model…",
+  secondaryPoolDescHint:
+    "The description is rendered into the main agent's tool description (Agent/AgentSwarm) and directly affects how well the main model routes to subagent models",
+  secondaryPoolForce: "Force default model",
+  secondaryPoolForceDesc:
+    "When enabled, all subagents are forced onto the default model; force excludes pool entries, which are removed",
+  secondaryPoolForceOn: "Force is on: subagents always use \"{alias}\"",
+  secondaryPoolForceConfirm:
+    "Enabling force removes every pool entry, keeping only the default model. Continue?",
+  secondaryModelClear: "Clear subagent config",
+  secondaryModelForceBadge: "Force on: subagents always use this model",
+  secondaryPoolErrorPrimaryReserved:
+    "\"{alias}\" is a reserved alias and cannot be a pool entry",
+  secondaryPoolErrorDefaultRequired: "default_model is required when pool entries exist",
+  secondaryPoolErrorDefaultNotInPool: "Default model \"{alias}\" is not in the pool",
+  secondaryPoolErrorAliasNotInModels: "Model \"{alias}\" is not registered in [models]",
+  secondaryPoolErrorForceRequiresDefault:
+    "A default model is required before enabling force",
+  secondaryPoolErrorForceExcludesModels:
+    "force is mutually exclusive with pool entries",
 
   // Kimi Code WebUI quick open
   webuiSection: "Kimi Code WebUI",

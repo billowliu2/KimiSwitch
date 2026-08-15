@@ -1,10 +1,11 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { invoke } from "@tauri-apps/api/core";
 import { useDashboard, type DashboardRange } from "../../hooks/useDashboard";
 import { useCurrency } from "../../hooks/useCurrency";
 import { useTranslation } from "../../i18n";
 import { fmtInt, fmtPct, fmtTime, fmtTokens } from "../../lib/dashboard-format";
-import { DailyBars, modelColor } from "./DailyBars";
+import { DailyBars } from "./DailyBars";
 import { DailyDetailModal } from "./DailyDetailModal";
 import { Heatmap } from "./Heatmap";
 import { TrendLineChart } from "./TrendLineChart";
@@ -62,11 +63,6 @@ export function DashboardPage() {
   const [heatmapSelected, setHeatmapSelected] = useState<DailyRow | null>(null);
 
   const daily = data?.stats.daily ?? [];
-  const detailDates = useMemo(() => new Set(daily.map((d) => d.date)), [daily]);
-  const heatmapColorMap = useMemo(() => {
-    const unique = [...new Set(daily.flatMap((d) => Object.keys(d.byModel || {})))];
-    return Object.fromEntries(unique.map((m, i) => [m, modelColor(i)]));
-  }, [daily]);
 
   const RANGE_LABELS: Record<DashboardRange, string> = {
     today: t("rangeToday"),
@@ -109,9 +105,21 @@ export function DashboardPage() {
   const rangeTotals = data.rangeTotals;
   const visibleModels = showAllModels ? models : models.slice(0, 8);
 
-  const onHeatmapCellDoubleClick = (cell: HeatmapCell) => {
-    const row = daily.find((d) => d.date === cell.date);
-    if (row) setHeatmapSelected(row);
+  const onHeatmapCellDoubleClick = async (cell: HeatmapCell) => {
+    try {
+      const row = await invoke<DailyRow | null>("get_day_detail", {
+        date: cell.date,
+      });
+      if (row) {
+        setHeatmapSelected(row);
+      } else {
+        setHeatmapSelected(null);
+        alert(t("dayDetailNoData", { date: cell.date }));
+      }
+    } catch (err) {
+      setHeatmapSelected(null);
+      alert(err instanceof Error ? err.message : String(err));
+    }
   };
 
   // Recent pagination
@@ -221,7 +229,7 @@ export function DashboardPage() {
 
       {/* Heatmap — full row */}
       <Card title={t("cardHeatmap")} subtitle={t("cardHeatmapSub")}>
-        <Heatmap heatmap={heatmap} detailDates={detailDates} onCellDoubleClick={onHeatmapCellDoubleClick} />
+        <Heatmap heatmap={heatmap} onCellDoubleClick={onHeatmapCellDoubleClick} />
       </Card>
 
       {/* Usage-trend tabs + Model table side by side */}
@@ -473,7 +481,7 @@ export function DashboardPage() {
           <DailyDetailModal
             day={heatmapSelected}
             dimension="model"
-            colorMap={heatmapColorMap}
+            colorMap={{}}
             unknownProviderLabel={t("providerUnknown")}
             onClose={() => setHeatmapSelected(null)}
           />,
