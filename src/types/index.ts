@@ -163,3 +163,44 @@ export interface SecondaryModelConfig {
 
 /** Values of experimental env vars that are currently set (non-empty). */
 export type ExperimentalEnvStatus = Record<string, string>;
+
+/**
+ * A plugin installed under the kimi-code plugin directory
+ * (mirrors the Rust `InstalledPluginInfo`, camelCase via serde).
+ */
+export interface InstalledPluginInfo {
+  id: string;
+  root: string;
+  source: string;
+  enabled: boolean;
+  version: string | null;
+  installedAt: string | null;
+  updatedAt: string | null;
+  /** Whether the plugin came from the marketplace catalog (vs. manual install). */
+  isMarketplace: boolean;
+}
+
+/** One entry of the plugin marketplace catalog (mirrors Rust `MarketplaceEntry`). */
+export interface MarketplaceEntry {
+  id: string;
+  displayName: string;
+  version: string | null;
+  description: string | null;
+  keywords: string[];
+  homepage: string | null;
+  /** "official" | "curated" | anything else → community. */
+  tier: string;
+  /** Install source (URL / path) passed to `install_plugin`. */
+  source: string;
+  /** Non-null → must be installed inside kimi-code via /plugins, not here. */
+  capabilityId: string | null;
+  installed: InstalledPluginInfo | null;
+  updateAvailable: boolean;
+}
+
+/** Result of `get_plugin_marketplace` (mirrors Rust `PluginMarketplaceResult`). */
+export interface PluginMarketplaceResult {
+  fetchedAt: string;
+  fromCache: boolean;
+  entries: MarketplaceEntry[];
+}

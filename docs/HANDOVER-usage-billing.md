@@ -111,7 +111,7 @@ Rust：
 
 ## 三、悬而未决（用户已知情，待决定）
 
-1. **OpenCode Go 账单查询**：已实测全部端点 404（`/zen/go/v1/usages`、`/api/usage`、`/api/billing` 等 12+ 路径），cc-switch 源码也不支持 → **结论：无公开 API，不可查**。文档已记录。
+1. **OpenCode Go 账单查询**：~~已实测全部端点 404（`/zen/go/v1/usages`、`/api/usage`、`/api/billing` 等 12+ 路径），cc-switch 源码也不支持 → 结论：无公开 API，不可查~~。**2026-08 推翻**：`GET https://opencode.ai/zen/go/v1/usage`（Bearer + 显式浏览器 UA，否则 Cloudflare 1010 拦截 403）实测 200，已实现为 `plan:opencode_go`（滚动 5h / 周 / 月三窗口）。
 2. **Kimi login 配 API key**：可以，代码已支持（api_key 优先于 OAuth）。但 managed 供应商编辑页隐藏 key 输入框（`ProviderEdit.tsx:301` `{!provider.managed && ...}`）。选项：① 用户新建 kimi-coding 预设供应商填 key；② 改 UI 让 managed 显示可选 key 输入。
 3. **OAuth refresh**：**已实现**（批次 4）。过期自动用 refresh_token 换新并写回凭据文件；单 flight 锁 + 写回前重读防 CLI 竞态。已知边界：若 access token 未过期但被服务端吊销（罕见），401 不会触发重读重试——暂不处理。
 4. **NewAPI 面板自动探测**：打开配置面板时探测 `{base}/api/status` 含 `quota_per_unit` → 自动预选 NewAPI 模板。已提议，未确认。

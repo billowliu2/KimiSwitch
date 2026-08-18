@@ -11,9 +11,9 @@ type TranslateFn = (
  *
  * Coverage note: ALL plan-type (套餐) queries flow through
  * src-tauri/src/services/coding_plan.rs::percent_tier, whose names come only
- * from TIER_FIVE_HOUR / TIER_WEEKLY_LIMIT — so this mapping covers every
- * current and future plan provider automatically. If a new tier id is ever
- * added there, add a case here too.
+ * from TIER_FIVE_HOUR / TIER_WEEKLY_LIMIT / TIER_MONTHLY_LIMIT — so this
+ * mapping covers every current and future plan provider automatically. If a
+ * new tier id is ever added there, add a case here too.
  */
 export function planLabel(name: string, t: TranslateFn): string {
   switch (name) {
@@ -21,6 +21,8 @@ export function planLabel(name: string, t: TranslateFn): string {
       return t("usageTier5h");
     case "weekly_limit":
       return t("usageTierWeekly");
+    case "monthly_limit":
+      return t("usageTierMonthly");
     default:
       return name;
   }

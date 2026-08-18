@@ -37,16 +37,35 @@ pub(crate) enum Fetched {
 ///
 /// 先 `bytes()` 再解析：读体失败（超时/连接中断）是瞬时 → Err；拿到完整响应体
 /// 后解析失败才是确定性。reqwest 的 `.json()` 把读体错误也包成 decode，无法区分。
+///
+/// 默认不带 User-Agent；需要自定义 UA 的供应商（如 opencode.ai 有 Cloudflare
+/// 1010 拦截，必须带浏览器 UA）走 [`get_json_with_ua`]。
 pub(crate) async fn get_json(
     url: &str,
     api_key: &str,
     auth: AuthStyle,
     timeout: Duration,
 ) -> Result<Fetched, String> {
-    let client = reqwest::Client::builder()
-        .timeout(timeout)
-        .build()
-        .map_err(|e| format!("Failed to build HTTP client: {e}"))?;
+    get_json_with_ua(url, api_key, auth, timeout, None).await
+}
+
+/// [`get_json`] 的 UA 变体：`user_agent` 为 `Some` 时设到 client 上。
+/// 仅新增链路需要，现有调用方不受影响。
+pub(crate) async fn get_json_with_ua(
+    url: &str,
+    api_key: &str,
+    auth: AuthStyle,
+    timeout: Duration,
+    user_agent: Option<&str>,
+) -> Result<Fetched, String> {
+    let mut builder = reqwest::Client::builder().timeout(timeout);
+    if let Some(ua) = user_agent {
+        builder = builder.user_agent(ua);
+    }
+    let client = match builder.build() {
+        Ok(c) => c,
+        Err(e) => return Err(format!("Failed to build HTTP client: {e}")),
+    };
 
     // 注意：api_key 只允许进请求头，严禁拼进 URL / 日志 / 错误信息。
     let req = client.get(url).header("Accept", "application/json");

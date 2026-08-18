@@ -13006,6 +13006,21 @@
           "output_limit": 8192
         },
         {
+          "id": "zai-org/glm-5.3:thinking",
+          "name": "GLM 5.3 Preview Thinking",
+          "cost": {
+            "input": 1.4,
+            "output": 4.4,
+            "cache_read": 0.26
+          },
+          "context": 1048576,
+          "input_limit": 1048576,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true
+        },
+        {
           "id": "zai-org/glm-5-original:thinking",
           "name": "GLM 5 Original Thinking",
           "cost": {
@@ -13198,6 +13213,21 @@
             "input": 0.42,
             "output": 1.32,
             "cache_read": 0.078
+          },
+          "context": 1048576,
+          "input_limit": 1048576,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true
+        },
+        {
+          "id": "zai-org/glm-5.3",
+          "name": "GLM 5.3 Preview",
+          "cost": {
+            "input": 1.4,
+            "output": 4.4,
+            "cache_read": 0.26
           },
           "context": 1048576,
           "input_limit": 1048576,
@@ -24348,9 +24378,8 @@
           "id": "qwen/qwen-plus-2025-07-28:thinking",
           "name": "Qwen Plus 0728 (thinking)",
           "cost": {
-            "input": 0.4,
-            "output": 1.2,
-            "cache_write": 0.5
+            "input": 0.26,
+            "output": 0.78
           },
           "context": 1000000,
           "output_limit": 32768,
@@ -56152,10 +56181,10 @@
           "id": "gemini-3.1-flash-lite@eu",
           "name": "Gemini 3.1 Flash Lite (EU)",
           "cost": {
-            "input": 0.25,
-            "output": 1.5,
-            "cache_read": 0.025,
-            "cache_write": 0.08333
+            "input": 0.275,
+            "output": 1.65,
+            "cache_read": 0.0275,
+            "cache_write": 0.091663
           },
           "context": 1048576,
           "output_limit": 65535,
@@ -56357,10 +56386,10 @@
           "id": "gemini-3.5-flash@eu",
           "name": "Gemini 3.5 Flash (EU)",
           "cost": {
-            "input": 1.5,
-            "output": 9,
-            "cache_read": 0.15,
-            "cache_write": 1.583
+            "input": 1.65,
+            "output": 9.9,
+            "cache_read": 0.165,
+            "cache_write": 1.7413
           },
           "context": 1048576,
           "output_limit": 65535,
@@ -56409,7 +56438,7 @@
             "input": 5.5,
             "output": 27.5,
             "cache_read": 0.55,
-            "cache_write": 6.88
+            "cache_write": 6.875
           },
           "context": 1000000,
           "output_limit": 128000,
@@ -56590,9 +56619,9 @@
           "id": "gemini-3.7-flash@eu",
           "name": "Gemini 3.7 Flash (EU)",
           "cost": {
-            "input": 0.75,
-            "output": 3.75,
-            "cache_read": 0.075
+            "input": 0.825,
+            "output": 4.125,
+            "cache_read": 0.0825
           },
           "context": 1048576,
           "output_limit": 65535,
@@ -81769,9 +81798,8 @@
           "id": "qwen/qwen-plus-2025-07-28:thinking",
           "name": "Qwen: Qwen Plus 0728 (thinking)",
           "cost": {
-            "input": 0.4,
-            "output": 1.2,
-            "cache_write": 0.5
+            "input": 0.26,
+            "output": 0.78
           },
           "context": 1000000,
           "output_limit": 32768,

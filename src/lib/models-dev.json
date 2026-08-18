@@ -10428,6 +10428,18 @@
       "cache_read": 0.2465
     }
   },
+  "nano-gpt/zai-org/glm-5.3:thinking": {
+    "name": "GLM 5.3 Preview Thinking",
+    "context": 1048576,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 1.4,
+      "output": 4.4,
+      "cache_read": 0.26
+    }
+  },
   "nano-gpt/zai-org/glm-5-original:thinking": {
     "name": "GLM 5 Original Thinking",
     "context": 200000,
@@ -10585,6 +10597,18 @@
       "input": 0.42,
       "output": 1.32,
       "cache_read": 0.078
+    }
+  },
+  "nano-gpt/zai-org/glm-5.3": {
+    "name": "GLM 5.3 Preview",
+    "context": 1048576,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 1.4,
+      "output": 4.4,
+      "cache_read": 0.26
     }
   },
   "nano-gpt/zai-org/glm-4.7-flash-original:thinking": {
@@ -19817,9 +19841,8 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.4,
-      "output": 1.2,
-      "cache_write": 0.5
+      "input": 0.26,
+      "output": 0.78
     }
   },
   "openrouter/qwen/qwen3-235b-a22b-thinking-2507": {
@@ -46199,10 +46222,10 @@
     "image": true,
     "video": true,
     "cost": {
-      "input": 0.25,
-      "output": 1.5,
-      "cache_read": 0.025,
-      "cache_write": 0.08333
+      "input": 0.275,
+      "output": 1.65,
+      "cache_read": 0.0275,
+      "cache_write": 0.091663
     }
   },
   "requesty/gpt-5@eu": {
@@ -46375,10 +46398,10 @@
     "image": true,
     "video": true,
     "cost": {
-      "input": 1.5,
-      "output": 9,
-      "cache_read": 0.15,
-      "cache_write": 1.583
+      "input": 1.65,
+      "output": 9.9,
+      "cache_read": 0.165,
+      "cache_write": 1.7413
     }
   },
   "requesty/claude-sonnet-5@eu": {
@@ -46420,7 +46443,7 @@
       "input": 5.5,
       "output": 27.5,
       "cache_read": 0.55,
-      "cache_write": 6.88
+      "cache_write": 6.875
     }
   },
   "requesty/claude-opus-4-7@eu": {
@@ -46578,9 +46601,9 @@
     "image": true,
     "video": true,
     "cost": {
-      "input": 0.75,
-      "output": 3.75,
-      "cache_read": 0.075
+      "input": 0.825,
+      "output": 4.125,
+      "cache_read": 0.0825
     }
   },
   "requesty/gpt-5.4@eu": {
@@ -67604,9 +67627,8 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.4,
-      "output": 1.2,
-      "cache_write": 0.5
+      "input": 0.26,
+      "output": 0.78
     }
   },
   "kilo/qwen/qwen3-235b-a22b-thinking-2507": {

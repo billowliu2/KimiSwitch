@@ -345,7 +345,10 @@ pub struct UsageRecord {
 // Helpers
 // ---------------------------------------------------------------------------
 
-fn resolve_kimi_home(override_path: Option<String>) -> PathBuf {
+/// Resolve the Kimi Code home directory: explicit override, then
+/// `KIMI_CODE_HOME`, then the default `~/.kimi-code`. Shared with the plugin
+/// marketplace module (`crate::plugins`).
+pub(crate) fn resolve_kimi_home(override_path: Option<String>) -> PathBuf {
     if let Some(p) = override_path {
         if !p.trim().is_empty() {
             return PathBuf::from(p);

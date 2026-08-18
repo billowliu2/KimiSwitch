@@ -6,6 +6,7 @@ pub mod kimi_code_io;
 pub mod models;
 pub mod oauth;
 pub mod pi_io;
+pub mod plugins;
 pub mod services;
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -124,6 +125,11 @@ pub fn run() {
             dashboard::delete_session,
             dashboard::delete_workspace,
             dashboard::get_session_preview,
+            plugins::get_plugin_marketplace,
+            plugins::list_installed_plugins,
+            plugins::install_plugin,
+            plugins::set_plugin_enabled,
+            plugins::remove_plugin,
         ])
         .manage(commands::KimiWebState::default())
         .build(tauri::generate_context!())

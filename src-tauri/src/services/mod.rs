@@ -3,7 +3,7 @@
 
 //! 供应商账单/用量查询统一入口。
 //!
-//! - [`UsageKind`]：8 种查询类型，字符串形式与前端 / SQLite settings 约定一致
+//! - [`UsageKind`]：11 种查询类型，字符串形式与前端 / SQLite settings 约定一致
 //!   （如 `"balance:deepseek"`、`"plan:kimi_coding"`）。
 //! - [`detect_provider`]：按 base_url host 子串匹配，旧用户无显式配置时自动识别。
 //! - [`query_kind`]：按 kind 路由到 balance / coding_plan 的具体实现。
@@ -26,6 +26,7 @@ pub enum UsageKind {
     PlanKimiCoding,
     PlanZhipu,
     PlanMinimax,
+    PlanOpencodeGo,
 }
 
 impl UsageKind {
@@ -42,10 +43,11 @@ impl UsageKind {
             UsageKind::PlanKimiCoding => "plan:kimi_coding",
             UsageKind::PlanZhipu => "plan:zhipu",
             UsageKind::PlanMinimax => "plan:minimax",
+            UsageKind::PlanOpencodeGo => "plan:opencode_go",
         }
     }
 
-    pub const ALL: [UsageKind; 10] = [
+    pub const ALL: [UsageKind; 11] = [
         UsageKind::BalanceDeepseek,
         UsageKind::BalanceSiliconflow,
         UsageKind::BalanceOpenrouter,
@@ -56,6 +58,7 @@ impl UsageKind {
         UsageKind::PlanKimiCoding,
         UsageKind::PlanZhipu,
         UsageKind::PlanMinimax,
+        UsageKind::PlanOpencodeGo,
     ];
 }
 
@@ -74,6 +77,7 @@ impl std::str::FromStr for UsageKind {
             "plan:kimi_coding" => UsageKind::PlanKimiCoding,
             "plan:zhipu" => UsageKind::PlanZhipu,
             "plan:minimax" => UsageKind::PlanMinimax,
+            "plan:opencode_go" => UsageKind::PlanOpencodeGo,
             _ => return Err(()),
         })
     }
@@ -112,6 +116,10 @@ pub fn detect_provider(base_url: &str) -> Vec<UsageKind> {
     }
     if url.contains("api.minimaxi.com") {
         kinds.push(UsageKind::PlanMinimax);
+    }
+    // OpenCode Go 套餐：只认 /zen/go 路径；/zen/v1（OpenCode Zen 按量付费）不得命中。
+    if url.contains("/zen/go") {
+        kinds.push(UsageKind::PlanOpencodeGo);
     }
     kinds
 }
@@ -166,6 +174,7 @@ pub async fn query_kind(
         UsageKind::PlanMinimax => {
             coding_plan::query_minimax(api_key, !lower.contains("minimax.io"), timeout).await
         }
+        UsageKind::PlanOpencodeGo => coding_plan::query_opencode_go(api_key, timeout).await,
     }
 }
 
@@ -175,7 +184,7 @@ mod tests {
 
     #[test]
     fn detect_provider_maps_known_hosts() {
-        let cases: [(&str, UsageKind); 9] = [
+        let cases: [(&str, UsageKind); 10] = [
             ("https://api.deepseek.com/v1", UsageKind::BalanceDeepseek),
             ("https://api.siliconflow.cn/v1", UsageKind::BalanceSiliconflow),
             ("https://openrouter.ai/api/v1", UsageKind::BalanceOpenrouter),
@@ -188,6 +197,7 @@ mod tests {
                 UsageKind::PlanZhipu,
             ),
             ("https://api.minimaxi.com/v1", UsageKind::PlanMinimax),
+            ("https://opencode.ai/zen/go/v1", UsageKind::PlanOpencodeGo),
         ];
         for (url, expected) in cases {
             assert_eq!(
@@ -210,6 +220,22 @@ mod tests {
         assert!(detect_provider("").is_empty());
         // api.kimi.com 但无 /coding 路径 → 不命中套餐查询，也不命中 Moonshot 余额
         assert!(detect_provider("https://api.kimi.com/v1").is_empty());
+    }
+
+    #[test]
+    fn detect_provider_opencode_go_excludes_payg_zen() {
+        // /zen/go 命中套餐查询
+        assert_eq!(
+            detect_provider("https://opencode.ai/zen/go/v1"),
+            vec![UsageKind::PlanOpencodeGo]
+        );
+        // /zen/v1（OpenCode Zen 按量付费）不得命中
+        assert!(detect_provider("https://opencode.ai/zen/v1").is_empty());
+        // 裸域名也命中（go 套餐 base 无 v1 后缀时）
+        assert_eq!(
+            detect_provider("https://opencode.ai/zen/go"),
+            vec![UsageKind::PlanOpencodeGo]
+        );
     }
 
     #[test]

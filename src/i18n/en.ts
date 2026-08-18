@@ -422,6 +422,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   usageUnsupportedProvider: "This provider is not supported by auto query",
   usageTier5h: "5-hour",
   usageTierWeekly: "Weekly",
+  usageTierMonthly: "Monthly",
   usageErrNoKey: "No API key configured",
   usageErrDisabled: "Usage query is disabled in the config panel",
   usageErrLoginExpired: "Kimi Code login expired and auto-refresh failed; run `kimi login` again",
@@ -514,4 +515,51 @@ export const enTranslations: Record<TranslationKey, string> = {
     "Open the new Web UI in an independent in-app window, or in your system browser (built into kimi-code 0.33+). Requires the kimi CLI on PATH.",
   openWebUIEmbedded: "Open in App",
   openWebUIBrowser: "Open in Browser",
+
+  // Plugin marketplace
+  pluginMarketplace: "Plugin Marketplace",
+  pluginMarketplaceSubtitle:
+    "Browse and install Kimi Code plugins — official and community, with install, update, and enable/disable management.",
+  pluginSearchPlaceholder: "Search by name, description, keyword, or ID…",
+  pluginSectionInstalled: "Installed",
+  pluginSectionOfficial: "Official",
+  pluginSectionCommunity: "Community",
+  pluginCustomInstall: "Custom",
+  pluginUpdateAvailable: "Update available",
+  pluginCapabilityRequired: "Install inside kimi-code (/plugins)",
+  pluginInstall: "Install",
+  pluginUpdate: "Update",
+  pluginEnable: "Enable",
+  pluginDisable: "Disable",
+  pluginRemove: "Remove",
+  pluginInstalling: "Installing…",
+  pluginUpdating: "Updating…",
+  pluginToggling: "Switching…",
+  pluginRemoving: "Removing…",
+  pluginTrustTitle: "Install third-party plugin?",
+  pluginTrustDesc:
+    "This plugin comes from {source}. Plugins can contribute MCP tools, hooks, and commands, and may access your sessions and files. Only install from sources you trust.",
+  pluginTrustInstall: "Trust & install",
+  pluginRemoveTitle: "Remove plugin?",
+  pluginRemoveConfirm:
+    "Remove \"{name}\"? Run /reload in kimi-code or start a new session afterwards to apply.",
+  pluginInstalledMsg:
+    "\"{name}\" installed. Run /reload in kimi-code or start a new session to apply.",
+  pluginUpdatedMsg:
+    "\"{name}\" updated. Run /reload in kimi-code or start a new session to apply.",
+  pluginEnabledMsg:
+    "\"{name}\" enabled. Run /reload in kimi-code or start a new session to apply.",
+  pluginDisabledMsg:
+    "\"{name}\" disabled. Run /reload in kimi-code or start a new session to apply.",
+  pluginRemovedMsg:
+    "\"{name}\" removed. Run /reload in kimi-code or start a new session to apply.",
+  pluginCopyReload: "Copy /reload",
+  pluginReloadCopied: "Copied",
+  pluginCacheNotice: "Showing cached data (fetched {time})",
+  pluginCatalogFailed:
+    "Failed to load the plugin catalog; showing locally installed plugins",
+  pluginInstalledListFailed: "Failed to load the installed plugin list",
+  pluginEmptyResults: "No matching plugins",
+  pluginNoPlugins: "No plugins available",
+  pluginHomepage: "Homepage",
 };

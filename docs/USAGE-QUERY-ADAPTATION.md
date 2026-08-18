@@ -8,11 +8,11 @@
 
 ## 1. 结论速览
 
-- **KimiSwitch 的账单查询不是空白**：已移植 cc-switch 的「余额查询（Balance）+ 套餐查询（Coding Plan）」两大块，共 **8 种 `usageKinds`**，Rust 侧闭环 + `UsageFooter` 展示，错误通道、keep-last-good、缓存、`detect_provider` 自动识别等核心设计均与 cc-switch 对齐。
+- **KimiSwitch 的账单查询不是空白**：已移植 cc-switch 的「余额查询（Balance）+ 套餐查询（Coding Plan）」两大块，共 **11 种 `usageKinds`**，Rust 侧闭环 + `UsageFooter` 展示，错误通道、keep-last-good、缓存、`detect_provider` 自动识别等核心设计均与 cc-switch 对齐。
 - **OpenCode 本身不提供账单/额度查询**。它只负责"定义"供应商与订阅套餐的接入方式（provider id、base URL、认证、模型清单，数据源为 models.dev），"套餐还剩下多少"需要查各家官方 API——这正是 cc-switch（及 KimiSwitch 已移植部分）做的事。
-- **本次调研发现 2 个值得补的能力缺口**：
+- **本次调研发现的能力缺口**：
   1. **Kimi 开放平台余额查询**（`GET https://api.moonshot.cn/v1/users/me/balance`，Kimi 官方 2026-07 新增公开 API，cc-switch 尚未实现）→ **KimiSwitch 也缺**。
-  2. **OpenCode Go 订阅套餐额度**（5h / 周 / 月 三窗口）→ 无公开查询 API，只有控制台，暂不可程序化。
+  2. **OpenCode Go 订阅套餐额度**（5h / 周 / 月 三窗口）→ 调研时结论为"无公开 API"；2026-08 已实测 `GET https://opencode.ai/zen/go/v1/usage`（Bearer）可用并已实现（见 §4.4）。
 - 其余缺口（ZenMux / 火山方舟 / 智谱团队版 / JS 脚本引擎 / 官方 OAuth 订阅）为 cc-switch 独有能力，与"做好现有账单查询"的目标匹配度分层，见 §6 路线。
 
 ---
@@ -26,7 +26,7 @@ ProviderList (前端)
   └─ UsageFooter ── invoke("query_provider_usage", { agent, providerName, forceRefresh })
                      └─ Rust commands.rs:590 ── services::query_kind(kind, base_url, api_key)
                                                 ├─ balance.rs      （余额，5 家）
-                                                └─ coding_plan.rs  （套餐，3 家）
+                                                └─ coding_plan.rs  （套餐，4 家）
 ```
 
 - 前端**永不持有 API key、不直连 HTTP**；所有请求在 Rust 侧用 reqwest 完成（无浏览器 CORS 问题）。
@@ -45,6 +45,7 @@ ProviderList (前端)
 | `plan:kimi_coding` | **Kimi For Coding** | `GET https://api.kimi.com/coding/v1/usages` | Bearer | ✅ |
 | `plan:zhipu` | **GLM Coding Plan**（bigmodel.cn / z.ai） | `GET {open.bigmodel.cn\|api.z.ai}/api/monitor/usage/quota/limit` | **Raw key（无 Bearer）** | ✅ |
 | `plan:minimax` | MiniMax Token Plan (.com/.io) | `GET https://api.minimaxi.com\|.io/v1/api/openplatform/coding_plan/remains` | Bearer | ✅ |
+| `plan:opencode_go` | **OpenCode Go** | `GET https://opencode.ai/zen/go/v1/usage` | Bearer（须带浏览器 UA） | ✅ |
 
 已有预设（`providerPresets.ts`）：`kimi-coding`（`plan:kimi_coding`）、`zhipu-coding` / `zai-coding`（`plan:zhipu`）、`minimax` / `minimax-token-plan`（`plan:minimax`）、`deepseek` / `stepfun` / `siliconflow` / `novita` / `openrouter`（余额）。
 
@@ -54,7 +55,7 @@ ProviderList (前端)
 
 ```ts
 interface UsageData {
-  planName?: string | null;   // 套餐名：five_hour / weekly_limit
+  planName?: string | null;   // 套餐名：five_hour / weekly_limit / monthly_limit
   remaining?: number | null;  // 余额：金额（balance）或剩余百分比（plan）
   total?: number | null;      // 总量（plan 恒为 100）
   used?: number | null;       // 已用百分比 0-100（plan）
@@ -101,7 +102,7 @@ OpenCode（sst/opencode）通过 `~/.config/opencode/opencode.json` 的 `provide
 
 额度按美元计费价值计算（不同模型折算请求数不同）。超出限额后可选"Use balance"回退到 Zen 余额。
 
-**查询方式：仅控制台（console），无公开 REST API**。OpenCode 项目本身不做用量查询（无 usage/billing 命令），社区工具（如 cc-switch 的 `usage_script`）也无法覆盖 Go 套餐——这是目前的技术边界，适配时只能提示用户"网页控制台查看"或把 Go 归入"不可查询"类。
+**查询方式（✅ 已实现）**：`GET https://opencode.ai/zen/go/v1/usage`，`Authorization: Bearer <api_key>`，无 query 参数。响应含 `usage.rolling / usage.weekly / usage.monthly` 三窗口，每窗口 `status / percent / resetsAt`（`percent` = 已用百分比）。2026-08 实测可用；注意该站有 Cloudflare 1010 拦截——reqwest 默认不带 User-Agent 的裸请求会被 403，请求必须显式携带浏览器 UA（见 §4.4）。
 
 ### 3.3 OpenCode 定义 → KimiSwitch 预设的对应关系
 
@@ -112,8 +113,8 @@ KimiSwitch 的 `providerPresets.ts` 已镜像这套体系（`baseUrl` 与 OpenCo
 | `kimi-coding` | `https://api.kimi.com/coding/v1` | subscription | `plan:kimi_coding` | ✅ 可查套餐 |
 | `zhipu-coding` | `https://open.bigmodel.cn/api/coding/paas/v4` | subscription | `plan:zhipu` | ✅ 可查套餐 |
 | `zai-coding` | `https://api.z.ai/api/coding/paas/v4` | subscription | `plan:zhipu` | ✅ 可查套餐 |
-| `opencode-go` | `https://opencode.ai/zen/go/v1` | subscription | **（空）** | ❌ 不可查，见 §4.4 |
-| `opencode-zen` | `https://opencode.ai/zen/v1` | pay_as_you_go | **（空）** | ❌ 不可查 |
+| `opencode-go` | `https://opencode.ai/zen/go/v1` | subscription | `plan:opencode_go` | ✅ 可查套餐，见 §4.4 |
+| `opencode-zen` | `https://opencode.ai/zen/v1` | pay_as_you_go | **（空）** | ❌ 不可查（按量，无公开余额 API） |
 | `moonshot` | `https://api.moonshot.ai/v1` | pay_as_you_go | **（空）** | ❌ 未挂余额查询，见 §4.3 |
 
 ---
@@ -185,12 +186,23 @@ KimiSwitch 的 `providerPresets.ts` 已镜像这套体系（`baseUrl` 与 OpenCo
 - **适配点**：`moonshot` 预设 baseUrl 为 `https://api.moonshot.ai/v1`（国际站），而该端点固定 `api.moonshot.cn`（国内站）。需按 base_url 消歧：host 含 `moonshot.cn` → 查 CN 端点；`moonshot.ai` → 查 `https://api.moonshot.ai/v1/users/me/balance`（国际站对应端点，待实测确认；官方文档仅给出 CN 示例）。
 - 新增 `balance:kimi` kind 即可复用现有 balance 路径，前端 `UsageFooter` 自动生效（余额形态显示 `💰 余额 ¥49.59`）。
 
-### 4.4 OpenCode Go / Zen（❌ 未实现 —— 无公开 API，建议标注"不可查"）
+### 4.4 OpenCode Go / Zen（✅ Go 已实现 —— `plan:opencode_go`）
 
-- **Go 套餐**：额度窗口见 §3.2，仅控制台可看；`opencode.ai/zen/go/v1` 只有推理端点（`/chat/completions`、`/responses`、`/models`），**无 usage/balance 端点**。
-- **Zen 余额**：充值制，同样仅控制台。
-- **可选替代（不推荐投入）**：通过调用推理端点时服务端返回的 402/429/额度错误头做被动感知，无法拿到数值，价值低。
-- **适配结论**：`opencode-go` / `opencode-zen` 预设维持 `usageKinds` 为空；可在预设 `note`/UI 上提示"额度请在 opencode.ai 控制台查看"。
+- **Go 套餐（✅ 已实现）**：端点 `GET https://opencode.ai/zen/go/v1/usage`，`Authorization: Bearer <api_key>`，无 query 参数。响应：
+
+  ```json
+  {
+    "usage": {
+      "rolling": { "status": "ok", "percent": 9,  "resetsAt": "2026-08-18T06:09:19.735Z" },
+      "weekly":  { "status": "ok", "percent": 5,  "resetsAt": "2026-08-24T00:00:00.735Z" },
+      "monthly": { "status": "ok", "percent": 59, "resetsAt": "2026-08-27T03:33:50.735Z" }
+    }
+  }
+  ```
+
+  三窗口各解析为一条 `percent_tier`（`percent` = 已用百分比，映射 five_hour / weekly_limit / monthly_limit，前端 `planLabel` 已本地化）；`status` 为展示字段，缺失容忍；单窗口缺失只出其余窗口。
+- **坑位（实测）**：opencode.ai 有 Cloudflare 1010 拦截——reqwest 默认不带 User-Agent 的裸请求会被 403（`error code: 1010`），请求必须显式设置浏览器 UA（`coding_plan.rs::BROWSER_USER_AGENT`，经 `get_json_with_ua` 注入）。
+- **Zen 余额**：充值制，仍仅控制台，未实现；`opencode-zen` 预设维持 `usageKinds` 为空。
 
 ### 4.5 其他 cc-switch 独有、KimiSwitch 未移植的能力（按目标匹配度排序）
 

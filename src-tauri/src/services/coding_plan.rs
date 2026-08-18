@@ -3,23 +3,24 @@
 
 //! Token Plan 套餐额度查询服务
 //!
-//! 支持 Kimi For Coding、智谱 GLM、MiniMax 的套餐额度查询。
+//! 支持 Kimi For Coding、智谱 GLM、MiniMax、OpenCode Go 的套餐额度查询。
 //! cc-switch 的 SubscriptionQuota/tiers 结构在此展平为 `Vec<UsageData>`：
 //! 每个窗口（tier）一条 UsageData，`plan_name` = tier 名（"five_hour" /
-//! "weekly_limit"），`used` = 已用百分比（0-100），`total` = 100，
+//! "weekly_limit" / "monthly_limit"），`used` = 已用百分比（0-100），`total` = 100，
 //! `remaining` = 剩余百分比，`resets_at` 为 ISO 8601 字符串。
 //!
 //! 错误通道语义与 balance.rs 一致（Err = 瞬时，Ok(success:false) = 确定性）。
 
-use super::balance::{get_json, AuthStyle, Fetched};
+use super::balance::{get_json, get_json_with_ua, AuthStyle, Fetched};
 use super::usage_types::{UsageData, UsageResult};
 use std::time::Duration;
 
-// 套餐类 tier id 的唯一来源：所有套餐供应商（Kimi/智谱/MiniMax 及未来新增）
-// 都只用这两个 id。前端 src/lib/usage-display.ts 的 planLabel() 依赖此约定
-// 做本地化映射——新增 tier id 时必须同步加映射。
+// 套餐类 tier id 的唯一来源：所有套餐供应商（Kimi/智谱/MiniMax/OpenCode Go 及
+// 未来新增）都只用这三个 id。前端 src/lib/usage-display.ts 的 planLabel() 依赖
+// 此约定做本地化映射——新增 tier id 时必须同步加映射。
 const TIER_FIVE_HOUR: &str = "five_hour";
 const TIER_WEEKLY_LIMIT: &str = "weekly_limit";
+const TIER_MONTHLY_LIMIT: &str = "monthly_limit";
 
 /// 套餐条目的统一构造：按百分比表示用量。
 fn percent_tier(name: &str, used_percent: f64, resets_at: Option<String>) -> UsageData {
@@ -315,6 +316,81 @@ fn parse_minimax(body: &serde_json::Value) -> Result<Vec<UsageData>, UsageResult
     Ok(tiers)
 }
 
+// ── OpenCode Go ─────────────────────────────────────────────
+// GET https://opencode.ai/zen/go/v1/usage
+// Response: { usage: { rolling: { status, percent, resetsAt },
+//                      weekly:  { status, percent, resetsAt },
+//                      monthly: { status, percent, resetsAt } } }
+// percent = 已用百分比（与 percent_tier 语义一致）；status 仅作展示参考，缺失容忍；
+// resetsAt 为 ISO 8601 字符串。
+//
+// 坑位：opencode.ai 有 Cloudflare 1010 拦截——reqwest 默认不带 User-Agent 的
+// 裸请求会被 403（error code: 1010）。必须显式设置浏览器 UA。
+
+const BROWSER_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
+AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+
+pub async fn query_opencode_go(
+    api_key: &str,
+    timeout: Duration,
+) -> Result<UsageResult, String> {
+    match get_json_with_ua(
+        "https://opencode.ai/zen/go/v1/usage",
+        api_key,
+        AuthStyle::Bearer,
+        timeout,
+        Some(BROWSER_USER_AGENT),
+    )
+    .await?
+    {
+        Fetched::Body(body) => {
+            let tiers = parse_opencode_go(&body);
+            if tiers.is_empty() {
+                // 响应里没有可解析的用量窗口（usage 缺失或字段变了）。
+                // 把原始响应（仅用量数字，无密钥）透出，方便对照接口结构修复。
+                return Ok(opencode_go_empty_failure(&body));
+            }
+            Ok(UsageResult::ok(tiers))
+        }
+        Fetched::Failed(err) => Ok(err),
+    }
+}
+
+/// usage 全缺时的确定性失败，附 400 字原始响应预览。抽成纯函数便于离线单测。
+fn opencode_go_empty_failure(body: &serde_json::Value) -> UsageResult {
+    let preview = serde_json::to_string(body)
+        .unwrap_or_else(|_| "<unserializable body>".into());
+    let trimmed: String = preview.chars().take(400).collect();
+    UsageResult::failure(format!(
+        "opencode go usage 响应无套餐数据，原始返回: {trimmed}"
+    ))
+}
+
+/// 三个窗口（5 小时滚动 / 周 / 月）各解析为一条 `percent_tier`；
+/// 缺失或 percent 不可解析的窗口跳过（status 字段可缺）。
+fn parse_opencode_go(body: &serde_json::Value) -> Vec<UsageData> {
+    let mut tiers = Vec::new();
+    let Some(usage) = body.get("usage") else {
+        return tiers;
+    };
+    let windows = [
+        (TIER_FIVE_HOUR, "rolling"),
+        (TIER_WEEKLY_LIMIT, "weekly"),
+        (TIER_MONTHLY_LIMIT, "monthly"),
+    ];
+    for (name, key) in windows {
+        let Some(window) = usage.get(key) else {
+            continue;
+        };
+        let Some(percent) = window.get("percent").and_then(parse_f64) else {
+            continue;
+        };
+        let resets_at = window.get("resetsAt").and_then(extract_reset_time);
+        tiers.push(percent_tier(name, percent, resets_at));
+    }
+    tiers
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -428,5 +504,78 @@ mod tests {
         let err = parse_minimax(&body).unwrap_err();
         assert!(!err.success);
         assert!(err.error.unwrap().contains("invalid key"));
+    }
+
+    #[test]
+    fn opencode_go_parses_three_windows() {
+        // 真实 key 实测样例（2026-08）：percent 为已用百分比，直接透传
+        let body = json!({
+            "usage": {
+                "rolling": { "status": "ok", "percent": 9, "resetsAt": "2026-08-18T06:09:19.735Z" },
+                "weekly": { "status": "ok", "percent": 5, "resetsAt": "2026-08-24T00:00:00.735Z" },
+                "monthly": { "status": "ok", "percent": 59, "resetsAt": "2026-08-27T03:33:50.735Z" }
+            }
+        });
+        let tiers = parse_opencode_go(&body);
+        assert_eq!(tiers.len(), 3);
+        assert_eq!(tiers[0].plan_name.as_deref(), Some("five_hour"));
+        assert_eq!(tiers[0].used, Some(9.0));
+        assert_eq!(tiers[0].total, Some(100.0));
+        assert_eq!(tiers[0].remaining, Some(91.0));
+        assert_eq!(
+            tiers[0].resets_at.as_deref(),
+            Some("2026-08-18T06:09:19.735Z")
+        );
+        assert_eq!(tiers[1].plan_name.as_deref(), Some("weekly_limit"));
+        assert_eq!(tiers[1].used, Some(5.0));
+        assert_eq!(tiers[1].remaining, Some(95.0));
+        assert_eq!(tiers[2].plan_name.as_deref(), Some("monthly_limit"));
+        assert_eq!(tiers[2].used, Some(59.0));
+        assert_eq!(tiers[2].remaining, Some(41.0));
+    }
+
+    #[test]
+    fn opencode_go_tolerates_missing_status_field() {
+        // status 属展示字段，缺失照常解析（percent/resetsAt 都只要求本身存在）
+        let body = json!({
+            "usage": {
+                "rolling": { "percent": 9, "resetsAt": "2026-08-18T06:09:19.735Z" },
+                "weekly": { "percent": 5, "resetsAt": "2026-08-24T00:00:00.735Z" },
+                "monthly": { "percent": 59, "resetsAt": "2026-08-27T03:33:50.735Z" }
+            }
+        });
+        let tiers = parse_opencode_go(&body);
+        assert_eq!(tiers.len(), 3);
+        assert_eq!(tiers[1].plan_name.as_deref(), Some("weekly_limit"));
+        assert_eq!(tiers[2].used, Some(59.0));
+    }
+
+    #[test]
+    fn opencode_go_partial_windows_only_emit_present_ones() {
+        // 单窗口缺失只出两条；percent 缺失 / 非数字的窗口整窗跳过
+        let body = json!({
+            "usage": {
+                "rolling": { "status": "ok", "percent": "9", "resetsAt": "2026-08-18T06:09:19.735Z" },
+                "monthly": { "status": "ok", "resetsAt": "2026-08-27T03:33:50.735Z" }
+            }
+        });
+        let tiers = parse_opencode_go(&body);
+        assert_eq!(tiers.len(), 1);
+        // percent 以字符串给出也兼容（parse_f64）
+        assert_eq!(tiers[0].plan_name.as_deref(), Some("five_hour"));
+        assert_eq!(tiers[0].used, Some(9.0));
+    }
+
+    #[test]
+    fn opencode_go_missing_usage_is_deterministic_failure_with_preview() {
+        // usage 全缺：确定性失败，附原始响应预览（400 字内，无密钥）
+        let body = json!({ "error": { "message": "boom" } });
+        assert!(parse_opencode_go(&body).is_empty());
+        let err = opencode_go_empty_failure(&body);
+        assert!(!err.success);
+        assert!(err.data.is_none());
+        let msg = err.error.unwrap();
+        assert!(msg.contains("原始返回"), "msg: {msg}");
+        assert!(msg.contains(r#""message":"boom""#), "msg: {msg}");
     }
 }

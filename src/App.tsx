@@ -8,6 +8,7 @@ import { ProviderEdit } from "./components/ProviderEdit";
 import { SubagentSettingsPage } from "./components/SubagentSettingsPage";
 import { DashboardPage } from "./components/dashboard/DashboardPage";
 import { SessionsPage } from "./components/sessions/SessionsPage";
+import { PluginMarketplacePage } from "./components/plugins/PluginMarketplacePage";
 import { SettingsModal } from "./components/SettingsModal";
 import { UsageConfigModal } from "./components/UsageConfigModal";
 import { PresetPickerModal } from "./components/PresetPickerModal";
@@ -71,7 +72,9 @@ export default function App() {
     updateConfig,
   } = useConfig(agent);
 
-  const [view, setView] = useState<"list" | "edit" | "subagent" | "dashboard" | "sessions">("list");
+  const [view, setView] = useState<
+    "list" | "edit" | "subagent" | "dashboard" | "sessions" | "plugins"
+  >("list");
   const [editingProvider, setEditingProvider] = useState<string>("");
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [switchMessage, setSwitchMessage] = useState<string | null>(null);
@@ -603,6 +606,14 @@ export default function App() {
           >
             {t("sessions")}
           </button>
+          {/* 插件市场功能尚未成熟，导航入口暂时隐藏；页面代码保留，
+              恢复时把下面的按钮加回即可（view/渲染分支均未移除）。
+          <button
+            type="button"
+            onClick={() => setView("plugins")}
+            ...
+          </button>
+          */}
         </div>
         <div className="flex items-center gap-2">
           {/* Language */}
@@ -650,6 +661,8 @@ export default function App() {
           <DashboardPage />
         ) : view === "sessions" ? (
           <SessionsPage />
+        ) : view === "plugins" ? (
+          <PluginMarketplacePage />
         ) : view === "subagent" ? (
           <SubagentSettingsPage
             rawOther={config.raw_other}
@@ -777,7 +790,7 @@ export default function App() {
         )}
       </main>
 
-      {view !== "dashboard" && view !== "sessions" && (
+      {view !== "dashboard" && view !== "sessions" && view !== "plugins" && (
       <footer className="flex items-center justify-between px-4 py-2 border-t border-border bg-panel text-sm">
         <div className="flex items-center gap-2 min-w-0">
           {dirty && (

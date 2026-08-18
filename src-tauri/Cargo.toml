@@ -1,6 +1,6 @@
 [package]
 name = "kimiswitch"
-version = "0.7.5"
+version = "0.7.6"
 description = "Kimi Switch - model config manager"
 authors = ["codingplan.site"]
 edition = "2021"
@@ -25,7 +25,13 @@ futures-util = "0.3"
 dirs = "5.0"
 toml = "0.8"
 rusqlite = { version = "0.32", features = ["bundled", "chrono"] }
-tokio = { version = "1", features = ["sync"] }
+tokio = { version = "1", features = ["sync", "fs", "io-util"] }
+# Plugin marketplace: zip extraction (deflate-only; no extra compression
+# backends needed for plugin archives).
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+tempfile = "3"
 
 [lib]
 name = "kimiswitch_lib"

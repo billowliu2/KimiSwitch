@@ -16,7 +16,8 @@ export type UsageKind =
   | "balance:kimi"
   | "plan:kimi_coding"
   | "plan:zhipu"
-  | "plan:minimax";
+  | "plan:minimax"
+  | "plan:opencode_go";
 
 /** Billing model for a preset. Drives the tab filter in PresetPickerModal. */
 export type BillingMode = "subscription" | "pay_as_you_go";
@@ -32,6 +33,7 @@ export const SUPPORTED_USAGE_KINDS: ReadonlySet<string> = new Set<UsageKind>([
   "plan:kimi_coding",
   "plan:zhipu",
   "plan:minimax",
+  "plan:opencode_go",
 ]);
 
 export type PresetCategory =
@@ -469,6 +471,8 @@ export const providerPresets: ProviderPreset[] = [
       { model: "deepseek-v4-flash", displayName: "DeepSeek V4 Flash" },
     ],
     billingMode: "subscription",
+    // Go 套餐额度查询：GET https://opencode.ai/zen/go/v1/usage（Bearer）。
+    usageKinds: ["plan:opencode_go"],
   },
   {
     id: "opencode-zen",
