@@ -706,18 +706,44 @@ export default function App() {
             onModelChange={(model) => {
               updateConfig((cfg) => {
                 const models = { ...cfg.models };
+                // Auto-fix the placeholder alias from onModelAdd: once the
+                // real model id is filled in, rename "<provider>/新模型" (and
+                // the mid-typing "<provider>/<prefix>" states) to
+                // "<provider>/<model-id>" so the CLI records usage under the
+                // real model name instead of the placeholder.
+                let effective = model;
+                const safeProvider = model.provider.replace(/\//g, "-");
+                const prefix = `${safeProvider}/`;
+                const modelId = model.model.trim();
+                const tail = model.alias.startsWith(prefix)
+                  ? model.alias.slice(prefix.length)
+                  : "";
+                const targetAlias = `${prefix}${modelId}`;
+                if (
+                  modelId !== "" &&
+                  model.alias !== targetAlias &&
+                  (tail === "新模型" ||
+                    tail.startsWith("新模型-") ||
+                    (tail !== "" && modelId.startsWith(tail))) &&
+                  !(targetAlias in models)
+                ) {
+                  effective = { ...model, alias: targetAlias };
+                  delete models[model.alias];
+                }
                 const existingKeys = Object.keys(models).filter(
                   (k) => models[k].provider === currentProvider.name
                 );
                 const oldKey = existingKeys.find((k) =>
-                  model.alias === k ? true : models[k].alias === model.alias
+                  effective.alias === k ? true : models[k].alias === effective.alias
                 );
-                if (oldKey && oldKey !== model.alias) {
+                if (oldKey && oldKey !== effective.alias) {
                   delete models[oldKey];
                 }
-                models[model.alias] = model;
+                models[effective.alias] = effective;
                 let default_model = cfg.default_model;
-                if (default_model === oldKey) default_model = model.alias;
+                if (default_model === oldKey) default_model = effective.alias;
+                else if (effective !== model && default_model === model.alias)
+                  default_model = effective.alias;
                 return { ...cfg, models, default_model };
               });
             }}
@@ -735,22 +761,31 @@ export default function App() {
             }}
             onModelAdd={() => {
               const safeProvider = currentProvider.name.replace(/\//g, "-");
-              const alias = `${safeProvider}/新模型`;
-              updateConfig((cfg) => ({
-                ...cfg,
-                models: {
-                  ...cfg.models,
-                  [alias]: {
-                    alias,
-                    provider: currentProvider.name,
-                    model: "",
-                    max_context_size: getDefaultMaxContextSize(alias),
-                    display_name: null,
-                    supports_1m: false,
-                    capabilities: agent === "kimi_code" ? ["thinking"] : [],
+              updateConfig((cfg) => {
+                // Deduplicate the placeholder key: a second "add model" click
+                // while the previous placeholder is still unedited must not
+                // silently overwrite it.
+                let alias = `${safeProvider}/新模型`;
+                let n = 1;
+                while (alias in cfg.models) {
+                  alias = `${safeProvider}/新模型-${++n}`;
+                }
+                return {
+                  ...cfg,
+                  models: {
+                    ...cfg.models,
+                    [alias]: {
+                      alias,
+                      provider: currentProvider.name,
+                      model: "",
+                      max_context_size: getDefaultMaxContextSize(alias),
+                      display_name: null,
+                      supports_1m: false,
+                      capabilities: agent === "kimi_code" ? ["thinking"] : [],
+                    },
                   },
-                },
-              }));
+                };
+              });
             }}
             onBulkAdd={(models) => {
               updateConfig((cfg) => {

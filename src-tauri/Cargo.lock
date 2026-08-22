@@ -1978,7 +1978,7 @@ dependencies = [
 
 [[package]]
 name = "kimiswitch"
-version = "0.7.6"
+version = "0.7.7"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1991,6 +1991,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",

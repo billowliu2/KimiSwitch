@@ -67,18 +67,30 @@ fn parse_f64(value: &serde_json::Value) -> Option<f64> {
 }
 
 // ── Kimi For Coding ─────────────────────────────────────────
-// GET https://api.kimi.com/coding/v1/usages
+// GET {base_url}/usages
+//   默认 https://api.kimi.com/coding/v1/usages
+//   global: https://api.kimi.ai/coding/v1/usages
 // Response: { limits: [{ detail: { limit, remaining, resetTime } }],
 //             usage: { limit, remaining, resetTime } }
 
-pub async fn query_kimi_coding(api_key: &str, timeout: Duration) -> Result<UsageResult, String> {
-    match get_json(
-        "https://api.kimi.com/coding/v1/usages",
-        api_key,
-        AuthStyle::Bearer,
-        timeout,
-    )
-    .await?
+/// 由 base_url 拼接 usages 查询 URL；base_url 为空/空白时回退大陆默认。
+/// 纯函数，便于单测。
+fn kimi_coding_usages_url(base_url: &str) -> String {
+    let base = if base_url.trim().is_empty() {
+        "https://api.kimi.com/coding/v1"
+    } else {
+        base_url.trim_end_matches('/')
+    };
+    format!("{base}/usages")
+}
+
+pub async fn query_kimi_coding(
+    base_url: &str,
+    api_key: &str,
+    timeout: Duration,
+) -> Result<UsageResult, String> {
+    let url = kimi_coding_usages_url(base_url);
+    match get_json(&url, api_key, AuthStyle::Bearer, timeout).await?
     {
         Fetched::Body(body) => {
             let tiers = parse_kimi_coding(&body);
@@ -395,6 +407,34 @@ fn parse_opencode_go(body: &serde_json::Value) -> Vec<UsageData> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn kimi_coding_usages_url_uses_base_and_falls_back() {
+        // global base → .ai usages URL
+        assert_eq!(
+            kimi_coding_usages_url("https://api.kimi.ai/coding/v1"),
+            "https://api.kimi.ai/coding/v1/usages"
+        );
+        // 尾斜杠去掉
+        assert_eq!(
+            kimi_coding_usages_url("https://api.kimi.ai/coding/v1/"),
+            "https://api.kimi.ai/coding/v1/usages"
+        );
+        // 空串/空白回退大陆默认
+        assert_eq!(
+            kimi_coding_usages_url(""),
+            "https://api.kimi.com/coding/v1/usages"
+        );
+        assert_eq!(
+            kimi_coding_usages_url("   "),
+            "https://api.kimi.com/coding/v1/usages"
+        );
+        // 大陆 base 原样拼接
+        assert_eq!(
+            kimi_coding_usages_url("https://api.kimi.com/coding/v1"),
+            "https://api.kimi.com/coding/v1/usages"
+        );
+    }
 
     #[test]
     fn kimi_coding_flattens_limits_and_usage() {

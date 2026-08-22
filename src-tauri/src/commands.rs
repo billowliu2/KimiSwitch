@@ -658,7 +658,12 @@ pub async fn query_provider_usage(
         });
     let mut oauth_err: Option<String> = None;
     if api_key.is_none() && provider.managed {
-        match crate::oauth::get_valid_access_token().await {
+        // Resolve the credential slot + refresh host from the provider's oauth
+        // ref (region-aware); with no ref this falls back to the mainland
+        // default, preserving pre-region behavior.
+        let oauth_ref = crate::oauth::oauth_ref_from_provider(provider);
+        let oauth_base_url = provider.base_url.as_deref().unwrap_or("");
+        match crate::oauth::get_valid_access_token(oauth_ref.as_ref(), oauth_base_url).await {
             Ok(token) => api_key = Some(token),
             Err(e) => oauth_err = Some(e),
         }
@@ -1249,22 +1254,29 @@ pub fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), Strin
 // Kimi OAuth device-code sign-in (in-app replacement for `kimi login`)
 // ---------------------------------------------------------------------------
 
-/// Step 1: ask auth.kimi.com for a user_code + verification URI.
+/// Step 1: ask the region's OAuth host for a user_code + verification URI.
+/// `region` is `"cn"` (default) or `"global"`.
 #[tauri::command]
-pub async fn kimi_oauth_start() -> Result<crate::oauth::DeviceAuthorization, String> {
-    crate::oauth::start_device_authorization().await
+pub async fn kimi_oauth_start(
+    region: Option<String>,
+) -> Result<crate::oauth::DeviceAuthorization, String> {
+    let region = crate::oauth::KimiRegion::from_opt(region.as_deref());
+    crate::oauth::start_device_authorization(region).await
 }
 
-/// Step 2: poll the token endpoint until the user approves. On success the
-/// tokens are written to the CLI credentials file (`kimi login` no longer
-/// needed). Errors are transient (network); deterministic outcomes
-/// (pending / success / expired / denied / timeout) come back in the enum.
+/// Step 2: poll the region's token endpoint until the user approves. On
+/// success the tokens are written to the region's credentials file and the
+/// provider is provisioned in config.toml (`kimi login` no longer needed).
+/// Errors are transient (network); deterministic outcomes (pending / success /
+/// expired / denied / timeout) come back in the enum.
 #[tauri::command]
 pub async fn kimi_oauth_poll(
     device_code: String,
     interval: i64,
+    region: Option<String>,
 ) -> Result<crate::oauth::DevicePollStatus, String> {
-    crate::oauth::poll_device_token(&device_code, interval).await
+    let region = crate::oauth::KimiRegion::from_opt(region.as_deref());
+    crate::oauth::poll_device_token(&device_code, interval, region).await
 }
 
 // ---------------------------------------------------------------------------

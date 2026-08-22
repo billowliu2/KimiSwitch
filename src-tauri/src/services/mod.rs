@@ -108,7 +108,9 @@ pub fn detect_provider(base_url: &str) -> Vec<UsageKind> {
     if url.contains("api.moonshot.cn") || url.contains("api.moonshot.ai") {
         kinds.push(UsageKind::BalanceKimi);
     }
-    if url.contains("api.kimi.com") && url.contains("/coding") {
+    if (url.contains("api.kimi.com") || url.contains("api.kimi.ai"))
+        && url.contains("/coding")
+    {
         kinds.push(UsageKind::PlanKimiCoding);
     }
     if url.contains("open.bigmodel.cn") || url.contains("api.z.ai") {
@@ -169,7 +171,9 @@ pub async fn query_kind(
                 .unwrap_or(base_url);
             balance::query_newapi(url, token, uid, timeout).await
         }
-        UsageKind::PlanKimiCoding => coding_plan::query_kimi_coding(api_key, timeout).await,
+        UsageKind::PlanKimiCoding => {
+            coding_plan::query_kimi_coding(base_url, api_key, timeout).await
+        }
         UsageKind::PlanZhipu => coding_plan::query_zhipu(base_url, api_key, timeout).await,
         UsageKind::PlanMinimax => {
             coding_plan::query_minimax(api_key, !lower.contains("minimax.io"), timeout).await
@@ -220,6 +224,26 @@ mod tests {
         assert!(detect_provider("").is_empty());
         // api.kimi.com 但无 /coding 路径 → 不命中套餐查询，也不命中 Moonshot 余额
         assert!(detect_provider("https://api.kimi.com/v1").is_empty());
+    }
+
+    #[test]
+    fn detect_provider_kimi_coding_matches_global_ai_host() {
+        // global 站 api.kimi.ai + /coding 命中套餐
+        assert_eq!(
+            detect_provider("https://api.kimi.ai/coding/v1"),
+            vec![UsageKind::PlanKimiCoding]
+        );
+        assert_eq!(
+            detect_provider("https://api.kimi.ai/coding/v1/usages"),
+            vec![UsageKind::PlanKimiCoding]
+        );
+        // api.kimi.ai 但无 /coding 路径 → 不命中（也不命中 Moonshot 余额）
+        assert!(detect_provider("https://api.kimi.ai/v1").is_empty());
+        // .com 老路径不受影响
+        assert_eq!(
+            detect_provider("https://api.kimi.com/coding/v1"),
+            vec![UsageKind::PlanKimiCoding]
+        );
     }
 
     #[test]

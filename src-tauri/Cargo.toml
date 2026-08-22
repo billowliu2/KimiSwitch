@@ -1,6 +1,6 @@
 [package]
 name = "kimiswitch"
-version = "0.7.6"
+version = "0.7.7"
 description = "Kimi Switch - model config manager"
 authors = ["codingplan.site"]
 edition = "2021"
@@ -29,6 +29,9 @@ tokio = { version = "1", features = ["sync", "fs", "io-util"] }
 # Plugin marketplace: zip extraction (deflate-only; no extra compression
 # backends needed for plugin archives).
 zip = { version = "2", default-features = false, features = ["deflate"] }
+# Scoped OAuth credential keys (oauth/kimi-code-env-<sha256>) for non-mainland
+# regions, mirroring the official CLI's resolveKimiCodeOAuthKey.
+sha2 = "0.10"
 
 [dev-dependencies]
 tempfile = "3"

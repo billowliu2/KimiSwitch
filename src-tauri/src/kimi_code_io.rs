@@ -261,7 +261,15 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
         if let Some(base_url) = provider.base_url.clone().filter(|s| !s.is_empty()) {
             pt.insert("base_url".to_string(), TomlValue::String(base_url));
         }
-        if let Some(api_key) = provider.api_key.clone().filter(|s| !s.is_empty()) {
+        // Managed (OAuth) providers persist an empty api_key line so the block
+        // matches the official CLI's provisioned shape (apiKey: ''). A
+        // user-set api_key on a managed provider (api_key outranks OAuth in
+        // the CLI's credential priority) must survive the round-trip.
+        if provider.managed
+            && provider.api_key.as_deref().map_or(true, |s| s.is_empty())
+        {
+            pt.insert("api_key".to_string(), TomlValue::String("".to_string()));
+        } else if let Some(api_key) = provider.api_key.clone().filter(|s| !s.is_empty()) {
             pt.insert("api_key".to_string(), TomlValue::String(api_key));
         }
         pt.insert("enabled".to_string(), TomlValue::Boolean(provider.enabled));
@@ -862,6 +870,74 @@ max_context_size = 1048576
         assert!(
             !provider.contains_key("default_model"),
             "private default_model must not leak into config.toml"
+        );
+    }
+
+    #[test]
+    fn kimi_code_export_managed_api_key_roundtrip() {
+        // Regression: a managed (OAuth) provider keeps the official provisioned
+        // shape (empty api_key line) when it has no key, but a user-set api_key
+        // on a managed provider (api_key outranks OAuth in the CLI's credential
+        // priority) must survive the round-trip.
+        let managed_provider = |api_key: Option<&str>| Provider {
+            name: "managed:kimi-code".to_string(),
+            provider_type: ProviderType::Kimi,
+            base_url: Some("https://api.kimi.com/coding/v1".to_string()),
+            api_key: api_key.map(String::from),
+            env: IndexMap::new(),
+            note: None,
+            official_url: None,
+            managed: true,
+            enabled: true,
+            active: true,
+            icon: None,
+            icon_color: None,
+            raw_other: serde_json::json!({
+                "oauth": {"storage": "file", "key": "oauth/kimi-code"}
+            }),
+            usage_kinds: None,
+            usage_config: None,
+        };
+
+        // No api_key → the empty provisioned line is written.
+        let config = Config {
+            default_model: None,
+            providers: IndexMap::from([(
+                "managed:kimi-code".to_string(),
+                managed_provider(None),
+            )]),
+            models: IndexMap::new(),
+            raw_other: Value::Null,
+        };
+        let exported = config_to_kimi_code(&config, None);
+        let provider = exported
+            .as_table().unwrap()
+            .get("providers").unwrap()
+            .as_table().unwrap()
+            .get("managed:kimi-code").unwrap()
+            .as_table().unwrap();
+        assert_eq!(provider.get("api_key").and_then(|v| v.as_str()), Some(""));
+
+        // User-set api_key on a managed provider survives.
+        let config = Config {
+            default_model: None,
+            providers: IndexMap::from([(
+                "managed:kimi-code".to_string(),
+                managed_provider(Some("sk-user-key")),
+            )]),
+            models: IndexMap::new(),
+            raw_other: Value::Null,
+        };
+        let exported = config_to_kimi_code(&config, None);
+        let provider = exported
+            .as_table().unwrap()
+            .get("providers").unwrap()
+            .as_table().unwrap()
+            .get("managed:kimi-code").unwrap()
+            .as_table().unwrap();
+        assert_eq!(
+            provider.get("api_key").and_then(|v| v.as_str()),
+            Some("sk-user-key")
         );
     }
 }

@@ -30,7 +30,16 @@
 //! 2. user opens the verification URI in a browser and approves;
 //! 3. `poll_device_token()` polls POST /api/oauth/token with the device_code
 //!    grant until the tokens arrive, then writes them to the same
-//!    `~/.kimi-code/credentials/kimi-code.json` file the CLI uses.
+//!    `~/.kimi-code/credentials/<key>.json` file the CLI uses.
+//!
+//! v4 mirrors the official CLI's dual-region OAuth (v0.38.0, #2862): the login
+//! flow and credential lookup are scoped by region. The mainland-cn region
+//! (default) uses the shared `oauth/kimi-code` slot (`credentials/kimi-code.json`)
+//! and persists no `oauthHost`; the global region derives a scoped key
+//! `oauth/kimi-code-env-<sha256>` from (oauthHost, baseUrl), writes
+//! `credentials/<scoped>.json`, and persists `oauthHost` in config.toml. Usage
+//! queries and token refresh resolve their credentials path + refresh endpoint
+//! from the provider's oauth ref instead of always assuming mainland.
 
 use serde::{Deserialize, Serialize};
 
@@ -40,12 +49,181 @@ use crate::kimi_code_io::kimi_code_config_dir;
 /// mid-request counts as expired.
 const EXPIRY_LEEWAY_SECS: i64 = 30;
 
-/// OAuth token endpoint (confirmed in the official kimi.exe binary).
-const TOKEN_ENDPOINT: &str = "https://auth.kimi.com/api/oauth/token";
-/// Device authorization endpoint (RFC 8628).
-const DEVICE_AUTHORIZATION_ENDPOINT: &str = "https://auth.kimi.com/api/oauth/device_authorization";
+/// Region endpoints (mirror `packages/oauth/src/region.ts`).
+const CN_OAUTH_HOST: &str = "https://auth.kimi.com";
+const CN_BASE_URL: &str = "https://api.kimi.com/coding/v1";
+const GLOBAL_OAUTH_HOST: &str = "https://auth.kimi.ai";
+const GLOBAL_BASE_URL: &str = "https://api.kimi.ai/coding/v1";
+/// Shared mainland credential slot (mirror `KIMI_CODE_OAUTH_KEY`).
+const DEFAULT_OAUTH_KEY: &str = "oauth/kimi-code";
+/// Prefix of region-scoped credential keys (mirror `KIMI_CODE_SCOPED_OAUTH_KEY_PREFIX`).
+const SCOPED_OAUTH_KEY_PREFIX: &str = "oauth/kimi-code-env-";
+/// OAuth token endpoint host suffix (remaining path after the oauth host).
+const TOKEN_PATH: &str = "/api/oauth/token";
+/// Device authorization endpoint suffix (RFC 8628).
+const DEVICE_AUTHORIZATION_PATH: &str = "/api/oauth/device_authorization";
 /// Public OAuth client id used by the official CLI (from kimi.exe).
 const CLIENT_ID: &str = "17e5f671-d194-4dfb-9706-5516cb48c098";
+/// The managed Kimi Code provider name in config.toml.
+const MANAGED_PROVIDER_NAME: &str = "managed:kimi-code";
+
+/// A Kimi Code account region (mainland `.com` vs global `.ai`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KimiRegion {
+    /// Mainland China — `auth.kimi.com` / `api.kimi.com`.
+    Cn,
+    /// International — `auth.kimi.ai` / `api.kimi.ai`.
+    Global,
+}
+
+impl KimiRegion {
+    /// Parse a region hint from the frontend (`"cn"` default, `"global"`).
+    pub fn from_opt(s: Option<&str>) -> KimiRegion {
+        match s.map(|s| s.trim().to_ascii_lowercase()).as_deref() {
+            Some("global") => KimiRegion::Global,
+            _ => KimiRegion::Cn,
+        }
+    }
+
+    pub fn oauth_host(self) -> &'static str {
+        match self {
+            KimiRegion::Cn => CN_OAUTH_HOST,
+            KimiRegion::Global => GLOBAL_OAUTH_HOST,
+        }
+    }
+
+    /// Managed API base (`/coding/v1`): usages host for this region.
+    pub fn base_url(self) -> &'static str {
+        match self {
+            KimiRegion::Cn => CN_BASE_URL,
+            KimiRegion::Global => GLOBAL_BASE_URL,
+        }
+    }
+}
+
+/// The oauth ref stored under a provider's `raw_other["oauth"]`
+/// (`storage`/`key`/`oauthHost`), all optional for lenient parsing.
+/// `storage` is not read (Kimi Switch only ever uses `file`).
+#[derive(Debug, Clone, Default)]
+pub struct OAuthRef {
+    pub key: Option<String>,
+    pub oauth_host: Option<String>,
+}
+
+/// Extract the oauth ref from a provider's `raw_other["oauth"]` block, if any.
+pub fn oauth_ref_from_provider(provider: &crate::models::Provider) -> Option<OAuthRef> {
+    let oauth = provider.raw_other.get("oauth")?.as_object()?;
+    Some(OAuthRef {
+        key: oauth.get("key").and_then(|v| v.as_str()).map(String::from),
+        oauth_host: oauth
+            .get("oauthHost")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+    })
+}
+
+/// Map an oauth credential `key` to the credentials-file storage name, mirroring
+/// the official CLI's `resolveKimiTokenStorageName`:
+/// - `"kimi-code"` / `"oauth/kimi-code"` → `"kimi-code"` (file kimi-code.json)
+/// - `"oauth/<name>"` → `<name>`
+/// - `<name>` (no `/`, not `.`-prefixed) → `<name>` verbatim
+/// - anything else → Err
+pub fn resolve_storage_name(key: &str) -> Result<String, String> {
+    if key == "kimi-code" || key == DEFAULT_OAUTH_KEY {
+        return Ok("kimi-code".to_string());
+    }
+    if let Some(rest) = key.strip_prefix("oauth/") {
+        if !rest.is_empty() {
+            return Ok(rest.to_string());
+        }
+    }
+    if !key.contains('/') && !key.starts_with('.') {
+        return Ok(key.to_string());
+    }
+    Err(format!("Invalid Kimi OAuth token key: {key}"))
+}
+
+/// `trim().replace(/\/+$/, '')`, matching the CLI's `normalizeEndpoint`.
+fn normalize_endpoint(s: &str) -> String {
+    s.trim().trim_end_matches('/').to_string()
+}
+
+/// Derive the oauth credential key for an (oauth_host, base_url) pair, mirroring
+/// the official CLI's `resolveKimiCodeOAuthKey`: the mainland defaults map to the
+/// shared `oauth/kimi-code` slot; anything else gets a scoped slot
+/// `oauth/kimi-code-env-<sha256>` of `JSON.stringify({oauthHost, baseUrl})`.
+///
+/// The payload must byte-match JS `JSON.stringify({ oauthHost, baseUrl })`
+/// (oauthHost first, no spaces), so it is hand-built with `format!` rather than
+/// `serde_json::json!` (which can't guarantee field order or exact whitespace).
+pub fn derive_scoped_key(oauth_host: &str, base_url: &str) -> String {
+    let oauth_host = normalize_endpoint(oauth_host);
+    let base_url = normalize_endpoint(base_url);
+    if oauth_host == CN_OAUTH_HOST && base_url == CN_BASE_URL {
+        return DEFAULT_OAUTH_KEY.to_string();
+    }
+    let payload = format!(
+        "{{\"oauthHost\":\"{oauth_host}\",\"baseUrl\":\"{base_url}\"}}"
+    );
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(payload.as_bytes());
+    let hex = digest.iter().map(|b| format!("{b:02x}")).collect::<String>();
+    format!("{SCOPED_OAUTH_KEY_PREFIX}{}", &hex[..16])
+}
+
+/// Resolved credential context for a usage query / token refresh: which
+/// credentials file to read/write and which OAuth host to refresh against.
+struct OAuthContext {
+    storage_name: String,
+    oauth_host: String,
+}
+
+impl OAuthContext {
+    /// Resolve from an optional oauth ref + provider base_url.
+    ///
+    /// - No ref → the legacy mainland default (`credentials/kimi-code.json` +
+    ///   `auth.kimi.com`), so a provider with no oauth block behaves exactly as
+    ///   before the region work.
+    /// - Ref with a `key` → use that key's storage (scoped slot for global).
+    /// - Ref with only `oauthHost` (no key) → derive the scoped key from
+    ///   (oauthHost, base_url), matching the CLI's `resolveKimiCodeOAuthRef`.
+    fn from(oauth_ref: Option<&OAuthRef>, base_url: &str) -> OAuthContext {
+        let (key, oauth_host) = match oauth_ref {
+            Some(r) => {
+                let host = r
+                    .oauth_host
+                    .clone()
+                    .filter(|s| !s.trim().is_empty())
+                    .unwrap_or_else(|| CN_OAUTH_HOST.to_string());
+                let k = r
+                    .key
+                    .clone()
+                    .filter(|s| !s.trim().is_empty())
+                    .unwrap_or_else(|| derive_scoped_key(&host, base_url));
+                (k, host)
+            }
+            None => (DEFAULT_OAUTH_KEY.to_string(), CN_OAUTH_HOST.to_string()),
+        };
+        let storage_name =
+            resolve_storage_name(&key).unwrap_or_else(|_| "kimi-code".to_string());
+        OAuthContext {
+            storage_name,
+            oauth_host,
+        }
+    }
+
+    fn token_endpoint(&self) -> String {
+        format!("{}{TOKEN_PATH}", self.oauth_host.trim_end_matches('/'))
+    }
+}
+
+/// Credentials file path for a given storage name.
+fn credentials_path_for_storage(storage_name: &str) -> std::path::PathBuf {
+    kimi_code_config_dir()
+        .join("credentials")
+        .join(format!("{storage_name}.json"))
+}
+
 /// Refresh request timeout; refresh is rare, a bit more headroom than the 8s
 /// query default is fine.
 const REFRESH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
@@ -80,17 +258,11 @@ impl OAuthCredentials {
     }
 }
 
-fn credentials_path() -> std::path::PathBuf {
-    kimi_code_config_dir()
-        .join("credentials")
-        .join("kimi-code.json")
-}
-
-/// Load the Kimi Code OAuth session. Errors are deterministic (missing file /
-/// unreadable JSON), never transient — the caller turns them into
-/// `Ok(success:false)`.
-pub fn load_kimi_code_credentials() -> Result<OAuthCredentials, String> {
-    let path = credentials_path();
+/// Load OAuth session from the credentials file for a storage name. Errors are
+/// deterministic (missing file / unreadable JSON), never transient — the caller
+/// turns them into `Ok(success:false)`.
+fn load_credentials_for_storage(storage_name: &str) -> Result<OAuthCredentials, String> {
+    let path = credentials_path_for_storage(storage_name);
     let content = std::fs::read_to_string(&path).map_err(|e| {
         format!(
             "Kimi Code OAuth credentials not found at {}: {e}. Run `kimi login` first.",
@@ -99,6 +271,11 @@ pub fn load_kimi_code_credentials() -> Result<OAuthCredentials, String> {
     })?;
     serde_json::from_str(&content)
         .map_err(|e| format!("Failed to parse Kimi Code OAuth credentials: {e}"))
+}
+
+/// Load the legacy mainland Kimi Code OAuth session (`kimi-code.json`).
+pub fn load_kimi_code_credentials() -> Result<OAuthCredentials, String> {
+    load_credentials_for_storage("kimi-code")
 }
 
 #[derive(Debug, Deserialize)]
@@ -118,10 +295,16 @@ fn refresh_lock() -> &'static tokio::sync::Mutex<()> {
 }
 
 /// Return a usable access token, refreshing via the refresh_token grant when
-/// the stored one is expired. Errors are deterministic (missing/dead session)
-/// — the caller surfaces them as `Ok(success:false)`.
-pub async fn get_valid_access_token() -> Result<String, String> {
-    let creds = load_kimi_code_credentials()?;
+/// the stored one is expired. The credential file and refresh endpoint are
+/// resolved from the provider's oauth ref + base_url (see [`OAuthContext`]);
+/// with no ref this is the legacy mainland default. Errors are deterministic
+/// (missing/dead session) — the caller surfaces them as `Ok(success:false)`.
+pub async fn get_valid_access_token(
+    oauth_ref: Option<&OAuthRef>,
+    base_url: &str,
+) -> Result<String, String> {
+    let ctx = OAuthContext::from(oauth_ref, base_url);
+    let creds = load_credentials_for_storage(&ctx.storage_name)?;
     if !creds.is_expired() {
         return Ok(creds.access_token);
     }
@@ -129,11 +312,11 @@ pub async fn get_valid_access_token() -> Result<String, String> {
     let _guard = refresh_lock().lock().await;
     // Re-read under the lock: the CLI or a previous waiter may have refreshed
     // while we were waiting.
-    let creds = load_kimi_code_credentials()?;
+    let creds = load_credentials_for_storage(&ctx.storage_name)?;
     if !creds.is_expired() {
         return Ok(creds.access_token);
     }
-    refresh_credentials(&creds).await
+    refresh_credentials(&creds, &ctx).await
 }
 
 /// Merge a token endpoint response into the existing credentials JSON,
@@ -181,8 +364,9 @@ fn merge_token_response(current_json: &str, resp: &TokenResponse) -> String {
 }
 
 /// Call the token endpoint with the refresh_token grant and persist the
-/// rotated tokens. Caller must hold [`refresh_lock`].
-async fn refresh_credentials(creds: &OAuthCredentials) -> Result<String, String> {
+/// rotated tokens. The refresh endpoint + file come from the resolved context.
+/// Caller must hold [`refresh_lock`].
+async fn refresh_credentials(creds: &OAuthCredentials, ctx: &OAuthContext) -> Result<String, String> {
     let refresh_token = creds
         .refresh_token
         .clone()
@@ -198,7 +382,7 @@ async fn refresh_credentials(creds: &OAuthCredentials) -> Result<String, String>
 
     // Tokens only ever go into the request body — never into logs or errors.
     let resp = client
-        .post(TOKEN_ENDPOINT)
+        .post(ctx.token_endpoint())
         .form(&[
             ("grant_type", "refresh_token"),
             ("client_id", CLIENT_ID),
@@ -226,7 +410,7 @@ async fn refresh_credentials(creds: &OAuthCredentials) -> Result<String, String>
 
     // Re-read right before writing: if the CLI refreshed meanwhile, its newer
     // (rotated) tokens win — overwriting them would kill its next refresh.
-    let path = credentials_path();
+    let path = credentials_path_for_storage(&ctx.storage_name);
     let current = std::fs::read_to_string(&path).unwrap_or_default();
     if let Ok(latest) = serde_json::from_str::<OAuthCredentials>(&current) {
         if !latest.is_expired() && latest.access_token != creds.access_token {
@@ -326,17 +510,20 @@ fn identity_headers() -> Vec<(&'static str, String)> {
     headers
 }
 
-/// Step 1 of the device flow: ask the server for a user_code + device_code.
-/// No user interaction required here; the frontend shows the code + URL.
-pub async fn start_device_authorization() -> Result<DeviceAuthorization, String> {
+/// Step 1 of the device flow: ask the region's server for a user_code +
+/// device_code. No user interaction required here; the frontend shows the
+/// code + URL.
+pub async fn start_device_authorization(region: KimiRegion) -> Result<DeviceAuthorization, String> {
     let client = reqwest::Client::builder()
         .timeout(REFRESH_TIMEOUT)
         .build()
         .map_err(|e| format!("Failed to build HTTP client: {e}"))?;
 
-    let mut req = client
-        .post(DEVICE_AUTHORIZATION_ENDPOINT)
-        .form(&[("client_id", CLIENT_ID)]);
+    let endpoint = format!(
+        "{}{DEVICE_AUTHORIZATION_PATH}",
+        region.oauth_host().trim_end_matches('/')
+    );
+    let mut req = client.post(&endpoint).form(&[("client_id", CLIENT_ID)]);
     for (name, value) in identity_headers() {
         req = req.header(name, value);
     }
@@ -356,24 +543,30 @@ pub async fn start_device_authorization() -> Result<DeviceAuthorization, String>
         .map_err(|e| format!("Failed to parse device authorization response: {e}"))
 }
 
-/// Step 2 of the device flow: poll the token endpoint until the user
+/// Step 2 of the device flow: poll the region's token endpoint until the user
 /// approves (or the flow fails). On success the tokens are merged into the
-/// CLI credentials file, making `kimi login` unnecessary.
+/// region's credentials file and the provider is provisioned, making
+/// `kimi login` unnecessary.
 pub async fn poll_device_token(
     device_code: &str,
     initial_interval: i64,
+    region: KimiRegion,
 ) -> Result<DevicePollStatus, String> {
     let client = reqwest::Client::builder()
         .timeout(REFRESH_TIMEOUT)
         .build()
         .map_err(|e| format!("Failed to build HTTP client: {e}"))?;
 
+    let token_endpoint = format!(
+        "{}{TOKEN_PATH}",
+        region.oauth_host().trim_end_matches('/')
+    );
     let deadline = std::time::Instant::now() + POLL_TIMEOUT;
     let mut interval = initial_interval.max(1);
 
     loop {
         let mut req = client
-            .post(TOKEN_ENDPOINT)
+            .post(&token_endpoint)
             .form(&[
                 ("grant_type", DEVICE_GRANT_TYPE),
                 ("client_id", CLIENT_ID),
@@ -393,7 +586,7 @@ pub async fn poll_device_token(
                 Ok(t) => t,
                 Err(e) => return Err(format!("Failed to parse token response: {e}")),
             };
-            persist_device_token(&token)?;
+            persist_device_token(&token, region)?;
             return Ok(DevicePollStatus::Success);
         }
 
@@ -424,17 +617,89 @@ pub async fn poll_device_token(
     }
 }
 
-/// Write a freshly obtained token set into the CLI credentials file,
-/// preserving unrelated fields and using the same snake_case shape.
-fn persist_device_token(token: &TokenResponse) -> Result<(), String> {
-    let path = credentials_path();
+/// Write a freshly obtained token set into the region's credentials file,
+/// preserving unrelated fields and using the same snake_case shape, then
+/// provision the managed provider in config.toml (mirroring the CLI).
+///
+/// cn writes the shared `credentials/kimi-code.json`; global resolves the
+/// scoped key from (oauthHost, baseUrl) and writes `credentials/<scoped>.json`.
+fn persist_device_token(token: &TokenResponse, region: KimiRegion) -> Result<(), String> {
+    let key = derive_scoped_key(region.oauth_host(), region.base_url());
+    let storage_name = resolve_storage_name(&key)?;
+    let path = credentials_path_for_storage(&storage_name);
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
     let current = std::fs::read_to_string(&path).unwrap_or_default();
     let merged = merge_token_response(&current, token);
     std::fs::write(&path, merged)
-        .map_err(|e| format!("Failed to write Kimi credentials: {e}"))
+        .map_err(|e| format!("Failed to write Kimi credentials: {e}"))?;
+    provision_managed_provider(region, &key)
+}
+
+/// Update `[providers."managed:kimi-code"]` in config.toml so the official CLI
+/// can use the freshly obtained credentials (mirror the CLI's post-login
+/// provisioning / `authService.provisionProvider`): ensure the provider exists,
+/// `type="kimi"`, `base_url=<region baseUrl>`, `api_key=""`, and the oauth ref
+/// block `{storage="file", key=<region key>}` — `oauthHost` is persisted only
+/// for global (cn writes none, so `key == "oauth/kimi-code"` stays the
+/// explicit-mainland signal). Other fields (icon, ...) are left untouched; the
+/// round-trip preserves every unrelated section.
+fn provision_managed_provider(region: KimiRegion, oauth_key: &str) -> Result<(), String> {
+    use indexmap::IndexMap;
+
+    let mut config = crate::kimi_code_io::load_kimi_code_config_as_config()
+        .map_err(|e| format!("Failed to read Kimi Code config: {e}"))?;
+
+    let provider = config
+        .providers
+        .entry(MANAGED_PROVIDER_NAME.to_string())
+        .or_insert_with(|| crate::models::Provider {
+            name: MANAGED_PROVIDER_NAME.to_string(),
+            provider_type: crate::models::ProviderType::Kimi,
+            base_url: None,
+            api_key: None,
+            env: IndexMap::new(),
+            note: None,
+            official_url: None,
+            managed: true,
+            enabled: true,
+            active: false,
+            icon: None,
+            icon_color: None,
+            raw_other: serde_json::Value::Object(serde_json::Map::new()),
+            usage_kinds: None,
+            usage_config: None,
+        });
+
+    provider.provider_type = crate::models::ProviderType::Kimi;
+    provider.base_url = Some(region.base_url().to_string());
+    provider.api_key = Some(String::new());
+    provider.managed = true;
+
+    let mut oauth = serde_json::Map::new();
+    oauth.insert(
+        "storage".to_string(),
+        serde_json::Value::String("file".to_string()),
+    );
+    oauth.insert(
+        "key".to_string(),
+        serde_json::Value::String(oauth_key.to_string()),
+    );
+    if region == KimiRegion::Global {
+        oauth.insert(
+            "oauthHost".to_string(),
+            serde_json::Value::String(region.oauth_host().to_string()),
+        );
+    }
+    if let Some(obj) = provider.raw_other.as_object_mut() {
+        obj.insert("oauth".to_string(), serde_json::Value::Object(oauth));
+    } else {
+        provider.raw_other = serde_json::json!({ "oauth": oauth });
+    }
+
+    crate::kimi_code_io::save_config_as_kimi_code(&config)
+        .map_err(|e| format!("Failed to write Kimi Code config: {e}"))
 }
 
 #[cfg(test)]
@@ -568,5 +833,179 @@ mod tests {
         assert_eq!(pending["interval"], 5);
         let success = serde_json::to_value(DevicePollStatus::Success).unwrap();
         assert_eq!(success["status"], "success");
+    }
+
+    // ── region / credential-key resolution ────────────────────────────────
+
+    #[test]
+    fn resolve_storage_name_maps_all_branches() {
+        // Default slot.
+        assert_eq!(resolve_storage_name("kimi-code").unwrap(), "kimi-code");
+        assert_eq!(resolve_storage_name("oauth/kimi-code").unwrap(), "kimi-code");
+        // oauth/<name> strips the prefix.
+        assert_eq!(resolve_storage_name("oauth/foo").unwrap(), "foo");
+        // Bare name without '/' is kept verbatim.
+        assert_eq!(resolve_storage_name("custom").unwrap(), "custom");
+        // Invalid keys → Err.
+        assert!(resolve_storage_name("oauth/").is_err(), "empty suffix");
+        assert!(resolve_storage_name(".hidden").is_err(), "dot-prefixed");
+        assert!(resolve_storage_name("a/b").is_err(), "contains slash");
+    }
+
+    #[test]
+    fn derive_scoped_key_returns_default_for_mainland() {
+        assert_eq!(
+            derive_scoped_key("https://auth.kimi.com", "https://api.kimi.com/coding/v1"),
+            "oauth/kimi-code"
+        );
+        // Trailing slashes / whitespace normalize to the defaults.
+        assert_eq!(
+            derive_scoped_key(" https://auth.kimi.com/ ", "https://api.kimi.com/coding/v1/"),
+            "oauth/kimi-code"
+        );
+    }
+
+    #[test]
+    fn derive_scoped_key_scopes_by_endpoint_pair() {
+        let key = derive_scoped_key("https://auth.kimi.ai", "https://api.kimi.ai/coding/v1");
+        assert!(key.starts_with("oauth/kimi-code-env-"), "key: {key}");
+        let hex = &key["oauth/kimi-code-env-".len()..];
+        assert_eq!(hex.len(), 16, "key: {key}");
+        assert!(hex.chars().all(|c| c.is_ascii_hexdigit()), "key: {key}");
+        // Byte-exact vs JS JSON.stringify({oauthHost, baseUrl}) — precomputed,
+        // guards against serde field order / whitespace drift.
+        assert_eq!(key, "oauth/kimi-code-env-0e4f99c69cc27850");
+    }
+
+    #[test]
+    fn oauth_context_defaults_without_ref() {
+        let ctx = OAuthContext::from(None, "https://api.kimi.com/coding/v1");
+        assert_eq!(ctx.storage_name, "kimi-code");
+        assert_eq!(ctx.oauth_host, "https://auth.kimi.com");
+        assert_eq!(ctx.token_endpoint(), "https://auth.kimi.com/api/oauth/token");
+    }
+
+    #[test]
+    fn oauth_context_defaults_without_ref_even_for_custom_base() {
+        // Zero-regression: a ref-less provider must keep using the legacy
+        // mainland slot regardless of its base_url (derive only kicks in when
+        // an oauth ref carries an oauthHost).
+        let ctx = OAuthContext::from(None, "https://proxy.example.com/coding/v1");
+        assert_eq!(ctx.storage_name, "kimi-code");
+        assert_eq!(ctx.oauth_host, "https://auth.kimi.com");
+    }
+
+    #[test]
+    fn oauth_context_derives_scoped_key_when_ref_has_only_oauth_host() {
+        let r = OAuthRef {
+            key: None,
+            oauth_host: Some("https://auth.kimi.ai".to_string()),
+        };
+        let ctx = OAuthContext::from(Some(&r), "https://api.kimi.ai/coding/v1");
+        assert_eq!(ctx.storage_name, "kimi-code-env-0e4f99c69cc27850");
+        assert_eq!(ctx.oauth_host, "https://auth.kimi.ai");
+    }
+
+    #[test]
+    fn oauth_context_follows_ref_key_and_host() {
+        let r = OAuthRef {
+            key: Some("oauth/kimi-code-env-0e4f99c69cc27850".to_string()),
+            oauth_host: Some("https://auth.kimi.ai".to_string()),
+        };
+        let ctx = OAuthContext::from(Some(&r), "https://api.kimi.ai/coding/v1");
+        assert_eq!(ctx.storage_name, "kimi-code-env-0e4f99c69cc27850");
+        assert_eq!(ctx.oauth_host, "https://auth.kimi.ai");
+        assert_eq!(ctx.token_endpoint(), "https://auth.kimi.ai/api/oauth/token");
+    }
+
+    // ── login persistence + provisioning (via KIMI_CODE_HOME temp dir) ─────
+
+    /// Run `f` with `KIMI_CODE_HOME` pointed at a fresh temp dir (the config
+    /// dir). A process-wide mutex serializes env mutation so parallel tests in
+    /// this binary can't observe a stale override.
+    fn with_kimi_code_home<T>(f: impl FnOnce(&std::path::Path) -> T) -> T {
+        static LOCK: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
+        let _guard = LOCK.get_or_init(|| std::sync::Mutex::new(())).lock().unwrap();
+        let home = tempfile::tempdir().unwrap();
+        std::env::set_var("KIMI_CODE_HOME", home.path());
+        let out = f(home.path());
+        std::env::remove_var("KIMI_CODE_HOME");
+        out
+    }
+
+    #[test]
+    fn persist_cn_login_writes_default_slot_and_provisions_without_oauth_host() {
+        with_kimi_code_home(|dir| {
+            // Pre-existing config with an unrelated section must survive.
+            std::fs::write(dir.join("config.toml"), "[thinking]\nenabled = true\n").unwrap();
+
+            let token = TokenResponse {
+                access_token: "cn-access".to_string(),
+                refresh_token: Some("cn-refresh".to_string()),
+                expires_in: Some(900),
+                scope: Some("kimi-code".to_string()),
+                token_type: None,
+            };
+            persist_device_token(&token, KimiRegion::Cn).unwrap();
+
+            // Credentials land in the shared default slot.
+            let cred =
+                std::fs::read_to_string(dir.join("credentials/kimi-code.json")).unwrap();
+            assert!(cred.contains("cn-access"), "cred: {cred}");
+
+            // Provider provisioned with the cn base_url and NO oauthHost.
+            let cfg_toml = std::fs::read_to_string(dir.join("config.toml")).unwrap();
+            let cfg: toml::Value = cfg_toml.parse().unwrap();
+            let provider = &cfg["providers"]["managed:kimi-code"];
+            assert_eq!(provider["type"].as_str(), Some("kimi"));
+            assert_eq!(
+                provider["base_url"].as_str(),
+                Some("https://api.kimi.com/coding/v1")
+            );
+            assert_eq!(provider["api_key"].as_str(), Some(""));
+            let oauth = &provider["oauth"];
+            assert_eq!(oauth["storage"].as_str(), Some("file"));
+            assert_eq!(oauth["key"].as_str(), Some("oauth/kimi-code"));
+            assert!(
+                oauth.get("oauthHost").is_none(),
+                "cn must not persist oauthHost"
+            );
+            // Unrelated section preserved by the round-trip.
+            assert_eq!(cfg["thinking"]["enabled"].as_bool(), Some(true));
+        });
+    }
+
+    #[test]
+    fn persist_global_login_writes_scoped_slot_and_provisions_oauth_host() {
+        with_kimi_code_home(|dir| {
+            std::fs::write(dir.join("config.toml"), "").unwrap();
+
+            let token = TokenResponse {
+                access_token: "global-access".to_string(),
+                refresh_token: Some("global-refresh".to_string()),
+                expires_in: Some(900),
+                scope: Some("kimi-code".to_string()),
+                token_type: None,
+            };
+            persist_device_token(&token, KimiRegion::Global).unwrap();
+
+            let key = derive_scoped_key("https://auth.kimi.ai", "https://api.kimi.ai/coding/v1");
+            assert_eq!(key, "oauth/kimi-code-env-0e4f99c69cc27850");
+            let storage = resolve_storage_name(&key).unwrap();
+            let cred =
+                std::fs::read_to_string(dir.join(format!("credentials/{storage}.json"))).unwrap();
+            assert!(cred.contains("global-access"), "cred: {cred}");
+
+            let cfg_toml = std::fs::read_to_string(dir.join("config.toml")).unwrap();
+            let cfg: toml::Value = cfg_toml.parse().unwrap();
+            let provider = &cfg["providers"]["managed:kimi-code"];
+            assert_eq!(
+                provider["base_url"].as_str(),
+                Some("https://api.kimi.ai/coding/v1")
+            );
+            let oauth = &provider["oauth"];
+            assert_eq!(oauth["key"].as_str(), Some(key.as_str()));
+            assert_eq!(oauth["oauthHost"].as_str(), Some("https://auth.kimi.ai"));
+        });
     }
 }

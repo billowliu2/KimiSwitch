@@ -25,6 +25,8 @@ interface KimiOAuthDialogProps {
   onClose: () => void;
 }
 
+type OAuthRegion = "cn" | "global";
+
 /** Kimi device-code sign-in dialog (in-app `kimi login`). */
 export function KimiOAuthDialog({ open, onClose }: KimiOAuthDialogProps) {
   const { t } = useTranslation();
@@ -33,10 +35,12 @@ export function KimiOAuthDialog({ open, onClose }: KimiOAuthDialogProps) {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [region, setRegion] = useState<OAuthRegion>("cn");
+  const [started, setStarted] = useState(false);
   const activeRef = useRef(false);
   const intervalRef = useRef(5);
 
-  // Start a fresh device authorization when the dialog opens.
+  // Reset to the "pick a region" screen when the dialog (re)opens.
   useEffect(() => {
     if (!open) return;
     activeRef.current = true;
@@ -45,8 +49,26 @@ export function KimiOAuthDialog({ open, onClose }: KimiOAuthDialogProps) {
     setDone(false);
     setError(null);
     setCopied(false);
+    setRegion("cn");
+    setStarted(false);
     intervalRef.current = 5;
-    invoke<DeviceAuthorization>("kimi_oauth_start")
+    return () => {
+      activeRef.current = false;
+    };
+  }, [open]);
+
+  // Begin the device flow for a region. Locks the picker; a later restart is
+  // the way to switch region.
+  const start = (r: OAuthRegion) => {
+    setRegion(r);
+    setStarted(true);
+    setAuth(null);
+    setPolling(false);
+    setDone(false);
+    setError(null);
+    setCopied(false);
+    intervalRef.current = 5;
+    invoke<DeviceAuthorization>("kimi_oauth_start", { region: r })
       .then((a) => {
         if (!activeRef.current) return;
         setAuth(a);
@@ -56,11 +78,10 @@ export function KimiOAuthDialog({ open, onClose }: KimiOAuthDialogProps) {
       .catch((e) => {
         if (!activeRef.current) return;
         setError(e instanceof Error ? e.message : String(e));
+        // Allow picking the region again after a failed launch.
+        setStarted(false);
       });
-    return () => {
-      activeRef.current = false;
-    };
-  }, [open]);
+  };
 
   // Poll the token endpoint while the user authorizes in the browser.
   useEffect(() => {
@@ -73,6 +94,7 @@ export function KimiOAuthDialog({ open, onClose }: KimiOAuthDialogProps) {
         const res = await invoke<PollStatus>("kimi_oauth_poll", {
           deviceCode: auth.device_code,
           interval: intervalRef.current,
+          region,
         });
         if (cancelled) return;
         switch (res.status) {
@@ -119,22 +141,8 @@ export function KimiOAuthDialog({ open, onClose }: KimiOAuthDialogProps) {
   }, [open, polling, auth]);
 
   const restart = () => {
-    setAuth(null);
-    setPolling(false);
-    setDone(false);
-    setError(null);
-    intervalRef.current = 5;
-    invoke<DeviceAuthorization>("kimi_oauth_start")
-      .then((a) => {
-        if (!activeRef.current) return;
-        setAuth(a);
-        if (a.interval && a.interval > 0) intervalRef.current = a.interval;
-        setPolling(true);
-      })
-      .catch((e) => {
-        if (!activeRef.current) return;
-        setError(e instanceof Error ? e.message : String(e));
-      });
+    // Restart always resets to the default region (mainland China).
+    start("cn");
   };
 
   const copyCode = () => {
@@ -214,11 +222,54 @@ export function KimiOAuthDialog({ open, onClose }: KimiOAuthDialogProps) {
               <p className="text-sm text-content-muted text-center">
                 {t("kimiOAuthWaiting")}
               </p>
+
+              <p className="text-xs text-content-muted text-center">
+                {region === "global"
+                  ? t("kimiOAuthRegionGlobal")
+                  : t("kimiOAuthRegionCn")}
+              </p>
             </>
           )}
 
-          {!auth && !done && (
+          {started && !auth && !done && (
             <div className="h-3.5 w-2/3 rounded bg-hover-2 animate-pulse mx-auto" />
+          )}
+
+          {!started && !done && (
+            <div className="space-y-3">
+              <p className="text-sm text-content-muted">{t("kimiOAuthRegionLabel")}</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRegion("cn")}
+                  className={`px-3 py-2 text-sm rounded border transition-colors ${
+                    region === "cn"
+                      ? "border-blue-600 bg-blue-600/10 text-blue-600 dark:text-blue-400"
+                      : "border-border hover:bg-hover-2 text-content-muted"
+                  }`}
+                >
+                  {t("kimiOAuthRegionCn")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRegion("global")}
+                  className={`px-3 py-2 text-sm rounded border transition-colors ${
+                    region === "global"
+                      ? "border-blue-600 bg-blue-600/10 text-blue-600 dark:text-blue-400"
+                      : "border-border hover:bg-hover-2 text-content-muted"
+                  }`}
+                >
+                  {t("kimiOAuthRegionGlobal")}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => start(region)}
+                className="w-full px-3 py-2 text-sm rounded bg-blue-600 text-white hover:bg-blue-500 transition-colors"
+              >
+                {t("kimiOAuthStart")}
+              </button>
+            </div>
           )}
 
           <div className="flex items-center justify-end gap-2 pt-1">
