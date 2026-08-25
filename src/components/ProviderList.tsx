@@ -4,6 +4,7 @@ import { Pencil, Copy, Activity, Loader2, Trash2, BarChart3 } from "lucide-react
 import { useTranslation } from "../i18n";
 import { ProviderIcon } from "./ProviderIcon";
 import { UsageFooter } from "./UsageFooter";
+import { useUsageQuery } from "../hooks/useUsageQuery";
 import type { Agent, Model, Provider } from "../types";
 
 interface ConnectivityResult {
@@ -30,6 +31,228 @@ interface ProviderListProps {
   onSwitchProvider: (name: string) => void;
   onConfigureUsage: (name: string) => void;
   agent: Agent;
+}
+
+interface ProviderCardProps {
+  provider: Provider;
+  agent: Agent;
+  defaultModel: string | null;
+  models: Record<string, Model>;
+  /** Inline connectivity-test state for this provider, or undefined when idle. */
+  ts: TestState | undefined;
+  onEdit: (name: string) => void;
+  onDelete: (name: string) => void;
+  onDuplicate: (name: string) => void;
+  onSwitchProvider: (name: string) => void;
+  onConfigureUsage: (name: string) => void;
+  onTest: (provider: Provider) => void;
+}
+
+function ProviderCard({
+  provider,
+  agent,
+  defaultModel,
+  models,
+  ts,
+  onEdit,
+  onDelete,
+  onDuplicate,
+  onSwitchProvider,
+  onConfigureUsage,
+  onTest,
+}: ProviderCardProps) {
+  const { t } = useTranslation();
+  // Usage query state lives once per card; both the compact (card header) and
+  // detail (footer) UsageFooter variants read this same state, so a refresh
+  // from either side updates both.
+  const usage = useUsageQuery(
+    agent,
+    provider.name,
+    provider.usageKinds,
+    provider.usageConfig?.autoQueryIntervalMinutes
+  );
+  const providerModels = Object.values(models).filter(
+    (m) => m.provider === provider.name
+  );
+  const defaultModelName = defaultModel
+    ? models[defaultModel]?.model || models[defaultModel]?.display_name || defaultModel
+    : null;
+  const isActive = provider.active === true;
+
+  return (
+    <div
+      className={`group relative flex flex-col gap-3 p-4 rounded-xl border transition-colors cursor-pointer w-full ${
+        isActive
+          ? "bg-green-50 dark:bg-green-900/10 border-green-300 dark:border-green-500/30 hover:border-green-400 dark:border-green-500/50 hover:bg-green-100 dark:bg-green-900/20"
+          : "bg-panel border-border hover:border-strong hover:bg-hover"
+      }`}
+      onClick={() => onEdit(provider.name)}
+    >
+      <div className="flex items-center gap-4 w-full">
+      <ProviderIcon
+        name={provider.name}
+        icon={provider.icon}
+        color={provider.icon_color}
+        size={44}
+      />
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-content-primary truncate">
+            {provider.name}
+          </h3>
+          {isActive && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 border border-green-300 dark:border-green-500/30">
+              {t("inUse")}
+            </span>
+          )}
+          {provider.note && (
+            <span className="text-xs text-content-muted truncate max-w-[200px]">
+              {provider.note}
+            </span>
+          )}
+        </div>
+        <div className="mt-1 flex items-center gap-3 text-sm text-content-muted flex-wrap">
+          <span className="font-mono text-xs">
+            {provider.official_url || provider.base_url || t("noUrl")}
+          </span>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-hover-2 text-content-muted border border-border">
+            {provider.provider_type}
+          </span>
+          <span className="text-xs">
+            {t("modelCount", { count: providerModels.length })}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex items-center flex-wrap justify-end gap-2">
+        {defaultModel &&
+          models[defaultModel]?.provider === provider.name && (
+            <span className="text-xs px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 border border-green-300 dark:border-green-500/20">
+              {t("defaultModel", { name: defaultModelName ?? "" })}
+            </span>
+          )}
+        {/* inline connectivity test result */}
+        {ts && ts.status !== "testing" && (
+          <span
+            className={`text-xs px-2 py-0.5 rounded-full border tabular-nums ${
+              ts.status === "ok"
+                ? ts.latency && ts.latency > 6000
+                  ? "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-500/30"
+                  : "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-green-300 dark:border-green-500/30"
+                : "bg-red-100 dark:bg-red-900/30 text-red-500 dark:text-red-400 border-red-300 dark:border-red-500/30"
+            }`}
+            title={
+              ts.status === "fail"
+                ? ts.error || t("connectivityFail", { name: provider.name, error: "" })
+                : ts.latency && ts.latency > 6000
+                  ? t("connectivitySlow", { name: provider.name, latency: ts.latency ?? 0 })
+                  : t("connectivityOk", { name: provider.name, latency: ts.latency ?? 0 })
+            }
+          >
+            {ts.status === "ok" ? `${ts.latency}ms` : "✕"}
+          </span>
+        )}
+        {/* compact usage summary — sits left of the switch button,
+            mirroring cc-switch's card layout (usage → action buttons) */}
+        {(provider.usageKinds?.length ?? 0) > 0 && (
+          <UsageFooter usage={usage} variant="compact" />
+        )}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSwitchProvider(provider.name);
+          }}
+          className={`px-3 py-1.5 text-sm rounded focus:ring-2 focus:outline-none ${
+            isActive
+              ? "bg-green-600 hover:bg-green-700 text-white focus:ring-green-500"
+              : "bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500"
+          }`}
+        >
+          {isActive ? t("inUse") : t("switchTo")}
+        </button>
+        {agent === "kimi_code" && (
+          <span
+            className="text-sm text-content-muted hover:text-content-primary cursor-help select-none"
+            title={t("switchReloadHint")}
+            aria-label={t("switchReloadHint")}
+          >
+            ⓘ
+          </span>
+        )}
+
+        {/* icon button group */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit(provider.name);
+          }}
+          title={t("edit")}
+          className={iconBtn}
+          aria-label={t("edit")}
+        >
+          <Pencil className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDuplicate(provider.name);
+          }}
+          title={t("copyProvider")}
+          className={iconBtn}
+          aria-label={t("copyProvider")}
+        >
+          <Copy className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onTest(provider);
+          }}
+          disabled={ts?.status === "testing"}
+          title={t("testConnectivity")}
+          className={`${iconBtn} disabled:opacity-50`}
+          aria-label={t("testConnectivity")}
+        >
+          {ts?.status === "testing" ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Activity className="w-4 h-4" />
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onConfigureUsage(provider.name);
+          }}
+          title={t("usageConfigBtn")}
+          className={iconBtn}
+          aria-label={t("usageConfigBtn")}
+        >
+          <BarChart3 className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(provider.name);
+          }}
+          title={t("delete")}
+          className={`${iconBtn} hover:text-red-400 hover:border-red-500/30 hover:bg-red-900/20`}
+          aria-label={t("delete")}
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+      </div>
+      <UsageFooter usage={usage} variant="detail" />
+    </div>
+  );
 }
 
 const iconBtn =
@@ -139,205 +362,22 @@ export function ProviderList({
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 w-full">
-            {sortedProviders.map((provider) => {
-              const providerModels = Object.values(models).filter(
-                (m) => m.provider === provider.name
-              );
-              const defaultModelName = defaultModel
-                ? models[defaultModel]?.model || models[defaultModel]?.display_name || defaultModel
-                : null;
-              const isActive = provider.active === true;
-              const ts = testState[provider.name];
-
-              return (
-                <div
-                  key={provider.name}
-                  className={`group relative flex flex-col gap-3 p-4 rounded-xl border transition-colors cursor-pointer w-full ${
-                    isActive
-                      ? "bg-green-50 dark:bg-green-900/10 border-green-300 dark:border-green-500/30 hover:border-green-400 dark:border-green-500/50 hover:bg-green-100 dark:bg-green-900/20"
-                      : "bg-panel border-border hover:border-strong hover:bg-hover"
-                  }`}
-                  onClick={() => onEdit(provider.name)}
-                >
-                  <div className="flex items-center gap-4 w-full">
-                  <ProviderIcon
-                    name={provider.name}
-                    icon={provider.icon}
-                    color={provider.icon_color}
-                    size={44}
-                  />
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-content-primary truncate">
-                        {provider.name}
-                      </h3>
-                      {isActive && (
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 border border-green-300 dark:border-green-500/30">
-                          {t("inUse")}
-                        </span>
-                      )}
-                      {provider.note && (
-                        <span className="text-xs text-content-muted truncate max-w-[200px]">
-                          {provider.note}
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-1 flex items-center gap-3 text-sm text-content-muted flex-wrap">
-                      <span className="font-mono text-xs">
-                        {provider.official_url || provider.base_url || t("noUrl")}
-                      </span>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-hover-2 text-content-muted border border-border">
-                        {provider.provider_type}
-                      </span>
-                      <span className="text-xs">
-                        {t("modelCount", { count: providerModels.length })}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center flex-wrap justify-end gap-2">
-                    {defaultModel &&
-                      models[defaultModel]?.provider === provider.name && (
-                        <span className="text-xs px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 border border-green-300 dark:border-green-500/20">
-                          {t("defaultModel", { name: defaultModelName ?? "" })}
-                        </span>
-                      )}
-                    {/* inline connectivity test result */}
-                    {ts && ts.status !== "testing" && (
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full border tabular-nums ${
-                          ts.status === "ok"
-                            ? ts.latency && ts.latency > 6000
-                              ? "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-500/30"
-                              : "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-green-300 dark:border-green-500/30"
-                            : "bg-red-100 dark:bg-red-900/30 text-red-500 dark:text-red-400 border-red-300 dark:border-red-500/30"
-                        }`}
-                        title={
-                          ts.status === "fail"
-                            ? ts.error || t("connectivityFail", { name: provider.name, error: "" })
-                            : ts.latency && ts.latency > 6000
-                              ? t("connectivitySlow", { name: provider.name, latency: ts.latency ?? 0 })
-                              : t("connectivityOk", { name: provider.name, latency: ts.latency ?? 0 })
-                        }
-                      >
-                        {ts.status === "ok" ? `${ts.latency}ms` : "✕"}
-                      </span>
-                    )}
-                    {/* compact usage summary — sits left of the switch button,
-                        mirroring cc-switch's card layout (usage → action buttons) */}
-                    {(provider.usageKinds?.length ?? 0) > 0 && (
-                      <UsageFooter
-                        agent={agent}
-                        providerName={provider.name}
-                        usageKinds={provider.usageKinds}
-                        variant="compact"
-                        autoIntervalMinutes={
-                          provider.usageConfig?.autoQueryIntervalMinutes
-                        }
-                      />
-                    )}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSwitchProvider(provider.name);
-                      }}
-                      className={`px-3 py-1.5 text-sm rounded focus:ring-2 focus:outline-none ${
-                        isActive
-                          ? "bg-green-600 hover:bg-green-700 text-white focus:ring-green-500"
-                          : "bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500"
-                      }`}
-                    >
-                      {isActive ? t("inUse") : t("switchTo")}
-                    </button>
-                    {agent === "kimi_code" && (
-                      <span
-                        className="text-sm text-content-muted hover:text-content-primary cursor-help select-none"
-                        title={t("switchReloadHint")}
-                        aria-label={t("switchReloadHint")}
-                      >
-                        ⓘ
-                      </span>
-                    )}
-
-                    {/* icon button group */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEdit(provider.name);
-                      }}
-                      title={t("edit")}
-                      className={iconBtn}
-                      aria-label={t("edit")}
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDuplicate(provider.name);
-                      }}
-                      title={t("copyProvider")}
-                      className={iconBtn}
-                      aria-label={t("copyProvider")}
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleTest(provider);
-                      }}
-                      disabled={ts?.status === "testing"}
-                      title={t("testConnectivity")}
-                      className={`${iconBtn} disabled:opacity-50`}
-                      aria-label={t("testConnectivity")}
-                    >
-                      {ts?.status === "testing" ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Activity className="w-4 h-4" />
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onConfigureUsage(provider.name);
-                      }}
-                      title={t("usageConfigBtn")}
-                      className={iconBtn}
-                      aria-label={t("usageConfigBtn")}
-                    >
-                      <BarChart3 className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete(provider.name);
-                      }}
-                      title={t("delete")}
-                      className={`${iconBtn} hover:text-red-400 hover:border-red-500/30 hover:bg-red-900/20`}
-                      aria-label={t("delete")}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                  </div>
-                  <UsageFooter
-                    agent={agent}
-                    providerName={provider.name}
-                    usageKinds={provider.usageKinds}
-                    variant="detail"
-                  />
-                </div>
-              );
-            })}
+            {sortedProviders.map((provider) => (
+              <ProviderCard
+                key={provider.name}
+                provider={provider}
+                agent={agent}
+                defaultModel={defaultModel}
+                models={models}
+                ts={testState[provider.name]}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onDuplicate={onDuplicate}
+                onSwitchProvider={onSwitchProvider}
+                onConfigureUsage={onConfigureUsage}
+                onTest={handleTest}
+              />
+            ))}
           </div>
         )}
       </div>

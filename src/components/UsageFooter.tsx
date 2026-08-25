@@ -1,175 +1,23 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useEffect, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { useTranslation } from "../i18n";
 import { localizeUsageError, planLabel } from "../lib/usage-display";
-import type { Agent } from "../types";
-
-interface UsageData {
-  planName?: string | null;
-  remaining?: number | null;
-  total?: number | null;
-  used?: number | null;
-  unit?: string | null;
-  isValid?: boolean | null;
-  resetsAt?: string | null;
-}
-
-interface UsageResult {
-  success: boolean;
-  data?: UsageData[] | null;
-  error?: string | null;
-}
-
-type UsageStatus = "idle" | "loading" | "success" | "error";
-
-interface CacheEntry {
-  status: "success" | "error";
-  data: UsageData[];
-  /** Raw error text from Rust; null = transient failure (invoke rejected). */
-  error: string | null;
-  updatedAt: number;
-}
-
-// Module-level cache shared across mounts: re-entering the list within the
-// stale TTL shows the last result without firing new requests. Both the
-// compact (card header) and detail (footer) variants read this same cache.
-const STALE_TTL_MS = 5 * 60 * 1000;
-const cache = new Map<string, CacheEntry>();
-
-// Simple semaphore: at most MAX_CONCURRENT queries in flight at once.
-const MAX_CONCURRENT = 3;
-let running = 0;
-const waiters: Array<() => void> = [];
-async function acquireSlot(): Promise<void> {
-  if (running >= MAX_CONCURRENT) {
-    await new Promise<void>((resolve) => waiters.push(resolve));
-  }
-  running += 1;
-}
-function releaseSlot(): void {
-  running -= 1;
-  waiters.shift()?.();
-}
+import type { UsageData, UsageQueryState } from "../hooks/useUsageQuery";
 
 interface UsageFooterProps {
-  agent: Agent;
-  providerName: string;
-  usageKinds?: string[];
+  /** Query state lifted to the provider card via useUsageQuery. Both the
+   * compact (card header) and detail (footer) variants read the same state,
+   * so a refresh from either updates both. */
+  usage: UsageQueryState;
   /** "detail" (default) renders the multi-line footer; "compact" renders a
    * one-line summary + last-updated + refresh button for the card header. */
   variant?: "detail" | "compact";
-  /** Auto query interval in minutes; only wired on the compact variant so
-   * both variants do not double-fire. 0/undefined = manual only. */
-  autoIntervalMinutes?: number;
 }
 
-export function UsageFooter({
-  agent,
-  providerName,
-  usageKinds,
-  variant = "detail",
-  autoIntervalMinutes,
-}: UsageFooterProps) {
+export function UsageFooter({ usage, variant = "detail" }: UsageFooterProps) {
   const { t } = useTranslation();
-  const supported = (usageKinds?.length ?? 0) > 0;
-  // Cache key includes the agent so a Kimi Code provider and a Pi provider
-  // with the same name do not clobber each other's cached result.
-  const cacheKey = `${agent}:${providerName}`;
-
-  const [status, setStatus] = useState<UsageStatus>("idle");
-  const [data, setData] = useState<UsageData[]>([]);
-  /** undefined = no error; null = network error; string = Rust error text. */
-  const [error, setError] = useState<string | null | undefined>(undefined);
-  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  const { status, data, error, updatedAt, supported, refresh } = usage;
   const [now, setNow] = useState(() => Date.now());
-  // Generation counter: stale responses (unmounted / superseded query) are ignored.
-  const genRef = useRef(0);
-
-  const runQuery = useCallback(
-    async (forceRefresh: boolean) => {
-      const gen = ++genRef.current;
-      setStatus("loading");
-      setError(undefined);
-      const finish = (entry: CacheEntry) => {
-        cache.set(cacheKey, entry);
-        if (genRef.current !== gen) return;
-        setStatus(entry.status);
-        setData(entry.data);
-        setError(entry.error);
-        setUpdatedAt(entry.updatedAt);
-      };
-      try {
-        await acquireSlot();
-        let result: UsageResult;
-        try {
-          result = await invoke<UsageResult>("query_provider_usage", {
-            agent,
-            providerName,
-            forceRefresh,
-          });
-        } finally {
-          releaseSlot();
-        }
-        if (genRef.current !== gen) return;
-        if (result.success) {
-          finish({
-            status: "success",
-            data: result.data ?? [],
-            error: null,
-            updatedAt: Date.now(),
-          });
-        } else {
-          // Deterministic failure: keep last good data for ghost display.
-          finish({
-            status: "error",
-            data: cache.get(cacheKey)?.data ?? [],
-            error: result.error ?? "",
-            updatedAt: Date.now(),
-          });
-        }
-      } catch {
-        // Transient failure (network / timeout): invoke rejected.
-        finish({
-          status: "error",
-          data: cache.get(cacheKey)?.data ?? [],
-          error: null,
-          updatedAt: Date.now(),
-        });
-      }
-    },
-    [agent, providerName, cacheKey]
-  );
-
-  // On mount / provider change: serve fresh cache, otherwise query once.
-  useEffect(() => {
-    if (!supported) return;
-    const cached = cache.get(cacheKey);
-    if (cached) {
-      setStatus(cached.status);
-      setData(cached.data);
-      setError(cached.error);
-      setUpdatedAt(cached.updatedAt);
-      if (Date.now() - cached.updatedAt < STALE_TTL_MS) return;
-    }
-    void runQuery(false);
-  }, [supported, cacheKey, runQuery]);
-
-  // Ignore late responses after unmount.
-  useEffect(() => {
-    return () => {
-      genRef.current += 1;
-    };
-  }, []);
-
-  // Auto query interval (compact variant only, to avoid double-firing).
-  useEffect(() => {
-    if (variant !== "compact" || !supported) return;
-    const mins = autoIntervalMinutes ?? 0;
-    if (mins <= 0) return;
-    const id = setInterval(() => void runQuery(false), mins * 60_000);
-    return () => clearInterval(id);
-  }, [variant, supported, autoIntervalMinutes, runQuery]);
 
   // Tick relative times once a minute while showing data.
   useEffect(() => {
@@ -226,7 +74,7 @@ export function UsageFooter({
       type="button"
       onClick={(e) => {
         e.stopPropagation();
-        void runQuery(true);
+        void refresh(true);
       }}
       disabled={status === "loading"}
       title={t("usageRefresh")}
@@ -344,7 +192,7 @@ export function UsageFooter({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            void runQuery(true);
+            void refresh(true);
           }}
           className="ml-auto shrink-0 px-2 py-0.5 rounded border border-red-300 dark:border-red-500/30 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
         >

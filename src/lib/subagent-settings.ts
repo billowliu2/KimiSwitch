@@ -30,14 +30,24 @@ export interface ExperimentalFlagDef {
   envVar: string;
 }
 
-/** Known experimental flags (Kimi Code v1 + v2 registries, merged). */
+/** Known experimental flags — mirrors the kimi-code v2 flag registry
+ * (the per-feature flag.ts files under packages/agent-core-v2/src:
+ * secondary-model, tool-select, persistence_minidb_readmodel, tower,
+ * subagent_fork, wait_for, auto_session_title). `acp-v2` was removed
+ * upstream and is dropped here. */
 export const EXPERIMENTAL_FLAGS: ExperimentalFlagDef[] = [
   { id: "secondary-model", envVar: "KIMI_CODE_EXPERIMENTAL_SECONDARY_MODEL" },
   { id: "tool-select", envVar: "KIMI_CODE_EXPERIMENTAL_TOOL_SELECT" },
-  { id: "acp-v2", envVar: "KIMI_CODE_EXPERIMENTAL_ACP_V2" },
   {
     id: "persistence_minidb_readmodel",
     envVar: "KIMI_CODE_EXPERIMENTAL_PERSISTENCE_MINIDB_READMODEL",
+  },
+  { id: "tower", envVar: "KIMI_CODE_EXPERIMENTAL_TOWER" },
+  { id: "subagent_fork", envVar: "KIMI_CODE_EXPERIMENTAL_SUBAGENT_FORK" },
+  { id: "wait_for", envVar: "KIMI_CODE_EXPERIMENTAL_WAIT_FOR" },
+  {
+    id: "auto_session_title",
+    envVar: "KIMI_CODE_EXPERIMENTAL_AUTO_SESSION_TITLE",
   },
 ];
 

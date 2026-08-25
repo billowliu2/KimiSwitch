@@ -44,10 +44,16 @@ const EFFORT_LABELS: Record<(typeof EFFORTS)[number], TranslationKey> = {
 const FLAG_LABELS: Record<string, { name: TranslationKey; desc: TranslationKey }> = {
   "secondary-model": { name: "flagSecondaryModel", desc: "flagSecondaryModelDesc" },
   "tool-select": { name: "flagToolSelect", desc: "flagToolSelectDesc" },
-  "acp-v2": { name: "flagAcpV2", desc: "flagAcpV2Desc" },
   persistence_minidb_readmodel: {
     name: "flagMinidbReadmodel",
     desc: "flagMinidbReadmodelDesc",
+  },
+  tower: { name: "flagTower", desc: "flagTowerDesc" },
+  subagent_fork: { name: "flagSubagentFork", desc: "flagSubagentForkDesc" },
+  wait_for: { name: "flagWaitFor", desc: "flagWaitForDesc" },
+  auto_session_title: {
+    name: "flagAutoSessionTitle",
+    desc: "flagAutoSessionTitleDesc",
   },
 };
 
