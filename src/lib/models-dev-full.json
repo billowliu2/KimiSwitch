@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-08-25",
+  "last_updated": "2026-08-27",
   "providers": {
     "hpc-ai": {
       "id": "hpc-ai",
@@ -1798,6 +1798,21 @@
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
+        },
+        {
+          "id": "@cf/zai-org/glm-5.3-flash",
+          "name": "Glm 5.3 Flash",
+          "cost": {
+            "input": 0.15,
+            "output": 0.5,
+            "cache_read": 0.03
+          },
+          "context": 1310720,
+          "output_limit": 1310720,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true
         },
         {
           "id": "@cf/mistralai/mistral-small-3.1-24b-instruct",
@@ -6221,8 +6236,9 @@
           "id": "mistral-medium-3.5",
           "name": "mistral-medium-3.5",
           "cost": {
-            "input": 1.671,
-            "output": 5.57
+            "input": 1.393,
+            "output": 7.13,
+            "cache_read": 0.139
           },
           "context": 256000,
           "output_limit": 256000,
@@ -6545,19 +6561,17 @@
           "id": "claw-low",
           "name": "Claw Low",
           "cost": {
-            "input": 0.25,
-            "output": 1.5,
-            "cache_read": 0.025,
+            "input": 1.4,
+            "output": 4.4,
+            "cache_read": 0.26,
             "cache_write": 0.08333
           },
           "context": 1048576,
           "input_limit": 1048576,
-          "output_limit": 65536,
+          "output_limit": 131072,
           "reasoning": true,
           "tool_call": true,
-          "structured_output": true,
-          "image": true,
-          "video": true
+          "structured_output": true
         },
         {
           "id": "doubao-seed-2-0-pro-260215",
@@ -6717,8 +6731,8 @@
             "output": 0.33,
             "cache_read": 0.04
           },
-          "context": 65536,
-          "input_limit": 65536,
+          "context": 262144,
+          "input_limit": 262144,
           "output_limit": 32768,
           "reasoning": true,
           "tool_call": true,
@@ -8033,17 +8047,16 @@
           "id": "hermes-high",
           "name": "Hermes High",
           "cost": {
-            "input": 5,
-            "output": 25,
-            "cache_read": 2.5
+            "input": 1.4,
+            "output": 4.4,
+            "cache_read": 0.26
           },
-          "context": 1000000,
-          "input_limit": 1000000,
-          "output_limit": 128000,
+          "context": 1048576,
+          "input_limit": 1048576,
+          "output_limit": 131072,
           "reasoning": true,
           "tool_call": true,
-          "structured_output": true,
-          "image": true
+          "structured_output": true
         },
         {
           "id": "qwen3.7-plus:thinking",
@@ -8187,19 +8200,17 @@
           "id": "hermes-low",
           "name": "Hermes Low",
           "cost": {
-            "input": 0.25,
-            "output": 1.5,
-            "cache_read": 0.025,
+            "input": 1.4,
+            "output": 4.4,
+            "cache_read": 0.26,
             "cache_write": 0.08333
           },
           "context": 1048576,
           "input_limit": 1048576,
-          "output_limit": 65536,
+          "output_limit": 131072,
           "reasoning": true,
           "tool_call": true,
-          "structured_output": true,
-          "image": true,
-          "video": true
+          "structured_output": true
         },
         {
           "id": "command-a-plus-05-2026",
@@ -8291,12 +8302,12 @@
           "id": "claw-medium",
           "name": "Claw Medium",
           "cost": {
-            "input": 0.315,
-            "output": 1.26,
-            "cache_read": 0.1575
+            "input": 1.4,
+            "output": 4.4,
+            "cache_read": 0.26
           },
-          "context": 204800,
-          "input_limit": 204800,
+          "context": 1048576,
+          "input_limit": 1048576,
           "output_limit": 131072,
           "reasoning": true,
           "tool_call": true,
@@ -8322,12 +8333,12 @@
           "id": "hermes-medium",
           "name": "Hermes Medium",
           "cost": {
-            "input": 0.315,
-            "output": 1.26,
-            "cache_read": 0.1575
+            "input": 1.4,
+            "output": 4.4,
+            "cache_read": 0.26
           },
-          "context": 204800,
-          "input_limit": 204800,
+          "context": 1048576,
+          "input_limit": 1048576,
           "output_limit": 131072,
           "reasoning": true,
           "tool_call": true,
@@ -8457,8 +8468,8 @@
             "output": 0.33,
             "cache_read": 0.04
           },
-          "context": 65536,
-          "input_limit": 65536,
+          "context": 262144,
+          "input_limit": 262144,
           "output_limit": 32768,
           "reasoning": true,
           "tool_call": true,
@@ -8842,17 +8853,16 @@
           "id": "claw-high",
           "name": "Claw High",
           "cost": {
-            "input": 5,
-            "output": 25,
-            "cache_read": 2.5
+            "input": 1.4,
+            "output": 4.4,
+            "cache_read": 0.26
           },
-          "context": 1000000,
-          "input_limit": 1000000,
-          "output_limit": 128000,
+          "context": 1048576,
+          "input_limit": 1048576,
+          "output_limit": 131072,
           "reasoning": true,
           "tool_call": true,
-          "structured_output": true,
-          "image": true
+          "structured_output": true
         },
         {
           "id": "qwen3.5-122b-a10b",
@@ -8938,6 +8948,21 @@
           "image": true
         },
         {
+          "id": "Gemma-4-26B-A4B-MeroMero",
+          "name": "Gemma 4 26B A4B MeroMero",
+          "cost": {
+            "input": 0.08,
+            "output": 0.33,
+            "cache_read": 0.04
+          },
+          "context": 262144,
+          "input_limit": 262144,
+          "output_limit": 32768,
+          "reasoning": true,
+          "tool_call": true,
+          "image": true
+        },
+        {
           "id": "gemini-2.5-flash-preview-04-17",
           "name": "Gemini 2.5 Flash Preview",
           "cost": {
@@ -8992,6 +9017,21 @@
           "structured_output": true,
           "image": true,
           "video": true
+        },
+        {
+          "id": "Gemma-4-26B-A4B-MeroMero:thinking",
+          "name": "Gemma 4 26B A4B MeroMero Thinking",
+          "cost": {
+            "input": 0.08,
+            "output": 0.33,
+            "cache_read": 0.04
+          },
+          "context": 262144,
+          "input_limit": 262144,
+          "output_limit": 32768,
+          "reasoning": true,
+          "tool_call": true,
+          "image": true
         },
         {
           "id": "phi-4-mini-instruct",
@@ -9621,6 +9661,23 @@
           "image": true
         },
         {
+          "id": "z-ai/glm-5.3-flash",
+          "name": "GLM 5.3 Flash",
+          "cost": {
+            "input": 0.075,
+            "output": 0.25,
+            "cache_read": 0.015
+          },
+          "context": 1048576,
+          "input_limit": 1048576,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
+        },
+        {
           "id": "deepseek/deepseek-v4-flash:thinking",
           "name": "DeepSeek V4 Flash (Thinking)",
           "cost": {
@@ -9999,8 +10056,8 @@
             "output": 0.33,
             "cache_read": 0.04
           },
-          "context": 131072,
-          "input_limit": 131072,
+          "context": 262144,
+          "input_limit": 262144,
           "output_limit": 32768,
           "reasoning": true,
           "tool_call": true,
@@ -10117,8 +10174,8 @@
             "output": 0.33,
             "cache_read": 0.04
           },
-          "context": 131072,
-          "input_limit": 131072,
+          "context": 262144,
+          "input_limit": 262144,
           "output_limit": 32768,
           "reasoning": true,
           "tool_call": true,
@@ -12379,8 +12436,8 @@
             "output": 0.1,
             "cache_read": 0.025
           },
-          "context": 131072,
-          "input_limit": 131072,
+          "context": 262144,
+          "input_limit": 262144,
           "output_limit": 32768,
           "reasoning": true,
           "tool_call": true,
@@ -12395,8 +12452,8 @@
             "output": 0.1,
             "cache_read": 0.025
           },
-          "context": 131072,
-          "input_limit": 131072,
+          "context": 262144,
+          "input_limit": 262144,
           "output_limit": 32768,
           "reasoning": true,
           "tool_call": true,
@@ -12725,6 +12782,22 @@
           "video": true
         },
         {
+          "id": "qwen/qwen3.8-27b-uncensored:thinking",
+          "name": "Qwen 3.8 27B Uncensored Thinking",
+          "cost": {
+            "input": 0.18,
+            "output": 0.5,
+            "cache_read": 0.075
+          },
+          "context": 262144,
+          "input_limit": 262144,
+          "output_limit": 32768,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true
+        },
+        {
           "id": "qwen/qwen3-coder-flash",
           "name": "Qwen3 Coder Flash",
           "cost": {
@@ -12747,6 +12820,22 @@
           "context": 41000,
           "input_limit": 41000,
           "output_limit": 32768
+        },
+        {
+          "id": "qwen/qwen3.8-27b-uncensored",
+          "name": "Qwen 3.8 27B Uncensored",
+          "cost": {
+            "input": 0.18,
+            "output": 0.5,
+            "cache_read": 0.075
+          },
+          "context": 262144,
+          "input_limit": 262144,
+          "output_limit": 32768,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true
         },
         {
           "id": "qwen/qwen3.5-plus-thinking",
@@ -12877,8 +12966,8 @@
             "output": 0.5,
             "cache_read": 0.075
           },
-          "context": 65536,
-          "input_limit": 65536,
+          "context": 262144,
+          "input_limit": 262144,
           "output_limit": 32768,
           "reasoning": true,
           "tool_call": true,
@@ -12908,8 +12997,8 @@
             "output": 0.5,
             "cache_read": 0.075
           },
-          "context": 65536,
-          "input_limit": 65536,
+          "context": 262144,
+          "input_limit": 262144,
           "output_limit": 32768,
           "reasoning": true,
           "tool_call": true,
@@ -12956,6 +13045,23 @@
           "input_limit": 131072,
           "output_limit": 8192,
           "tool_call": true
+        },
+        {
+          "id": "qwen/qwen3.8-2.4t-a95b",
+          "name": "Qwen3.8 2.4T A95B (Max)",
+          "cost": {
+            "input": 2,
+            "output": 6,
+            "cache_read": 0.25,
+            "cache_write": 2.5
+          },
+          "context": 991000,
+          "input_limit": 991000,
+          "output_limit": 65536,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
         },
         {
           "id": "qwen/Qwen3-Next-80B-A3B-Instruct",
@@ -13095,6 +13201,24 @@
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
+        },
+        {
+          "id": "alibaba/qwen3.8-flash",
+          "name": "Qwen3.8 Flash",
+          "cost": {
+            "input": 0.16,
+            "output": 0.47,
+            "cache_read": 0.016,
+            "cache_write": 0.2
+          },
+          "context": 991808,
+          "input_limit": 991808,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
         },
         {
           "id": "alibaba/qwen3.6-27b",
@@ -13269,22 +13393,6 @@
           "context": 16384,
           "input_limit": 16384,
           "output_limit": 8192
-        },
-        {
-          "id": "stealth/ox-alpha",
-          "name": "Ox Alpha",
-          "cost": {
-            "input": 0.05,
-            "output": 0.05,
-            "cache_read": 0.025
-          },
-          "context": 1000000,
-          "input_limit": 1000000,
-          "output_limit": 32768,
-          "reasoning": true,
-          "tool_call": true,
-          "structured_output": true,
-          "image": true
         },
         {
           "id": "zai-org/glm-5.3:thinking",
@@ -15256,7 +15364,7 @@
             "output": 1.2
           },
           "context": 524288,
-          "output_limit": 128000,
+          "output_limit": 512000,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -18199,7 +18307,7 @@
             "cache_read": 0.056
           },
           "context": 524288,
-          "output_limit": 128000,
+          "output_limit": 512000,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -18830,6 +18938,22 @@
           "structured_output": true
         },
         {
+          "id": "zai-org/GLM-5.3-Flash",
+          "name": "GLM-5.3-Flash",
+          "cost": {
+            "input": 0.15,
+            "output": 0.5,
+            "cache_read": 0.03
+          },
+          "context": 1048576,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
+        },
+        {
           "id": "zai-org/GLM-5.1",
           "name": "GLM-5.1",
           "cost": {
@@ -19124,7 +19248,7 @@
             "output": 1.2
           },
           "context": 204800,
-          "output_limit": 128000,
+          "output_limit": 131072,
           "reasoning": true,
           "tool_call": true
         },
@@ -19136,7 +19260,7 @@
             "output": 1.2
           },
           "context": 524288,
-          "output_limit": 128000,
+          "output_limit": 512000,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -19723,6 +19847,20 @@
           "structured_output": true
         },
         {
+          "id": "Qwen/Qwen3.8-27B",
+          "name": "Qwen3.8 27B",
+          "cost": {
+            "input": 0.4,
+            "output": 3
+          },
+          "context": 262144,
+          "output_limit": 32768,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true
+        },
+        {
           "id": "Qwen/Qwen3-Next-80B-A3B-Instruct",
           "name": "Qwen3-Next-80B-A3B-Instruct",
           "cost": {
@@ -19755,6 +19893,19 @@
           "reasoning": true,
           "tool_call": true,
           "image": true
+        },
+        {
+          "id": "zai-org/GLM-5.3-Flash",
+          "name": "GLM-5.3-Flash",
+          "cost": {
+            "input": 0.15,
+            "output": 0.5
+          },
+          "context": 1048576,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true
         },
         {
           "id": "zai-org/GLM-4.5V",
@@ -21956,7 +22107,7 @@
             "cache_read": 0.06
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true
         },
@@ -21968,7 +22119,7 @@
             "output": 0.57
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "reasoning": true,
           "structured_output": true
         },
@@ -21976,9 +22127,9 @@
           "id": "tencent/hy3",
           "name": "Hy3",
           "cost": {
-            "input": 0.132,
-            "output": 0.528,
-            "cache_read": 0.033
+            "input": 0.0825,
+            "output": 0.33,
+            "cache_read": 0.020625
           },
           "context": 262144,
           "output_limit": 128000,
@@ -22070,7 +22221,7 @@
             "cache_read": 0.5
           },
           "context": 500000,
-          "output_limit": 1000000,
+          "output_limit": 450000,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -22084,7 +22235,7 @@
             "output": 0
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -22098,7 +22249,7 @@
             "cache_read": 0.03
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -22139,7 +22290,7 @@
             "cache_read": 0.2
           },
           "context": 512288,
-          "output_limit": 16384,
+          "output_limit": 461059,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -22246,7 +22397,7 @@
             "output": 1.6
           },
           "context": 32768,
-          "output_limit": 32768
+          "output_limit": 29491
         },
         {
           "id": "aion-labs/aion-2.0",
@@ -22303,7 +22454,7 @@
             "output": 0.14
           },
           "context": 16384,
-          "output_limit": 16384,
+          "output_limit": 14745,
           "structured_output": true
         },
         {
@@ -22371,7 +22522,7 @@
             "output": 0
           },
           "context": 256000,
-          "output_limit": 256000,
+          "output_limit": 230400,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -22467,7 +22618,7 @@
             "cache_read": 0.234
           },
           "context": 204800,
-          "output_limit": 202752,
+          "output_limit": 182476,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -22500,6 +22651,22 @@
           "tool_call": true
         },
         {
+          "id": "z-ai/glm-5.3-flash",
+          "name": "GLM-5.3-Flash",
+          "cost": {
+            "input": 0.075,
+            "output": 0.25,
+            "cache_read": 0.015
+          },
+          "context": 1310720,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
+        },
+        {
           "id": "deepseek/deepseek-v3.1-terminus",
           "name": "DeepSeek V3.1 Terminus",
           "cost": {
@@ -22530,9 +22697,9 @@
           "id": "deepseek/deepseek-v4-flash",
           "name": "DeepSeek V4 Flash",
           "cost": {
-            "input": 0.088606,
-            "output": 0.177212,
-            "cache_read": 0.017721
+            "input": 0.07952,
+            "output": 0.15904,
+            "cache_read": 0.015904
           },
           "context": 1048576,
           "output_limit": 384000,
@@ -22549,7 +22716,7 @@
             "cache_read": 0.0374
           },
           "context": 1048576,
-          "output_limit": 384000,
+          "output_limit": 943717,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -22558,9 +22725,9 @@
           "id": "deepseek/deepseek-v4-pro",
           "name": "DeepSeek V4 Pro",
           "cost": {
-            "input": 0.790308,
-            "output": 1.580616,
-            "cache_read": 0.065859
+            "input": 0.87,
+            "output": 1.74,
+            "cache_read": 0.0725
           },
           "context": 1048576,
           "output_limit": 384000,
@@ -22577,7 +22744,7 @@
             "cache_read": 0.13
           },
           "context": 163840,
-          "output_limit": 163840,
+          "output_limit": 147456,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -22591,7 +22758,7 @@
             "cache_read": 0.55
           },
           "context": 163840,
-          "output_limit": 161000,
+          "output_limit": 144900,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -22630,7 +22797,7 @@
             "output": 1
           },
           "context": 163840,
-          "output_limit": 163840,
+          "output_limit": 147456,
           "tool_call": true,
           "structured_output": true
         },
@@ -22642,7 +22809,7 @@
             "output": 0.8
           },
           "context": 8192,
-          "output_limit": 8192,
+          "output_limit": 7372,
           "reasoning": true
         },
         {
@@ -22662,12 +22829,12 @@
           "id": "deepseek/deepseek-v4-flash-0731",
           "name": "DeepSeek V4 Flash 0731",
           "cost": {
-            "input": 0.14,
-            "output": 0.28,
-            "cache_read": 0.028
+            "input": 0.06,
+            "output": 0.12,
+            "cache_read": 0.012
           },
           "context": 1310720,
-          "output_limit": 131072,
+          "output_limit": 943718,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -22695,7 +22862,7 @@
             "cache_read": 0.06
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -22810,7 +22977,7 @@
             "output": 1.5
           },
           "context": 65536,
-          "output_limit": 65536,
+          "output_limit": 58982,
           "reasoning": true,
           "image": true
         },
@@ -22881,28 +23048,17 @@
           "id": "google/gemma-4-31b-it",
           "name": "Gemma 4 31B IT",
           "cost": {
-            "input": 0.1,
+            "input": 0.09,
             "output": 0.34,
-            "cache_read": 0.1
+            "cache_read": 0.05
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 16384,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
           "image": true,
           "video": true
-        },
-        {
-          "id": "google/gemma-3n-e4b-it",
-          "name": "Gemma 3n 4B",
-          "cost": {
-            "input": 0.06,
-            "output": 0.12
-          },
-          "context": 32768,
-          "output_limit": 32768,
-          "structured_output": true
         },
         {
           "id": "google/lyria-3-clip-preview",
@@ -22958,7 +23114,7 @@
             "cache_read": 0.04
           },
           "context": 262144,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "tool_call": true,
           "structured_output": true,
           "image": true
@@ -23075,7 +23231,7 @@
             "output": 3
           },
           "context": 65536,
-          "output_limit": 65536,
+          "output_limit": 58982,
           "reasoning": true,
           "structured_output": true,
           "image": true
@@ -23182,7 +23338,7 @@
             "cache_read": 0.04
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -23197,7 +23353,7 @@
             "cache_read": 0.15
           },
           "context": 1048576,
-          "output_limit": 1048576,
+          "output_limit": 943718,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -23213,7 +23369,7 @@
             "cache_read": 0.15
           },
           "context": 1048576,
-          "output_limit": 1048576,
+          "output_limit": 943718,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -23229,7 +23385,7 @@
             "cache_read": 0.002
           },
           "context": 1048576,
-          "output_limit": 1048576,
+          "output_limit": 943718,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -23254,7 +23410,7 @@
             "output": 0.06
           },
           "context": 8192,
-          "output_limit": 4096,
+          "output_limit": 3686,
           "structured_output": true
         },
         {
@@ -23374,7 +23530,7 @@
             "cache_read": 0.2
           },
           "context": 2000000,
-          "output_limit": 2000000,
+          "output_limit": 1800000,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -23389,7 +23545,7 @@
             "cache_read": 0.5
           },
           "context": 500000,
-          "output_limit": 500000,
+          "output_limit": 450000,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -23404,7 +23560,7 @@
             "cache_read": 0.3
           },
           "context": 500000,
-          "output_limit": 500000,
+          "output_limit": 450000,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -23419,7 +23575,7 @@
             "cache_read": 0.2
           },
           "context": 2000000,
-          "output_limit": 2000000,
+          "output_limit": 1800000,
           "reasoning": true,
           "structured_output": true,
           "image": true
@@ -23433,7 +23589,7 @@
             "cache_read": 0.2
           },
           "context": 256000,
-          "output_limit": 256000,
+          "output_limit": 230400,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -23448,7 +23604,7 @@
             "cache_read": 0.2
           },
           "context": 1000000,
-          "output_limit": 1000000,
+          "output_limit": 900000,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -23551,7 +23707,7 @@
             "output": 2.5
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -23567,7 +23723,7 @@
             "cache_read": 0.19
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -23582,7 +23738,7 @@
             "cache_read": 0.3
           },
           "context": 1048576,
-          "output_limit": 1048576,
+          "output_limit": 943718,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -23609,7 +23765,7 @@
             "cache_read": 0.1
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -23650,7 +23806,7 @@
             "cache_read": 0.16
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -24181,7 +24337,7 @@
             "output": 2
           },
           "context": 4095,
-          "output_limit": 4096,
+          "output_limit": 3685,
           "structured_output": true
         },
         {
@@ -24393,7 +24549,7 @@
             "output": 0.17
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -24627,7 +24783,7 @@
             "output": 2
           },
           "context": 4095,
-          "output_limit": 4096,
+          "output_limit": 3685,
           "tool_call": true,
           "structured_output": true
         },
@@ -24822,7 +24978,7 @@
             "cache_read": 0.03
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -24916,7 +25072,7 @@
             "output": 0.4
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "reasoning": true
         },
         {
@@ -24927,7 +25083,7 @@
             "output": 3
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "reasoning": true
         },
         {
@@ -24952,7 +25108,7 @@
           },
           "context": 262144,
           "input_limit": 256000,
-          "output_limit": 256000,
+          "output_limit": 230400,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -24963,12 +25119,11 @@
           "id": "qwen/qwen2.5-vl-72b-instruct",
           "name": "Qwen2.5 VL 72B Instruct",
           "cost": {
-            "input": 0.8,
-            "output": 1,
-            "cache_read": 0.4
+            "input": 0.25,
+            "output": 0.75
           },
           "context": 128000,
-          "output_limit": 128000,
+          "output_limit": 28800,
           "structured_output": true,
           "image": true
         },
@@ -24996,7 +25151,7 @@
             "output": 0.28
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "tool_call": true,
           "structured_output": true
         },
@@ -25044,19 +25199,6 @@
           "structured_output": true
         },
         {
-          "id": "qwen/qwen-plus-2025-07-28:thinking",
-          "name": "Qwen Plus 0728 (thinking)",
-          "cost": {
-            "input": 0.26,
-            "output": 0.78
-          },
-          "context": 1000000,
-          "output_limit": 32768,
-          "reasoning": true,
-          "tool_call": true,
-          "structured_output": true
-        },
-        {
           "id": "qwen/qwen3-235b-a22b-thinking-2507",
           "name": "Qwen3 235B A22B Thinking 2507",
           "cost": {
@@ -25064,7 +25206,7 @@
             "output": 2.3
           },
           "context": 131072,
-          "output_limit": 32768,
+          "output_limit": 117964,
           "reasoning": true,
           "tool_call": true
         },
@@ -25103,7 +25245,7 @@
             "cache_read": 0.25
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -25140,12 +25282,11 @@
           "id": "qwen/qwen3.5-397b-a17b",
           "name": "Qwen3.5 397B-A17B",
           "cost": {
-            "input": 0.5,
-            "output": 3.6,
-            "cache_read": 0.3
+            "input": 0.39,
+            "output": 2.34
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 65536,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -25175,7 +25316,7 @@
             "cache_read": 0.07
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "tool_call": true,
           "structured_output": true
         },
@@ -25316,7 +25457,7 @@
             "output": 0.2
           },
           "context": 32768,
-          "output_limit": 32768,
+          "output_limit": 29491,
           "tool_call": true,
           "structured_output": true
         },
@@ -25358,6 +25499,23 @@
           "tool_call": true,
           "structured_output": true,
           "image": true
+        },
+        {
+          "id": "qwen/qwen3.8-flash",
+          "name": "Qwen3.8 Flash",
+          "cost": {
+            "input": 0.16,
+            "output": 0.47,
+            "cache_read": 0.016,
+            "cache_write": 0.2
+          },
+          "context": 1000000,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
         },
         {
           "id": "qwen/qwen3-next-80b-a3b-thinking",
@@ -25418,7 +25576,7 @@
             "output": 1
           },
           "context": 32768,
-          "output_limit": 32768
+          "output_limit": 29491
         },
         {
           "id": "qwen/qwen3.6-35b-a3b",
@@ -25429,7 +25587,7 @@
             "cache_read": 0.05
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -25460,7 +25618,7 @@
             "cache_read": 0.07
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "tool_call": true,
           "structured_output": true
         },
@@ -25468,9 +25626,10 @@
           "id": "qwen/qwen3.8-27b",
           "name": "Qwen3.8 27B",
           "cost": {
-            "input": 0.4,
-            "output": 3,
-            "cache_read": 0.05
+            "input": 0.425,
+            "output": 2.55,
+            "cache_read": 0.085,
+            "cache_write": 0.53125
           },
           "context": 1000000,
           "output_limit": 131072,
@@ -25516,7 +25675,7 @@
             "output": 0.15
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -25560,7 +25719,7 @@
             "output": 2.08
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -25684,7 +25843,7 @@
             "output": 0.5
           },
           "context": 65536,
-          "output_limit": 65536,
+          "output_limit": 58982,
           "reasoning": true,
           "structured_output": true
         },
@@ -25756,7 +25915,7 @@
             "output": 8
           },
           "context": 128000,
-          "output_limit": 128000,
+          "output_limit": 115200,
           "reasoning": true
         },
         {
@@ -25767,7 +25926,7 @@
             "output": 1
           },
           "context": 127072,
-          "output_limit": 127072,
+          "output_limit": 114364,
           "image": true
         },
         {
@@ -25778,7 +25937,7 @@
             "output": 8
           },
           "context": 128000,
-          "output_limit": 128000,
+          "output_limit": 115200,
           "reasoning": true,
           "image": true
         },
@@ -25815,7 +25974,7 @@
             "cache_read": 0.15
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "structured_output": true
         },
         {
@@ -25827,7 +25986,7 @@
             "cache_read": 0.25
           },
           "context": 32768,
-          "output_limit": 32768,
+          "output_limit": 29491,
           "structured_output": true
         },
         {
@@ -25838,7 +25997,7 @@
             "output": 0.5
           },
           "context": 65536,
-          "output_limit": 65536,
+          "output_limit": 58982,
           "structured_output": true
         },
         {
@@ -25849,7 +26008,7 @@
             "output": 0.4
           },
           "context": 1024000,
-          "output_limit": 32768,
+          "output_limit": 26214,
           "tool_call": true,
           "structured_output": true
         },
@@ -25861,7 +26020,7 @@
             "output": 0.1
           },
           "context": 16384,
-          "output_limit": 16384,
+          "output_limit": 14745,
           "tool_call": true,
           "structured_output": true,
           "image": true,
@@ -25875,23 +26034,9 @@
             "output": 0.2
           },
           "context": 65536,
-          "output_limit": 65536,
+          "output_limit": 58982,
           "reasoning": true,
           "structured_output": true
-        },
-        {
-          "id": "stealth/ox-alpha",
-          "name": "Ox Alpha",
-          "cost": {
-            "input": 0,
-            "output": 0
-          },
-          "context": 1048576,
-          "output_limit": 131072,
-          "reasoning": true,
-          "tool_call": true,
-          "image": true,
-          "video": true
         },
         {
           "id": "thinkingmachines/inkling-small",
@@ -25961,12 +26106,12 @@
           "id": "~deepseek/deepseek-v4-flash-latest",
           "name": "DeepSeek V4 Flash Latest",
           "cost": {
-            "input": 0.035,
+            "input": 0.03,
             "output": 0.075,
-            "cache_read": 0.008
+            "cache_read": 0.007
           },
           "context": 1310720,
-          "output_limit": 1048576,
+          "output_limit": 131072,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -25992,18 +26137,19 @@
             "output": 0.33
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "structured_output": true
         },
         {
           "id": "meta-llama/llama-3.3-70b-instruct",
           "name": "Llama-3.3-70B-Instruct",
           "cost": {
-            "input": 0.1,
-            "output": 0.32
+            "input": 0.71,
+            "output": 0.71,
+            "cache_read": 0.71
           },
           "context": 131072,
-          "output_limit": 16384,
+          "output_limit": 115200,
           "tool_call": true,
           "structured_output": true
         },
@@ -26014,7 +26160,7 @@
             "input": 0.18,
             "output": 0.18
           },
-          "context": 1048576,
+          "context": 163840,
           "output_limit": 16384,
           "image": true
         },
@@ -26026,7 +26172,7 @@
             "output": 0.201
           },
           "context": 60000,
-          "output_limit": 60000
+          "output_limit": 54000
         },
         {
           "id": "meta-llama/llama-3.1-8b-instruct",
@@ -26037,7 +26183,7 @@
             "cache_read": 0.025
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "tool_call": true,
           "structured_output": true
         },
@@ -26070,11 +26216,12 @@
           "id": "meta-llama/llama-4-scout",
           "name": "Llama 4 Scout",
           "cost": {
-            "input": 0.1,
-            "output": 0.3
+            "input": 0.11,
+            "output": 0.34,
+            "cache_read": 0.055
           },
           "context": 1310720,
-          "output_limit": 16384,
+          "output_limit": 8192,
           "tool_call": true,
           "structured_output": true,
           "image": true
@@ -26088,7 +26235,7 @@
             "cache_read": 0.015
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 209715,
           "tool_call": true,
           "structured_output": true,
           "image": true
@@ -26102,7 +26249,7 @@
             "cache_read": 0.04
           },
           "context": 131072,
-          "output_limit": 262144,
+          "output_limit": 104857,
           "tool_call": true,
           "structured_output": true,
           "image": true
@@ -26127,7 +26274,7 @@
             "output": 7.5
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 209715,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -26141,7 +26288,7 @@
             "output": 0.11
           },
           "context": 128000,
-          "output_limit": 128000,
+          "output_limit": 102400,
           "structured_output": true
         },
         {
@@ -26153,7 +26300,7 @@
             "cache_read": 0.044
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 209715,
           "tool_call": true,
           "structured_output": true
         },
@@ -26166,7 +26313,7 @@
             "cache_read": 0.015
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 209715,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -26205,7 +26352,7 @@
             "cache_read": 0.05
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 209715,
           "tool_call": true,
           "structured_output": true,
           "image": true
@@ -26219,7 +26366,7 @@
             "cache_read": 0.01
           },
           "context": 32000,
-          "output_limit": 32000,
+          "output_limit": 25600,
           "tool_call": true,
           "structured_output": true
         },
@@ -26232,7 +26379,7 @@
             "cache_read": 0.01
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 104857,
           "tool_call": true,
           "structured_output": true,
           "image": true
@@ -26246,7 +26393,7 @@
             "cache_read": 0.04
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 104857,
           "tool_call": true,
           "structured_output": true,
           "image": true
@@ -26260,7 +26407,7 @@
             "cache_read": 0.2
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 104857,
           "tool_call": true,
           "structured_output": true
         },
@@ -26273,7 +26420,7 @@
             "cache_read": 0.2
           },
           "context": 128000,
-          "output_limit": 128000,
+          "output_limit": 102400,
           "tool_call": true,
           "structured_output": true
         },
@@ -26286,7 +26433,7 @@
             "cache_read": 0.2
           },
           "context": 65536,
-          "output_limit": 65536,
+          "output_limit": 52428,
           "tool_call": true,
           "structured_output": true
         },
@@ -26299,7 +26446,7 @@
             "cache_read": 0.02
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 209715,
           "tool_call": true,
           "structured_output": true,
           "image": true
@@ -26313,7 +26460,7 @@
             "cache_read": 0.03
           },
           "context": 256000,
-          "output_limit": 256000,
+          "output_limit": 204800,
           "tool_call": true,
           "structured_output": true
         },
@@ -26326,7 +26473,7 @@
             "cache_read": 0.02
           },
           "context": 32768,
-          "output_limit": 32768,
+          "output_limit": 26214,
           "tool_call": true,
           "structured_output": true
         },
@@ -26338,7 +26485,7 @@
             "output": 0.555
           },
           "context": 128000,
-          "output_limit": 128000,
+          "output_limit": 102400,
           "image": true
         },
         {
@@ -26457,7 +26604,7 @@
             "cache_read": 0.0025
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -26472,7 +26619,7 @@
             "cache_read": 0.025
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "image": true
@@ -26486,7 +26633,7 @@
             "cache_read": 0.015
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -26558,19 +26705,19 @@
             "output": 0.05
           },
           "context": 8192,
-          "output_limit": 16384,
+          "output_limit": 7372,
           "structured_output": true
         },
         {
           "id": "~moonshotai/kimi-latest",
           "name": "MoonshotAI Kimi Latest",
           "cost": {
-            "input": 2.8,
-            "output": 14,
-            "cache_read": 0.29
+            "input": 2.55,
+            "output": 12.75,
+            "cache_read": 0.256
           },
           "context": 1048576,
-          "output_limit": 1048576,
+          "output_limit": 943718,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -26624,7 +26771,7 @@
             "output": 0.112
           },
           "context": 131000,
-          "output_limit": 131000
+          "output_limit": 117900
         },
         {
           "id": "ibm-granite/granite-4.1-8b",
@@ -26635,7 +26782,7 @@
             "cache_read": 0.05
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "tool_call": true,
           "structured_output": true
         },
@@ -26647,7 +26794,7 @@
             "output": 0
           },
           "context": 512000,
-          "output_limit": 512000,
+          "output_limit": 460800,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -26661,7 +26808,7 @@
             "output": 1.1
           },
           "context": 1000192,
-          "output_limit": 1000192,
+          "output_limit": 900172,
           "image": true
         },
         {
@@ -26752,7 +26899,7 @@
             "output": 0
           },
           "context": 1048576,
-          "output_limit": 1048576,
+          "output_limit": 943718,
           "reasoning": true,
           "tool_call": true,
           "image": true,
@@ -26766,7 +26913,7 @@
             "output": 0
           },
           "context": 196608,
-          "output_limit": 196608,
+          "output_limit": 176947,
           "reasoning": true,
           "tool_call": true
         },
@@ -29054,8 +29201,8 @@
             "input": 0,
             "output": 0
           },
-          "context": 512000,
-          "output_limit": 128000,
+          "context": 1048576,
+          "output_limit": 512000,
           "reasoning": true,
           "tool_call": true,
           "image": true,
@@ -30320,6 +30467,23 @@
           "output_limit": 98304,
           "reasoning": true,
           "tool_call": true
+        },
+        {
+          "id": "glm-5.3-flash",
+          "name": "GLM-5.3-Flash",
+          "cost": {
+            "input": 0.075,
+            "output": 0.25,
+            "cache_read": 0.015,
+            "cache_write": 0
+          },
+          "context": 1000000,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
         }
       ]
     },
@@ -32303,8 +32467,8 @@
             "input": 0,
             "output": 0
           },
-          "context": 196608,
-          "output_limit": 128000,
+          "context": 204800,
+          "output_limit": 131072,
           "reasoning": true,
           "tool_call": true
         },
@@ -32331,8 +32495,8 @@
             "cache_read": 0,
             "cache_write": 0
           },
-          "context": 1000000,
-          "output_limit": 128000,
+          "context": 1048576,
+          "output_limit": 512000,
           "reasoning": true,
           "tool_call": true,
           "image": true,
@@ -32508,17 +32672,16 @@
           "id": "global.openai.gpt-5.6-sol",
           "name": "GPT-5.6 Sol (Global)",
           "cost": {
-            "input": 5.5,
-            "output": 33,
-            "cache_read": 0.55,
-            "cache_write": 6.875
+            "input": 4,
+            "output": 20,
+            "cache_read": 0.4,
+            "cache_write": 5
           },
           "context": 1050000,
           "input_limit": 922000,
           "output_limit": 128000,
           "reasoning": true,
           "tool_call": true,
-          "structured_output": true,
           "image": true
         },
         {
@@ -33509,17 +33672,16 @@
           "id": "global.openai.gpt-5.6-luna",
           "name": "GPT-5.6 Luna (Global)",
           "cost": {
-            "input": 0.22,
-            "output": 1.32,
-            "cache_read": 0.022,
-            "cache_write": 0.275
+            "input": 0.2,
+            "output": 1.2,
+            "cache_read": 0.02,
+            "cache_write": 0.25
           },
           "context": 1050000,
           "input_limit": 922000,
           "output_limit": 128000,
           "reasoning": true,
           "tool_call": true,
-          "structured_output": true,
           "image": true
         },
         {
@@ -33774,17 +33936,16 @@
           "id": "global.openai.gpt-5.6-terra",
           "name": "GPT-5.6 Terra (Global)",
           "cost": {
-            "input": 2.2,
-            "output": 13.2,
-            "cache_read": 0.22,
-            "cache_write": 2.75
+            "input": 2,
+            "output": 12,
+            "cache_read": 0.2,
+            "cache_write": 2.5
           },
           "context": 1050000,
           "input_limit": 922000,
           "output_limit": 128000,
           "reasoning": true,
           "tool_call": true,
-          "structured_output": true,
           "image": true
         },
         {
@@ -33940,10 +34101,10 @@
           "id": "openai.gpt-5.6-sol",
           "name": "GPT-5.6 Sol",
           "cost": {
-            "input": 5.5,
-            "output": 33,
-            "cache_read": 0.55,
-            "cache_write": 6.875
+            "input": 4.4,
+            "output": 22,
+            "cache_read": 0.44,
+            "cache_write": 5.5
           },
           "context": 1050000,
           "input_limit": 922000,
@@ -35310,12 +35471,27 @@
           "video": true
         },
         {
+          "id": "grok-4.6",
+          "name": "Grok 4.6",
+          "cost": {
+            "input": 2,
+            "output": 6,
+            "cache_read": 0.5
+          },
+          "context": 500000,
+          "output_limit": 500000,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true
+        },
+        {
           "id": "grok-4.5",
           "name": "Grok 4.5",
           "cost": {
             "input": 2,
             "output": 6,
-            "cache_read": 0.5
+            "cache_read": 0.3
           },
           "context": 500000,
           "output_limit": 500000,
@@ -35657,6 +35833,22 @@
           "tool_call": true,
           "structured_output": true,
           "image": true
+        },
+        {
+          "id": "glm-5.3-flash",
+          "name": "GLM-5.3-Flash (2x usage)",
+          "cost": {
+            "input": 0.075,
+            "output": 0.25,
+            "cache_read": 0.015
+          },
+          "context": 1000000,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
         }
       ]
     },
@@ -36264,7 +36456,7 @@
             "cache_read": 0.12
           },
           "context": 1048576,
-          "output_limit": 128000,
+          "output_limit": 512000,
           "reasoning": true,
           "tool_call": true,
           "image": true,
@@ -36970,6 +37162,20 @@
           "structured_output": true,
           "image": true,
           "video": true
+        },
+        {
+          "id": "consensusprotocol/deepseek-v4-flash",
+          "name": "DeepSeek V4 Flash (Consensus Protocol)",
+          "cost": {
+            "input": 0.13,
+            "output": 0.27,
+            "cache_read": 0.02
+          },
+          "context": 524288,
+          "output_limit": 393216,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true
         },
         {
           "id": "deepinfra/gemma-4-26b-a4b-it",
@@ -38114,6 +38320,19 @@
           "tool_call": true
         },
         {
+          "id": "zai/glm-5.3-flash",
+          "name": "GLM-5.3 Flash (Z AI)",
+          "cost": {
+            "input": 0.15,
+            "output": 0.5,
+            "cache_read": 0.03
+          },
+          "context": 1048576,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true
+        },
+        {
           "id": "bytedance/glm-4.7",
           "name": "GLM-4.7 (ByteDance)",
           "cost": {
@@ -39043,7 +39262,7 @@
             "output": 1.2
           },
           "context": 1048576,
-          "output_limit": 128000,
+          "output_limit": 512000,
           "reasoning": true,
           "tool_call": true
         },
@@ -41380,9 +41599,9 @@
           "id": "baidu/deepseek-v4-flash",
           "name": "DeepSeek V4 Flash (Baidu)",
           "cost": {
-            "input": 0.14,
-            "output": 0.28,
-            "cache_read": 0.028
+            "input": 0.44,
+            "output": 1.32,
+            "cache_read": 0.044
           },
           "context": 1048576,
           "output_limit": 131072,
@@ -41393,9 +41612,9 @@
           "id": "baidu/deepseek-v4-pro",
           "name": "DeepSeek V4 Pro (Baidu)",
           "cost": {
-            "input": 1.69,
-            "output": 3.38,
-            "cache_read": 0.14
+            "input": 1.32,
+            "output": 3.96,
+            "cache_read": 0.132
           },
           "context": 1048576,
           "output_limit": 131072,
@@ -41411,6 +41630,19 @@
             "cache_read": 0.2
           },
           "context": 202752,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true
+        },
+        {
+          "id": "baidu/glm-5.3",
+          "name": "GLM-5.3 (Baidu)",
+          "cost": {
+            "input": 1.4,
+            "output": 4.4,
+            "cache_read": 0.26
+          },
+          "context": 1048576,
           "output_limit": 131072,
           "reasoning": true,
           "tool_call": true
@@ -41596,9 +41828,9 @@
           "id": "gonka24/deepseek-v4-flash",
           "name": "DeepSeek V4 Flash (Gonka24)",
           "cost": {
-            "input": 0.075,
-            "output": 0.175,
-            "cache_read": 0.0155
+            "input": 0.051,
+            "output": 0.104,
+            "cache_read": 0.0097
           },
           "context": 390000,
           "output_limit": 16384,
@@ -43573,6 +43805,38 @@
           "structured_output": true
         },
         {
+          "id": "glm-5.3-highspeed",
+          "name": "GLM-5.3 Highspeed",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cache_read": 0,
+            "cache_write": 0
+          },
+          "context": 1000000,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true
+        },
+        {
+          "id": "glm-5.3-flash",
+          "name": "GLM-5.3-Flash",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cache_read": 0,
+            "cache_write": 0
+          },
+          "context": 1000000,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
+        },
+        {
           "id": "glm-5.2-highspeed",
           "name": "GLM-5.2 Highspeed",
           "cost": {
@@ -44180,8 +44444,8 @@
           "id": "deepseek/deepseek-v4-flash-0731",
           "name": "DeepSeek V4 Flash 0731",
           "cost": {
-            "input": 0.035,
-            "output": 0.07,
+            "input": 0.22,
+            "output": 0.66,
             "cache_read": 0.007
           },
           "context": 1000000,
@@ -45015,6 +45279,21 @@
           "tool_call": true
         },
         {
+          "id": "zai/glm-5.3-flash",
+          "name": "GLM-5.3 Flash",
+          "cost": {
+            "input": 0.075,
+            "output": 0.25,
+            "cache_read": 0.015
+          },
+          "context": 1000000,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "image": true,
+          "video": true
+        },
+        {
           "id": "bytedance/dola-seed-2.0-pro",
           "name": "Seed 2.0 Pro",
           "cost": {
@@ -45173,8 +45452,8 @@
           "id": "openai/gpt-5.6-sol",
           "name": "GPT-5.6 Sol",
           "cost": {
-            "input": 4,
-            "output": 24,
+            "input": 5,
+            "output": 30,
             "cache_read": 0.5
           },
           "context": 1050000,
@@ -45697,11 +45976,10 @@
             "output": 0.459,
             "cache_read": 0.020357
           },
-          "context": 256000,
-          "output_limit": 64000,
+          "context": 131072,
+          "output_limit": 32768,
           "reasoning": true,
-          "tool_call": true,
-          "image": true
+          "tool_call": true
         },
         {
           "id": "qwen/qwen3-vl-235b-a22b-thinking",
@@ -45738,11 +46016,10 @@
             "output": 1.032,
             "cache_read": 0.0344
           },
-          "context": 256000,
-          "output_limit": 64000,
+          "context": 131072,
+          "output_limit": 32768,
           "reasoning": true,
-          "tool_call": true,
-          "image": true
+          "tool_call": true
         },
         {
           "id": "qwen/qwen3.5-flash",
@@ -46466,9 +46743,9 @@
           "id": "moonshotai/Kimi-K2.6",
           "name": "Kimi K2.6",
           "cost": {
-            "input": 0.57,
-            "output": 3.41,
-            "cache_read": 0.2,
+            "input": 0.54,
+            "output": 3.39,
+            "cache_read": 0.13,
             "cache_write": 0
           },
           "context": 262144,
@@ -46498,7 +46775,7 @@
           "name": "GLM 5.2",
           "cost": {
             "input": 0.75,
-            "output": 2.9,
+            "output": 2.4,
             "cache_read": 0.17,
             "cache_write": 0
           },
@@ -50383,8 +50660,8 @@
             "input": 0,
             "output": 0
           },
-          "context": 196608,
-          "output_limit": 128000,
+          "context": 204800,
+          "output_limit": 131072,
           "reasoning": true,
           "tool_call": true
         },
@@ -50411,8 +50688,8 @@
             "cache_read": 0,
             "cache_write": 0
           },
-          "context": 1000000,
-          "output_limit": 128000,
+          "context": 1048576,
+          "output_limit": 512000,
           "reasoning": true,
           "tool_call": true,
           "image": true,
@@ -50511,6 +50788,38 @@
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
+        },
+        {
+          "id": "glm-5.3-highspeed",
+          "name": "GLM-5.3 Highspeed",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cache_read": 0,
+            "cache_write": 0
+          },
+          "context": 1000000,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true
+        },
+        {
+          "id": "glm-5.3-flash",
+          "name": "GLM-5.3-Flash",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cache_read": 0,
+            "cache_write": 0
+          },
+          "context": 1000000,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
         }
       ]
     },
@@ -52873,8 +53182,8 @@
             "input": 0.6,
             "output": 2.4
           },
-          "context": 512000,
-          "output_limit": 128000,
+          "context": 1048576,
+          "output_limit": 512000,
           "reasoning": true,
           "tool_call": true,
           "image": true,
@@ -53684,10 +53993,58 @@
         }
       ]
     },
+    "llmtech": {
+      "id": "llmtech",
+      "name": "LLM Tech",
+      "models": [
+        {
+          "id": "unsloth/Qwen3.8-27B-NVFP4",
+          "name": "Qwen3.8 27B",
+          "cost": {
+            "input": 0.25,
+            "output": 2.09,
+            "cache_read": 0.04
+          },
+          "context": 262144,
+          "output_limit": 32768,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true
+        }
+      ]
+    },
     "gmicloud": {
       "id": "gmicloud",
       "name": "GMI Cloud",
       "models": [
+        {
+          "id": "MiniMaxAI/MiniMax-M2.7",
+          "name": "MiniMax-M2.7",
+          "cost": {
+            "input": 0.3,
+            "output": 1.2,
+            "cache_read": 0.06
+          },
+          "context": 196608,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true
+        },
+        {
+          "id": "MiniMaxAI/MiniMax-M3",
+          "name": "MiniMax-M3",
+          "cost": {
+            "input": 0.6,
+            "output": 2.4,
+            "cache_read": 0.12
+          },
+          "context": 1048576,
+          "output_limit": 512000,
+          "reasoning": true,
+          "tool_call": true,
+          "image": true,
+          "video": true
+        },
         {
           "id": "moonshotai/Kimi-K2.6",
           "name": "Kimi K2.6",
@@ -53867,6 +54224,26 @@
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
+        }
+      ]
+    },
+    "aixy": {
+      "id": "aixy",
+      "name": "Aixy",
+      "models": [
+        {
+          "id": "openai/gpt-4.1-mini",
+          "name": "GPT-4.1 mini",
+          "cost": {
+            "input": 0.4,
+            "output": 1.6,
+            "cache_read": 0.1
+          },
+          "context": 1047576,
+          "output_limit": 32768,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true
         }
       ]
     },
@@ -57208,7 +57585,8 @@
           "context": 256000,
           "output_limit": 64000,
           "reasoning": true,
-          "tool_call": true
+          "tool_call": true,
+          "image": true
         },
         {
           "id": "volcengine/doubao-seed-2.1-pro",
@@ -57359,7 +57737,8 @@
           },
           "context": 256000,
           "output_limit": 32000,
-          "tool_call": true
+          "tool_call": true,
+          "image": true
         },
         {
           "id": "volcengine/doubao-seed-2.0-pro",
@@ -57399,8 +57778,8 @@
             "output": 2.4,
             "cache_read": 0.12
           },
-          "context": 512000,
-          "output_limit": 128000,
+          "context": 1048576,
+          "output_limit": 512000,
           "reasoning": true,
           "tool_call": true,
           "image": true,
@@ -57441,8 +57820,8 @@
             "input": 0.3,
             "output": 1.2
           },
-          "context": 200000,
-          "output_limit": 131000,
+          "context": 65536,
+          "output_limit": 2048,
           "reasoning": true,
           "tool_call": true
         },
@@ -57455,8 +57834,8 @@
             "cache_read": 0.03,
             "cache_write": 0.375
           },
-          "context": 196608,
-          "output_limit": 128000,
+          "context": 204800,
+          "output_limit": 131072,
           "reasoning": true,
           "tool_call": true
         },
@@ -57738,6 +58117,228 @@
           "context": 128000,
           "output_limit": 128000,
           "tool_call": true
+        }
+      ]
+    },
+    "volcengine": {
+      "id": "volcengine",
+      "name": "Volcengine Ark",
+      "models": [
+        {
+          "id": "doubao-seed-2-0-pro-260215",
+          "name": "Seed 2.0 Pro",
+          "cost": {
+            "input": 0.47499,
+            "output": 2.37494,
+            "cache_read": 0.095
+          },
+          "context": 256000,
+          "output_limit": 128000,
+          "reasoning": true,
+          "tool_call": true,
+          "image": true,
+          "video": true
+        },
+        {
+          "id": "doubao-seed-1-6-251015",
+          "name": "Seed 1.6",
+          "cost": {
+            "input": 0.11875,
+            "output": 1.18747,
+            "cache_read": 0.02375
+          },
+          "context": 256000,
+          "output_limit": 64000,
+          "reasoning": true,
+          "tool_call": true
+        },
+        {
+          "id": "doubao-seed-evolving",
+          "name": "Seed Evolving",
+          "cost": {
+            "input": 0.8906,
+            "output": 4.45301,
+            "cache_read": 0.17812
+          },
+          "context": 256000,
+          "output_limit": 256000,
+          "reasoning": true,
+          "tool_call": true,
+          "image": true,
+          "video": true
+        },
+        {
+          "id": "doubao-seed-2-1-pro-260628",
+          "name": "Seed 2.1 Pro",
+          "cost": {
+            "input": 0.8906,
+            "output": 4.45301,
+            "cache_read": 0.17812
+          },
+          "context": 256000,
+          "output_limit": 256000,
+          "reasoning": true,
+          "tool_call": true,
+          "image": true,
+          "video": true
+        },
+        {
+          "id": "doubao-seed-1-6-flash-250828",
+          "name": "Seed 1.6 Flash",
+          "cost": {
+            "input": 0.02227,
+            "output": 0.22265,
+            "cache_read": 0.00445
+          },
+          "context": 256000,
+          "output_limit": 32000,
+          "tool_call": true,
+          "image": true
+        },
+        {
+          "id": "doubao-seed-2-0-lite-260428",
+          "name": "Seed 2.0 Lite",
+          "cost": {
+            "input": 0.08906,
+            "output": 0.53436,
+            "cache_read": 0.01781
+          },
+          "context": 256000,
+          "output_limit": 32000,
+          "reasoning": true,
+          "tool_call": true,
+          "image": true,
+          "video": true
+        },
+        {
+          "id": "doubao-seed-2-0-code-preview-260215",
+          "name": "Seed 2.0 Code",
+          "cost": {
+            "input": 0.47499,
+            "output": 2.37494,
+            "cache_read": 0.095
+          },
+          "context": 262144,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
+        },
+        {
+          "id": "doubao-seed-1-6-vision-250815",
+          "name": "Seed 1.6 Vision",
+          "cost": {
+            "input": 0.11875,
+            "output": 1.18747,
+            "cache_read": 0.02375
+          },
+          "context": 256000,
+          "output_limit": 32000,
+          "tool_call": true,
+          "image": true
+        },
+        {
+          "id": "doubao-seed-2-0-mini-260428",
+          "name": "Seed 2.0 Mini",
+          "cost": {
+            "input": 0.02969,
+            "output": 0.29687,
+            "cache_read": 0.00594
+          },
+          "context": 256000,
+          "output_limit": 32000,
+          "reasoning": true,
+          "tool_call": true,
+          "image": true,
+          "video": true
+        },
+        {
+          "id": "doubao-seed-2-1-turbo-260628",
+          "name": "Seed 2.1 Turbo",
+          "cost": {
+            "input": 0.4453,
+            "output": 2.22651,
+            "cache_read": 0.08906
+          },
+          "context": 256000,
+          "output_limit": 256000,
+          "reasoning": true,
+          "tool_call": true,
+          "image": true,
+          "video": true
+        },
+        {
+          "id": "deepseek-v4-pro-ga-260813",
+          "name": "DeepSeek V4 Pro 0813",
+          "cost": {
+            "input": 1.3359,
+            "output": 4.00771,
+            "cache_read": 0.04453
+          },
+          "context": 1000000,
+          "output_limit": 384000,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true
+        },
+        {
+          "id": "deepseek-v4-flash-ga-260731",
+          "name": "DeepSeek V4 Flash 0731",
+          "cost": {
+            "input": 0.4453,
+            "output": 1.3359,
+            "cache_read": 0.01484
+          },
+          "context": 1000000,
+          "output_limit": 384000,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true
+        },
+        {
+          "id": "glm-5-2-260617",
+          "name": "GLM-5.2",
+          "cost": {
+            "input": 1.18747,
+            "output": 4.15615,
+            "cache_read": 0.29687
+          },
+          "context": 1000000,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true
+        },
+        {
+          "id": "doubao-seed-character-260628",
+          "name": "Seed Character",
+          "cost": {
+            "input": 0.11875,
+            "output": 0.29687,
+            "cache_read": 0.02375
+          },
+          "context": 256000,
+          "output_limit": 256000,
+          "reasoning": true,
+          "tool_call": true,
+          "image": true,
+          "video": true
+        },
+        {
+          "id": "doubao-seed-1-8-251228",
+          "name": "Seed 1.8",
+          "cost": {
+            "input": 0.11875,
+            "output": 1.18747,
+            "cache_read": 0.02375
+          },
+          "context": 256000,
+          "output_limit": 64000,
+          "reasoning": true,
+          "tool_call": true,
+          "image": true
         }
       ]
     },
@@ -58899,6 +59500,21 @@
           "tool_call": true
         },
         {
+          "id": "glm-5.3",
+          "name": "GLM-5.3",
+          "cost": {
+            "input": 1.4,
+            "output": 4.4,
+            "cache_read": 0.26,
+            "cache_write": 0
+          },
+          "context": 1000000,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true
+        },
+        {
           "id": "glm-5.2",
           "name": "GLM-5.2",
           "cost": {
@@ -58927,6 +59543,23 @@
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
+        },
+        {
+          "id": "glm-5.3-flash",
+          "name": "GLM-5.3-Flash",
+          "cost": {
+            "input": 0.075,
+            "output": 0.25,
+            "cache_read": 0.015,
+            "cache_write": 0
+          },
+          "context": 1000000,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
         },
         {
           "id": "glm-4.5",
@@ -59804,7 +60437,7 @@
           "output_limit": 4096
         },
         {
-          "id": "Qwen/Qwen3.6-35B-A3B-FP8",
+          "id": "Qwen/Qwen3.6-35B-A3B",
           "name": "Qwen3.6 35B-A3B",
           "cost": {
             "input": 0.345,
@@ -59827,6 +60460,20 @@
           },
           "context": 40960,
           "output_limit": 4096
+        },
+        {
+          "id": "Qwen/Qwen3.8-27B",
+          "name": "Qwen3.8-27B",
+          "cost": {
+            "input": 0.87,
+            "output": 3.5
+          },
+          "context": 262144,
+          "output_limit": 262144,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true
         },
         {
           "id": "zai-org/GLM-5.2",
@@ -60866,6 +61513,86 @@
           "context": 32000,
           "output_limit": 4096,
           "reasoning": true
+        }
+      ]
+    },
+    "pendra": {
+      "id": "pendra",
+      "name": "Pendra",
+      "models": [
+        {
+          "id": "deepseek-v4-flash",
+          "name": "DeepSeek V4 Flash",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "context": 1000000,
+          "output_limit": 384000,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true
+        },
+        {
+          "id": "llama3.3:70b",
+          "name": "Llama-3.3-70B-Instruct",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "context": 128000,
+          "output_limit": 4096,
+          "tool_call": true
+        },
+        {
+          "id": "qwen3.6:27b",
+          "name": "Qwen3.6 27B",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "context": 262144,
+          "output_limit": 65536,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true
+        },
+        {
+          "id": "gpt-oss:120b",
+          "name": "GPT OSS 120B",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "context": 131072,
+          "output_limit": 32768,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true
+        },
+        {
+          "id": "glm-4.7-flash",
+          "name": "GLM-4.7-Flash",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "context": 200000,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true
+        },
+        {
+          "id": "qwen3-coder:30b",
+          "name": "Qwen3-Coder 30B-A3B Instruct",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "context": 262144,
+          "output_limit": 65536,
+          "tool_call": true
         }
       ]
     },
@@ -62466,7 +63193,7 @@
           "cost": {
             "input": 2,
             "output": 6,
-            "cache_read": 0.5
+            "cache_read": 0.3
           },
           "context": 500000,
           "output_limit": 500000,
@@ -66243,9 +66970,9 @@
           "id": "gemma-4-26b-a4b-it",
           "name": "Gemma 4 26B A4B IT",
           "cost": {
-            "input": 0.11,
-            "output": 0.408,
-            "cache_write": 0.055
+            "input": 0.12,
+            "output": 0.42,
+            "cache_write": 0.06
           },
           "context": 256000,
           "output_limit": 25600,
@@ -66299,9 +67026,9 @@
           "id": "llama-3.3-70b-instruct",
           "name": "Llama-3.3-70B-Instruct",
           "cost": {
-            "input": 0.598,
-            "output": 0.738,
-            "cache_write": 0.299
+            "input": 0.638,
+            "output": 0.768,
+            "cache_write": 0.319
           },
           "context": 128000,
           "output_limit": 12800,
@@ -66353,9 +67080,9 @@
           "id": "glm-5",
           "name": "GLM-5",
           "cost": {
-            "input": 0.86,
-            "output": 2.784,
-            "cache_write": 0.43
+            "input": 0.92,
+            "output": 2.976,
+            "cache_write": 0.46
           },
           "context": 202752,
           "output_limit": 20275,
@@ -66380,9 +67107,9 @@
           "id": "minimax-m2.7",
           "name": "MiniMax-M2.7",
           "cost": {
-            "input": 0.41,
-            "output": 1.52,
-            "cache_write": 0.205
+            "input": 0.424,
+            "output": 1.612,
+            "cache_write": 0.212
           },
           "context": 262100,
           "output_limit": 6553,
@@ -66460,12 +67187,27 @@
           "tool_call": true
         },
         {
+          "id": "qwen3.8-flash",
+          "name": "Qwen3.8 Flash",
+          "cost": {
+            "input": 0.16,
+            "output": 0.47,
+            "cache_read": 0.016
+          },
+          "context": 1000000,
+          "output_limit": 128000,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true
+        },
+        {
           "id": "kimi-k2.5",
           "name": "Kimi K2.5",
           "cost": {
-            "input": 0.5444,
-            "output": 2.855,
-            "cache_write": 0.2722
+            "input": 0.544,
+            "output": 2.76,
+            "cache_write": 0.272
           },
           "context": 262144,
           "output_limit": 26214,
@@ -66501,6 +67243,21 @@
           "tool_call": true
         },
         {
+          "id": "qwen3.8-27b",
+          "name": "Qwen3.8 27B",
+          "cost": {
+            "input": 0.5,
+            "output": 3,
+            "cache_read": 0.1
+          },
+          "context": 1000000,
+          "output_limit": 128000,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true
+        },
+        {
           "id": "qwen3.6-plus",
           "name": "Qwen3.6 Plus",
           "cost": {
@@ -66531,9 +67288,9 @@
           "id": "glm-5.1",
           "name": "GLM-5.1",
           "cost": {
-            "input": 1.332,
-            "output": 4.312,
-            "cache_write": 0.666
+            "input": 1.29,
+            "output": 4.22,
+            "cache_write": 0.645
           },
           "context": 202750,
           "output_limit": 3276,
@@ -66585,6 +67342,20 @@
           "tool_call": true,
           "structured_output": true,
           "image": true
+        },
+        {
+          "id": "qwen3.8-2.4t-a95b",
+          "name": "Qwen3.8 2.4T A95B",
+          "cost": {
+            "input": 2,
+            "output": 6,
+            "cache_read": 0.25
+          },
+          "context": 1000000,
+          "output_limit": 128000,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true
         }
       ]
     },
@@ -69365,8 +70136,8 @@
             "input": 0.3,
             "output": 1.2
           },
-          "context": 196608,
-          "output_limit": 128000,
+          "context": 204800,
+          "output_limit": 131072,
           "reasoning": true,
           "tool_call": true
         },
@@ -69392,8 +70163,8 @@
             "output": 1.2,
             "cache_read": 0.06
           },
-          "context": 1000000,
-          "output_limit": 128000,
+          "context": 1048576,
+          "output_limit": 512000,
           "reasoning": true,
           "tool_call": true,
           "image": true,
@@ -71284,6 +72055,20 @@
           "tool_call": true
         },
         {
+          "id": "zai-glm-5-2",
+          "name": "GLM-5.2",
+          "cost": {
+            "input": 1.4,
+            "output": 4.4,
+            "cache_read": 0.14
+          },
+          "context": 1000000,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true
+        },
+        {
           "id": "open-mixtral-8x22b",
           "name": "Mixtral 8x22B",
           "cost": {
@@ -72549,8 +73334,8 @@
             "output": 1.2,
             "cache_read": 0.06
           },
-          "context": 512000,
-          "output_limit": 128000,
+          "context": 1048576,
+          "output_limit": 512000,
           "reasoning": true,
           "tool_call": true,
           "image": true,
@@ -73398,6 +74183,22 @@
           "video": true
         },
         {
+          "id": "glm-5-3-flash",
+          "name": "GLM 5.3 Flash",
+          "cost": {
+            "input": 0.075,
+            "output": 0.25,
+            "cache_read": 0.075
+          },
+          "context": 1000000,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
+        },
+        {
           "id": "mimo-v2-5-pro",
           "name": "MiMo V2.5 Pro",
           "cost": {
@@ -73440,6 +74241,22 @@
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
+        },
+        {
+          "id": "qwen3-8-flash",
+          "name": "Qwen3.8 Flash",
+          "cost": {
+            "input": 0.16,
+            "output": 0.47,
+            "cache_read": 0.16
+          },
+          "context": 1000000,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
         },
         {
           "id": "seed-2-0-mini",
@@ -73812,8 +74629,8 @@
             "output": 0,
             "cache_read": 0
           },
-          "context": 512000,
-          "output_limit": 128000,
+          "context": 1048576,
+          "output_limit": 512000,
           "reasoning": true,
           "tool_call": true
         },
@@ -74544,8 +75361,8 @@
           "name": "Nemotron 3.5 Lightning 30B",
           "cost": {
             "input": 0.05,
-            "output": 0.2,
-            "cache_read": 0.01
+            "output": 0.15,
+            "cache_read": 0.05
           },
           "context": 262144,
           "output_limit": 131072,
@@ -74767,6 +75584,10 @@
           "image": true
         },
         {
+          "id": "google/gemini-3.5-transcribe-live",
+          "name": "Gemini 3.5 Transcribe Live"
+        },
+        {
           "id": "google/text-embedding-005",
           "name": "Text Embedding 005",
           "context": 8192,
@@ -74969,6 +75790,14 @@
           "image": true
         },
         {
+          "id": "google/gemini-3.5-transcribe",
+          "name": "Gemini 3.5 Transcribe",
+          "cost": {
+            "input": 2,
+            "output": 12
+          }
+        },
+        {
           "id": "google/veo-3.1-fast-generate-001",
           "name": "Veo 3.1 Fast Generate"
         },
@@ -75110,6 +75939,11 @@
           "output_limit": 1048576,
           "reasoning": true,
           "tool_call": true,
+          "image": true
+        },
+        {
+          "id": "meta/muse-image-1.0",
+          "name": "Muse Image 1.0",
           "image": true
         },
         {
@@ -75878,6 +76712,21 @@
           "output_limit": 96000,
           "reasoning": true,
           "tool_call": true
+        },
+        {
+          "id": "zai/glm-5.3-flash",
+          "name": "GLM 5.3 Flash",
+          "cost": {
+            "input": 0.15,
+            "output": 0.5,
+            "cache_read": 0.03
+          },
+          "context": 1000000,
+          "output_limit": 131000,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true
         },
         {
           "id": "bytedance/seedream-5.0-pro",
@@ -77273,6 +78122,22 @@
           "tool_call": true
         },
         {
+          "id": "alibaba/qwen3.8-flash",
+          "name": "Qwen 3.8 Flash",
+          "cost": {
+            "input": 0.16,
+            "output": 0.47,
+            "cache_read": 0.016,
+            "cache_write": 0.2
+          },
+          "context": 991000,
+          "output_limit": 128000,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true
+        },
+        {
           "id": "alibaba/qwen3-next-80b-a3b-thinking",
           "name": "Qwen3 Next 80B A3B Thinking",
           "cost": {
@@ -77377,6 +78242,11 @@
         {
           "id": "alibaba/wan-v2.6-t2v",
           "name": "Wan v2.6 Text-to-Video"
+        },
+        {
+          "id": "alibaba/wan-v3.0-video",
+          "name": "Wan v3.0 Video",
+          "image": true
         },
         {
           "id": "alibaba/qwen3-coder-plus",
@@ -77508,6 +78378,7 @@
           "output_limit": 500000,
           "reasoning": true,
           "tool_call": true,
+          "structured_output": true,
           "image": true
         },
         {
@@ -77522,6 +78393,7 @@
           "output_limit": 500000,
           "reasoning": true,
           "tool_call": true,
+          "structured_output": true,
           "image": true
         },
         {
@@ -77635,6 +78507,7 @@
           "output_limit": 256000,
           "reasoning": true,
           "tool_call": true,
+          "structured_output": true,
           "image": true
         },
         {
@@ -77649,6 +78522,7 @@
           "output_limit": 1000000,
           "reasoning": true,
           "tool_call": true,
+          "structured_output": true,
           "image": true
         },
         {
@@ -78248,19 +79122,6 @@
           "context": 131072,
           "output_limit": 384000,
           "tool_call": true,
-          "structured_output": true
-        },
-        {
-          "id": "deepseek/deepseek-reasoner",
-          "name": "DeepSeek Reasoner",
-          "cost": {
-            "input": 0.28,
-            "output": 0.42,
-            "cache_read": 0.028
-          },
-          "context": 131072,
-          "output_limit": 384000,
-          "reasoning": true,
           "structured_output": true
         },
         {
@@ -79221,11 +80082,29 @@
           "structured_output": true
         },
         {
+          "id": "zai/glm-5.3-flash",
+          "name": "GLM-5.3-Flash",
+          "cost": {
+            "input": 0.15,
+            "output": 0.5,
+            "cache_read": 0.03
+          },
+          "context": 1048576,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
+        },
+        {
           "id": "databricks/databricks-gpt-oss-20b",
           "name": "GPT OSS 20B",
           "cost": {
             "input": 0.07,
-            "output": 0.30002
+            "output": 0.30002,
+            "cache_read": 0.07,
+            "cache_write": 0.07
           },
           "context": 131072,
           "output_limit": 32768,
@@ -79237,7 +80116,9 @@
           "name": "GPT OSS 120B",
           "cost": {
             "input": 0.15001,
-            "output": 0.59997
+            "output": 0.59997,
+            "cache_read": 0.15001,
+            "cache_write": 0.15001
           },
           "context": 131072,
           "output_limit": 32768,
@@ -79324,6 +80205,7 @@
           "output_limit": 1048576,
           "reasoning": true,
           "tool_call": true,
+          "structured_output": true,
           "image": true
         },
         {
@@ -80481,8 +81363,8 @@
           "id": "qwen/deepseek-v4-pro-0813",
           "name": "DeepSeek V4 Pro 0813",
           "cost": {
-            "input": 0.627,
-            "output": 1.881
+            "input": 0.5808,
+            "output": 1.7424
           },
           "context": 1000000,
           "output_limit": 384000,
@@ -80517,6 +81399,18 @@
           "structured_output": true
         },
         {
+          "id": "qwen/qwen3-coder-next@eu",
+          "name": "Qwen3 Coder Next (EU)",
+          "cost": {
+            "input": 0.3,
+            "output": 1.5
+          },
+          "context": 262144,
+          "output_limit": 65536,
+          "tool_call": true,
+          "structured_output": true
+        },
+        {
           "id": "qwen/qwen3.8-max",
           "name": "Qwen3.8 Max",
           "cost": {
@@ -80532,6 +81426,20 @@
           "structured_output": true,
           "image": true,
           "video": true
+        },
+        {
+          "id": "qwen/qwen3-max@eu",
+          "name": "Qwen3 Max (EU)",
+          "cost": {
+            "input": 1.2,
+            "output": 6,
+            "cache_read": 0.24,
+            "cache_write": 1.5
+          },
+          "context": 262144,
+          "output_limit": 65536,
+          "tool_call": true,
+          "structured_output": true
         },
         {
           "id": "qwen/qwen3-next-80b-a3b-thinking",
@@ -80800,8 +81708,8 @@
           "id": "ionos/openai/gpt-oss-120b",
           "name": "GPT OSS 120B",
           "cost": {
-            "input": 0.17496,
-            "output": 0.75816
+            "input": 0.175035,
+            "output": 0.758485
           },
           "context": 131072,
           "output_limit": 32768,
@@ -80811,8 +81719,8 @@
           "id": "ionos/meta-llama/Llama-3.3-70B-Instruct",
           "name": "Llama-3.3-70B-Instruct",
           "cost": {
-            "input": 0.75816,
-            "output": 0.75816
+            "input": 0.758485,
+            "output": 0.758485
           },
           "context": 128000,
           "output_limit": 4096
@@ -80821,36 +81729,33 @@
           "id": "scaleway/llama-3.3-70b-instruct",
           "name": "Llama-3.3-70B-Instruct",
           "cost": {
-            "input": 1.04976,
-            "output": 1.04976
+            "input": 1.050211,
+            "output": 1.050211
           },
           "context": 128000,
-          "output_limit": 4096,
-          "tool_call": true
+          "output_limit": 4096
         },
         {
           "id": "scaleway/gpt-oss-120b",
           "name": "GPT OSS 120B",
           "cost": {
-            "input": 0.17496,
-            "output": 0.69984
+            "input": 0.175035,
+            "output": 0.70014
           },
           "context": 128000,
           "output_limit": 32768,
-          "reasoning": true,
-          "tool_call": true
+          "reasoning": true
         },
         {
           "id": "scaleway/deepseek-v4-flash-0731",
           "name": "DeepSeek V4 Flash 0731",
           "cost": {
-            "input": 0.46656,
-            "output": 0.93312
+            "input": 0.46676,
+            "output": 0.933521
           },
           "context": 256000,
           "output_limit": 384000,
-          "reasoning": true,
-          "tool_call": true
+          "reasoning": true
         },
         {
           "id": "mistral/mistral-small-latest",
@@ -80884,8 +81789,9 @@
           "id": "mistral/devstral-2512",
           "name": "Devstral 2",
           "cost": {
-            "input": 0.4,
-            "output": 2
+            "input": 0.44,
+            "output": 2.2,
+            "cache_read": 0.044
           },
           "context": 262144,
           "output_limit": 262144,
@@ -81368,17 +82274,6 @@
           "image": true
         },
         {
-          "id": "flexai/DeepSeek-V4-Flash-0731",
-          "name": "DeepSeek V4 Flash 0731",
-          "cost": {
-            "input": 0.08,
-            "output": 0.18
-          },
-          "context": 1000000,
-          "output_limit": 384000,
-          "reasoning": true
-        },
-        {
           "id": "flexai/gpt-oss-120b",
           "name": "GPT OSS 120B",
           "cost": {
@@ -81407,7 +82302,7 @@
             "input": 0.08,
             "output": 0.18
           },
-          "context": 1000000,
+          "context": 786432,
           "output_limit": 384000,
           "reasoning": true
         },
@@ -81458,7 +82353,7 @@
             "output": 1.2
           },
           "context": 204800,
-          "output_limit": 128000,
+          "output_limit": 131072,
           "reasoning": true,
           "tool_call": true
         },
@@ -81471,7 +82366,7 @@
             "cache_read": 0.06
           },
           "context": 524288,
-          "output_limit": 128000,
+          "output_limit": 512000,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -83274,9 +84169,9 @@
           "id": "deepseek-v4-flash",
           "name": "DeepSeek V4 Flash",
           "cost": {
-            "input": 0.076,
-            "output": 0.153,
-            "cache_read": 0.014
+            "input": 0.051,
+            "output": 0.104,
+            "cache_read": 0.0097
           },
           "context": 1050000,
           "output_limit": 384000,
@@ -83891,7 +84786,7 @@
             "cache_read": 0.06
           },
           "context": 1048576,
-          "output_limit": 128000,
+          "output_limit": 512000,
           "reasoning": true,
           "tool_call": true,
           "image": true,
@@ -84422,7 +85317,7 @@
             "output": 4.4,
             "cache_read": 0.26
           },
-          "context": 1000000,
+          "context": 1048576,
           "output_limit": 131072,
           "reasoning": true,
           "tool_call": true,
@@ -84520,7 +85415,7 @@
             "cache_read": 0.03
           },
           "context": 196608,
-          "output_limit": 128000,
+          "output_limit": 131072,
           "reasoning": true,
           "tool_call": true
         },
@@ -85509,6 +86404,22 @@
           "tool_call": true
         },
         {
+          "id": "glm-5.3-flash",
+          "name": "GLM-5.3-Flash",
+          "cost": {
+            "input": 0.15,
+            "output": 0.5,
+            "cache_read": 0.03
+          },
+          "context": 1048576,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
+        },
+        {
           "id": "gpt-5.1",
           "name": "GPT-5.1",
           "cost": {
@@ -86312,6 +87223,21 @@
             "output": 0
           },
           "context": 512000,
+          "output_limit": 65536,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true
+        },
+        {
+          "id": "agnes-2.5-pro-alpha",
+          "name": "Agnes 2.5 Pro Alpha",
+          "cost": {
+            "input": 0.45,
+            "output": 0.9,
+            "cache_read": 0.0038
+          },
+          "context": 1000000,
           "output_limit": 65536,
           "reasoning": true,
           "tool_call": true,
@@ -87768,7 +88694,7 @@
             "cache_write": 0
           },
           "context": 1048576,
-          "output_limit": 128000,
+          "output_limit": 512000,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -88456,7 +89382,7 @@
             "cache_read": 0.06
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true
         },
@@ -88468,7 +89394,7 @@
             "output": 0.57
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "reasoning": true,
           "structured_output": true
         },
@@ -88476,9 +89402,9 @@
           "id": "tencent/hy3",
           "name": "Hy3",
           "cost": {
-            "input": 0.14,
-            "output": 0.58,
-            "cache_read": 0.035
+            "input": 0.132,
+            "output": 0.528,
+            "cache_read": 0.033
           },
           "context": 262144,
           "output_limit": 128000,
@@ -88583,7 +89509,7 @@
             "cache_read": 0.5
           },
           "context": 500000,
-          "output_limit": 500000,
+          "output_limit": 450000,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -88597,7 +89523,7 @@
             "output": 0
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -88611,7 +89537,7 @@
             "cache_read": 0.025
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -88652,7 +89578,7 @@
             "cache_read": 0.1
           },
           "context": 512288,
-          "output_limit": 512288,
+          "output_limit": 461059,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -88759,7 +89685,7 @@
             "output": 1.6
           },
           "context": 32768,
-          "output_limit": 32768
+          "output_limit": 29491
         },
         {
           "id": "aion-labs/aion-2.0",
@@ -88816,7 +89742,7 @@
             "output": 0.14
           },
           "context": 16384,
-          "output_limit": 16384,
+          "output_limit": 14745,
           "structured_output": true
         },
         {
@@ -88967,7 +89893,7 @@
             "cache_read": 0.26
           },
           "context": 202752,
-          "output_limit": 202752,
+          "output_limit": 182476,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -88998,6 +89924,22 @@
           "output_limit": 98304,
           "reasoning": true,
           "tool_call": true
+        },
+        {
+          "id": "z-ai/glm-5.3-flash",
+          "name": "GLM-5.3-Flash",
+          "cost": {
+            "input": 0.075,
+            "output": 0.25,
+            "cache_read": 0.015
+          },
+          "context": 1048576,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
         },
         {
           "id": "deepseek/deepseek-v3.1-terminus",
@@ -89049,7 +89991,7 @@
             "cache_read": 0.132
           },
           "context": 1048575,
-          "output_limit": 384000,
+          "output_limit": 943717,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -89077,7 +90019,7 @@
             "cache_read": 0.1345
           },
           "context": 163840,
-          "output_limit": 163840,
+          "output_limit": 147456,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -89091,7 +90033,7 @@
             "cache_read": 0.135
           },
           "context": 161000,
-          "output_limit": 161000,
+          "output_limit": 144900,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -89131,7 +90073,7 @@
             "cache_read": 0.135
           },
           "context": 163840,
-          "output_limit": 163840,
+          "output_limit": 147456,
           "tool_call": true,
           "structured_output": true
         },
@@ -89143,7 +90085,7 @@
             "output": 0.8
           },
           "context": 8192,
-          "output_limit": 8192,
+          "output_limit": 7372,
           "reasoning": true
         },
         {
@@ -89168,7 +90110,7 @@
             "cache_read": 0.028
           },
           "context": 1048576,
-          "output_limit": 131072,
+          "output_limit": 943718,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -89196,7 +90138,7 @@
             "cache_read": 0.06
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -89264,7 +90206,7 @@
             "cache_read": 0.2,
             "cache_write": 0.375
           },
-          "context": 65536,
+          "context": 131072,
           "output_limit": 32768,
           "reasoning": true,
           "tool_call": true,
@@ -89311,7 +90253,7 @@
             "output": 1.5
           },
           "context": 65536,
-          "output_limit": 65536,
+          "output_limit": 58982,
           "reasoning": true,
           "image": true
         },
@@ -89382,28 +90324,17 @@
           "id": "google/gemma-4-31b-it",
           "name": "Gemma 4 31B IT",
           "cost": {
-            "input": 0.08,
-            "output": 0.35,
-            "cache_read": 0.01
+            "input": 0.09,
+            "output": 0.34,
+            "cache_read": 0.05
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 16384,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
           "image": true,
           "video": true
-        },
-        {
-          "id": "google/gemma-3n-e4b-it",
-          "name": "Google: Gemma 3n 4B",
-          "cost": {
-            "input": 0.06,
-            "output": 0.12
-          },
-          "context": 32768,
-          "output_limit": 6554,
-          "structured_output": true
         },
         {
           "id": "google/lyria-3-clip-preview",
@@ -89458,7 +90389,7 @@
             "output": 0.16
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "tool_call": true,
           "structured_output": true,
           "image": true
@@ -89547,7 +90478,7 @@
             "output": 3
           },
           "context": 65536,
-          "output_limit": 65536,
+          "output_limit": 58982,
           "reasoning": true,
           "structured_output": true,
           "image": true
@@ -89654,7 +90585,7 @@
             "cache_read": 0.04
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -89669,7 +90600,7 @@
             "cache_read": 0.15
           },
           "context": 1048576,
-          "output_limit": 1048576,
+          "output_limit": 943718,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -89685,7 +90616,7 @@
             "cache_read": 0.15
           },
           "context": 1048576,
-          "output_limit": 1048576,
+          "output_limit": 943718,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -89701,7 +90632,7 @@
             "cache_read": 0.002
           },
           "context": 1048576,
-          "output_limit": 1048576,
+          "output_limit": 943718,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -89726,7 +90657,7 @@
             "output": 0.06
           },
           "context": 4096,
-          "output_limit": 4096,
+          "output_limit": 3686,
           "structured_output": true
         },
         {
@@ -89850,7 +90781,7 @@
             "cache_read": 0.2
           },
           "context": 2000000,
-          "output_limit": 2000000,
+          "output_limit": 1800000,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -89865,7 +90796,7 @@
             "cache_read": 0.5
           },
           "context": 500000,
-          "output_limit": 500000,
+          "output_limit": 450000,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -89880,7 +90811,7 @@
             "cache_read": 0.3
           },
           "context": 500000,
-          "output_limit": 500000,
+          "output_limit": 450000,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -89895,7 +90826,7 @@
             "cache_read": 0.2
           },
           "context": 2000000,
-          "output_limit": 2000000,
+          "output_limit": 1800000,
           "reasoning": true,
           "structured_output": true,
           "image": true
@@ -89909,7 +90840,7 @@
             "cache_read": 0.2
           },
           "context": 256000,
-          "output_limit": 256000,
+          "output_limit": 230400,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -89924,7 +90855,7 @@
             "cache_read": 0.2
           },
           "context": 1000000,
-          "output_limit": 4096,
+          "output_limit": 900000,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -90027,7 +90958,7 @@
             "output": 2.5
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -90043,7 +90974,7 @@
             "cache_read": 0.19
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -90058,7 +90989,7 @@
             "cache_read": 0.3
           },
           "context": 1048576,
-          "output_limit": 1048576,
+          "output_limit": 943718,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -90085,7 +91016,7 @@
             "cache_read": 0.1
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -90126,7 +91057,7 @@
             "cache_read": 0.16
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -90657,7 +91588,7 @@
             "output": 2
           },
           "context": 4095,
-          "output_limit": 4096,
+          "output_limit": 3685,
           "structured_output": true
         },
         {
@@ -90885,7 +91816,7 @@
             "cache_read": 0.03
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -91119,7 +92050,7 @@
             "output": 2
           },
           "context": 4095,
-          "output_limit": 4096,
+          "output_limit": 3685,
           "tool_call": true,
           "structured_output": true
         },
@@ -91309,12 +92240,11 @@
           "id": "openai/gpt-oss-20b",
           "name": "GPT OSS 20B",
           "cost": {
-            "input": 0.03,
-            "output": 0.13,
-            "cache_read": 0.03
+            "input": 0.02,
+            "output": 0.1
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -91494,7 +92424,7 @@
             "output": 0.4
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "reasoning": true
         },
         {
@@ -91505,7 +92435,7 @@
             "output": 3
           },
           "context": 131072,
-          "output_limit": 26215,
+          "output_limit": 117964,
           "reasoning": true
         },
         {
@@ -91544,7 +92474,7 @@
           },
           "context": 256000,
           "input_limit": 256000,
-          "output_limit": 256000,
+          "output_limit": 230400,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -91555,12 +92485,11 @@
           "id": "qwen/qwen2.5-vl-72b-instruct",
           "name": "Qwen: Qwen2.5 VL 72B Instruct",
           "cost": {
-            "input": 0.8,
-            "output": 1,
-            "cache_read": 0.4
+            "input": 0.25,
+            "output": 0.75
           },
-          "context": 128000,
-          "output_limit": 128000,
+          "context": 32000,
+          "output_limit": 28800,
           "structured_output": true,
           "image": true
         },
@@ -91588,7 +92517,7 @@
             "output": 1.4625
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "tool_call": true,
           "structured_output": true
         },
@@ -91636,19 +92565,6 @@
           "structured_output": true
         },
         {
-          "id": "qwen/qwen-plus-2025-07-28:thinking",
-          "name": "Qwen: Qwen Plus 0728 (thinking)",
-          "cost": {
-            "input": 0.26,
-            "output": 0.78
-          },
-          "context": 1000000,
-          "output_limit": 32768,
-          "reasoning": true,
-          "tool_call": true,
-          "structured_output": true
-        },
-        {
           "id": "qwen/qwen3-235b-a22b-thinking-2507",
           "name": "Qwen: Qwen3 235B A22B Thinking 2507",
           "cost": {
@@ -91656,7 +92572,7 @@
             "output": 2.3
           },
           "context": 131072,
-          "output_limit": 262144,
+          "output_limit": 117964,
           "reasoning": true,
           "tool_call": true
         },
@@ -91694,7 +92610,7 @@
             "output": 1.3
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -91735,7 +92651,7 @@
             "output": 2.34
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 65536,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -91764,7 +92680,7 @@
             "output": 1.5
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "tool_call": true,
           "structured_output": true
         },
@@ -91904,7 +92820,7 @@
             "output": 0.2
           },
           "context": 32768,
-          "output_limit": 32768,
+          "output_limit": 29491,
           "tool_call": true,
           "structured_output": true
         },
@@ -91946,6 +92862,23 @@
           "tool_call": true,
           "structured_output": true,
           "image": true
+        },
+        {
+          "id": "qwen/qwen3.8-flash",
+          "name": "Qwen3.8 Flash",
+          "cost": {
+            "input": 0.16,
+            "output": 0.47,
+            "cache_read": 0.016,
+            "cache_write": 0.2
+          },
+          "context": 1000000,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
         },
         {
           "id": "qwen/qwen3-next-80b-a3b-thinking",
@@ -92006,7 +92939,7 @@
             "output": 1
           },
           "context": 32768,
-          "output_limit": 32768
+          "output_limit": 29491
         },
         {
           "id": "qwen/qwen3.6-35b-a3b",
@@ -92017,7 +92950,7 @@
             "cache_read": 0.05
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -92047,7 +92980,7 @@
             "output": 0.78
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "tool_call": true,
           "structured_output": true
         },
@@ -92060,7 +92993,7 @@
             "cache_read": 0.085,
             "cache_write": 0.53125
           },
-          "context": 262144,
+          "context": 1000000,
           "output_limit": 131072,
           "reasoning": true,
           "tool_call": true,
@@ -92104,7 +93037,7 @@
             "output": 0.15
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -92148,7 +93081,7 @@
             "output": 2.08
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -92272,7 +93205,7 @@
             "output": 0.5
           },
           "context": 65536,
-          "output_limit": 65536,
+          "output_limit": 58982,
           "reasoning": true,
           "structured_output": true
         },
@@ -92344,7 +93277,7 @@
             "output": 8
           },
           "context": 128000,
-          "output_limit": 25600,
+          "output_limit": 115200,
           "reasoning": true
         },
         {
@@ -92355,7 +93288,7 @@
             "output": 1
           },
           "context": 127072,
-          "output_limit": 25415,
+          "output_limit": 114364,
           "image": true
         },
         {
@@ -92366,7 +93299,7 @@
             "output": 8
           },
           "context": 128000,
-          "output_limit": 25600,
+          "output_limit": 115200,
           "reasoning": true,
           "image": true
         },
@@ -92403,7 +93336,7 @@
             "cache_read": 0.15
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "structured_output": true
         },
         {
@@ -92415,7 +93348,7 @@
             "cache_read": 0.25
           },
           "context": 32768,
-          "output_limit": 32768,
+          "output_limit": 29491,
           "structured_output": true
         },
         {
@@ -92426,7 +93359,7 @@
             "output": 0.5
           },
           "context": 65536,
-          "output_limit": 65536,
+          "output_limit": 58982,
           "structured_output": true
         },
         {
@@ -92437,7 +93370,7 @@
             "output": 0.4
           },
           "context": 32768,
-          "output_limit": 32768,
+          "output_limit": 26214,
           "tool_call": true,
           "structured_output": true
         },
@@ -92449,7 +93382,7 @@
             "output": 0.1
           },
           "context": 16384,
-          "output_limit": 16384,
+          "output_limit": 14745,
           "tool_call": true,
           "structured_output": true,
           "image": true,
@@ -92463,7 +93396,7 @@
             "output": 0.2
           },
           "context": 65536,
-          "output_limit": 65536,
+          "output_limit": 58982,
           "reasoning": true,
           "structured_output": true
         },
@@ -92481,20 +93414,6 @@
           "reasoning": true,
           "tool_call": true,
           "image": true
-        },
-        {
-          "id": "stealth/ox-alpha",
-          "name": "Ox Alpha",
-          "cost": {
-            "input": 0,
-            "output": 0
-          },
-          "context": 1048576,
-          "output_limit": 131072,
-          "reasoning": true,
-          "tool_call": true,
-          "image": true,
-          "video": true
         },
         {
           "id": "stealth/claude-sonnet-4.6",
@@ -92624,12 +93543,12 @@
           "id": "~deepseek/deepseek-v4-flash-latest",
           "name": "DeepSeek V4 Flash Latest",
           "cost": {
-            "input": 0.035,
+            "input": 0.03,
             "output": 0.075,
-            "cache_read": 0.008
+            "cache_read": 0.007
           },
           "context": 1048576,
-          "output_limit": 1048576,
+          "output_limit": 131072,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -92655,7 +93574,7 @@
             "output": 0.33
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "structured_output": true
         },
         {
@@ -92665,8 +93584,8 @@
             "input": 0.1,
             "output": 0.32
           },
-          "context": 131072,
-          "output_limit": 16384,
+          "context": 128000,
+          "output_limit": 115200,
           "tool_call": true,
           "structured_output": true
         },
@@ -92689,7 +93608,7 @@
             "output": 0.201
           },
           "context": 60000,
-          "output_limit": 60000
+          "output_limit": 54000
         },
         {
           "id": "meta-llama/llama-3.1-8b-instruct",
@@ -92699,7 +93618,7 @@
             "output": 0.04
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "tool_call": true,
           "structured_output": true
         },
@@ -92735,8 +93654,8 @@
             "input": 0.1,
             "output": 0.3
           },
-          "context": 327680,
-          "output_limit": 16384,
+          "context": 131072,
+          "output_limit": 8192,
           "tool_call": true,
           "structured_output": true,
           "image": true
@@ -92750,7 +93669,7 @@
             "cache_read": 0.015
           },
           "context": 262144,
-          "output_limit": 32768,
+          "output_limit": 209715,
           "tool_call": true,
           "structured_output": true,
           "image": true
@@ -92764,7 +93683,7 @@
             "cache_read": 0.04
           },
           "context": 131072,
-          "output_limit": 26215,
+          "output_limit": 104857,
           "tool_call": true,
           "structured_output": true,
           "image": true
@@ -92790,7 +93709,7 @@
             "output": 7.5
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 209715,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -92804,7 +93723,7 @@
             "output": 0.11
           },
           "context": 128000,
-          "output_limit": 128000,
+          "output_limit": 102400,
           "structured_output": true
         },
         {
@@ -92816,7 +93735,7 @@
             "cache_read": 0.044
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 209715,
           "tool_call": true,
           "structured_output": true
         },
@@ -92829,7 +93748,7 @@
             "cache_read": 0.015
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 209715,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -92869,7 +93788,7 @@
             "cache_read": 0.05
           },
           "context": 262144,
-          "output_limit": 52429,
+          "output_limit": 209715,
           "tool_call": true,
           "structured_output": true,
           "image": true
@@ -92883,7 +93802,7 @@
             "cache_read": 0.01
           },
           "context": 32000,
-          "output_limit": 6400,
+          "output_limit": 25600,
           "tool_call": true,
           "structured_output": true
         },
@@ -92896,7 +93815,7 @@
             "cache_read": 0.01
           },
           "context": 131072,
-          "output_limit": 32768,
+          "output_limit": 104857,
           "tool_call": true,
           "structured_output": true,
           "image": true
@@ -92910,7 +93829,7 @@
             "cache_read": 0.04
           },
           "context": 131072,
-          "output_limit": 26215,
+          "output_limit": 104857,
           "tool_call": true,
           "structured_output": true,
           "image": true
@@ -92924,7 +93843,7 @@
             "cache_read": 0.2
           },
           "context": 131072,
-          "output_limit": 32768,
+          "output_limit": 104857,
           "tool_call": true,
           "structured_output": true
         },
@@ -92937,7 +93856,7 @@
             "cache_read": 0.2
           },
           "context": 128000,
-          "output_limit": 25600,
+          "output_limit": 102400,
           "tool_call": true,
           "structured_output": true
         },
@@ -92950,7 +93869,7 @@
             "cache_read": 0.2
           },
           "context": 65536,
-          "output_limit": 13108,
+          "output_limit": 52428,
           "tool_call": true,
           "structured_output": true
         },
@@ -92963,7 +93882,7 @@
             "cache_read": 0.02
           },
           "context": 262144,
-          "output_limit": 52429,
+          "output_limit": 209715,
           "tool_call": true,
           "structured_output": true,
           "image": true
@@ -92977,7 +93896,7 @@
             "cache_read": 0.03
           },
           "context": 256000,
-          "output_limit": 51200,
+          "output_limit": 204800,
           "tool_call": true,
           "structured_output": true
         },
@@ -92990,7 +93909,7 @@
             "cache_read": 0.02
           },
           "context": 32768,
-          "output_limit": 32768,
+          "output_limit": 26214,
           "tool_call": true,
           "structured_output": true
         },
@@ -93002,7 +93921,7 @@
             "output": 0.555
           },
           "context": 128000,
-          "output_limit": 128000,
+          "output_limit": 102400,
           "image": true
         },
         {
@@ -93121,7 +94040,7 @@
             "cache_read": 0.0025
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -93136,7 +94055,7 @@
             "cache_read": 0.025
           },
           "context": 262144,
-          "output_limit": 262144,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "image": true
@@ -93150,7 +94069,7 @@
             "cache_read": 0.015
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -93222,19 +94141,19 @@
             "output": 0.05
           },
           "context": 8192,
-          "output_limit": 16384,
+          "output_limit": 7372,
           "structured_output": true
         },
         {
           "id": "~moonshotai/kimi-latest",
           "name": "MoonshotAI Kimi Latest",
           "cost": {
-            "input": 2.8,
-            "output": 14,
-            "cache_read": 0.29
+            "input": 2.55,
+            "output": 12.75,
+            "cache_read": 0.256
           },
           "context": 1048576,
-          "output_limit": 1048576,
+          "output_limit": 943718,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -93288,7 +94207,7 @@
             "output": 0.112
           },
           "context": 131000,
-          "output_limit": 131000
+          "output_limit": 117900
         },
         {
           "id": "ibm-granite/granite-4.1-8b",
@@ -93299,7 +94218,7 @@
             "cache_read": 0.05
           },
           "context": 131072,
-          "output_limit": 131072,
+          "output_limit": 117964,
           "tool_call": true,
           "structured_output": true
         },
@@ -93311,7 +94230,7 @@
             "output": 0
           },
           "context": 512000,
-          "output_limit": 512000,
+          "output_limit": 460800,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -93325,7 +94244,7 @@
             "output": 1.1
           },
           "context": 1000192,
-          "output_limit": 1000192,
+          "output_limit": 900172,
           "image": true
         },
         {
@@ -93375,7 +94294,7 @@
             "output": 1.2,
             "cache_read": 0.06
           },
-          "context": 196608,
+          "context": 204800,
           "output_limit": 131072,
           "reasoning": true,
           "tool_call": true,
@@ -93409,6 +94328,20 @@
           "structured_output": true
         },
         {
+          "id": "minimax/minimax-m3:free",
+          "name": "MiniMax: MiniMax M3 (free)",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "context": 1048576,
+          "output_limit": 943718,
+          "reasoning": true,
+          "tool_call": true,
+          "image": true,
+          "video": true
+        },
+        {
           "id": "minimax/minimax-m2.7:free",
           "name": "MiniMax: MiniMax M2.7 (free)",
           "cost": {
@@ -93416,7 +94349,7 @@
             "output": 0
           },
           "context": 196608,
-          "output_limit": 196608,
+          "output_limit": 176947,
           "reasoning": true,
           "tool_call": true
         },
@@ -95047,9 +95980,9 @@
           "id": "gemini-3-7-flash",
           "name": "Gemini 3.7 Flash",
           "cost": {
-            "input": 1.875,
-            "output": 9.375,
-            "cache_read": 0.1875
+            "input": 0.9375,
+            "output": 4.6875,
+            "cache_read": 0.09375
           },
           "context": 1000000,
           "output_limit": 65536,
@@ -95258,22 +96191,6 @@
           "image": true
         },
         {
-          "id": "stealth-ox-alpha",
-          "name": "Ox Alpha",
-          "cost": {
-            "input": 0,
-            "output": 0,
-            "cache_read": 0
-          },
-          "context": 1048576,
-          "output_limit": 131072,
-          "reasoning": true,
-          "tool_call": true,
-          "structured_output": true,
-          "image": true,
-          "video": true
-        },
-        {
           "id": "qwen3-next-80b",
           "name": "Qwen 3 Next 80b",
           "cost": {
@@ -95422,10 +96339,10 @@
           "id": "claude-sonnet-5",
           "name": "Claude Sonnet 5",
           "cost": {
-            "input": 3,
-            "output": 15,
-            "cache_read": 0.3,
-            "cache_write": 3.75
+            "input": 2,
+            "output": 10.000000000000002,
+            "cache_read": 0.2,
+            "cache_write": 2.5000000000000004
           },
           "context": 1000000,
           "output_limit": 64000,
@@ -95500,9 +96417,9 @@
           "id": "gemini-3-6-flash",
           "name": "Gemini 3.6 Flash",
           "cost": {
-            "input": 1.875,
-            "output": 9.375,
-            "cache_read": 0.1875
+            "input": 0.9375,
+            "output": 4.6875,
+            "cache_read": 0.09375
           },
           "context": 1000000,
           "output_limit": 65536,
@@ -95921,6 +96838,22 @@
           "tool_call": true,
           "structured_output": true,
           "image": true
+        },
+        {
+          "id": "z-ai-glm-5-3-flash",
+          "name": "GLM 5.3 Flash",
+          "cost": {
+            "input": 0.09375,
+            "output": 0.3125,
+            "cache_read": 0.01875
+          },
+          "context": 1048576,
+          "output_limit": 131072,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
         },
         {
           "id": "qwen3-5-397b-a17b",
@@ -96964,40 +97897,12 @@
           "image": true
         },
         {
-          "id": "MiniMaxAI/MiniMax-M2.5",
-          "name": "MiniMax M2.5",
-          "cost": {
-            "input": 0.3,
-            "output": 1.2,
-            "cache_read": 0.3
-          },
-          "context": 196608,
-          "output_limit": 196608,
-          "reasoning": true,
-          "tool_call": true,
-          "structured_output": true
-        },
-        {
           "id": "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B",
           "name": "Nemotron 3 Ultra",
           "cost": {
             "input": 0.75,
             "output": 2.75,
             "cache_read": 0.15
-          },
-          "context": 262144,
-          "output_limit": 262144,
-          "reasoning": true,
-          "tool_call": true,
-          "structured_output": true
-        },
-        {
-          "id": "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8",
-          "name": "Nemotron 3 Super",
-          "cost": {
-            "input": 0.2,
-            "output": 0.8,
-            "cache_read": 0.2
           },
           "context": 262144,
           "output_limit": 262144,
@@ -97234,19 +98139,6 @@
           "image": true
         },
         {
-          "id": "Qwen/Qwen3-Coder-480B-A35B-Instruct",
-          "name": "Qwen3 Coder 480B A35B",
-          "cost": {
-            "input": 1,
-            "output": 1.5,
-            "cache_read": 1
-          },
-          "context": 262144,
-          "output_limit": 262144,
-          "tool_call": true,
-          "structured_output": true
-        },
-        {
           "id": "Qwen/Qwen3.8-27B",
           "name": "Qwen3.8 27B",
           "cost": {
@@ -97262,20 +98154,6 @@
           "image": true
         },
         {
-          "id": "zai-org/GLM-5.1",
-          "name": "GLM 5.1",
-          "cost": {
-            "input": 1.4,
-            "output": 4.4,
-            "cache_read": 0.26
-          },
-          "context": 202752,
-          "output_limit": 202752,
-          "reasoning": true,
-          "tool_call": true,
-          "structured_output": true
-        },
-        {
           "id": "zai-org/GLM-5.2",
           "name": "GLM 5.2",
           "cost": {
@@ -97283,8 +98161,8 @@
             "output": 2.42,
             "cache_read": 0.14
           },
-          "context": 262144,
-          "output_limit": 262144,
+          "context": 1048576,
+          "output_limit": 1048576,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -97297,8 +98175,8 @@
             "output": 0.8,
             "cache_read": 0.8
           },
-          "context": 128000,
-          "output_limit": 128000,
+          "context": 131072,
+          "output_limit": 131072,
           "tool_call": true,
           "structured_output": true
         },
@@ -97323,8 +98201,8 @@
             "output": 0.22,
             "cache_read": 0.22
           },
-          "context": 128000,
-          "output_limit": 128000,
+          "context": 131072,
+          "output_limit": 131072,
           "tool_call": true,
           "structured_output": true
         },
@@ -98976,8 +99854,8 @@
             "input": 0.3,
             "output": 1.2
           },
-          "context": 196608,
-          "output_limit": 128000,
+          "context": 204800,
+          "output_limit": 131072,
           "reasoning": true,
           "tool_call": true
         },
@@ -99003,8 +99881,8 @@
             "output": 1.2,
             "cache_read": 0.06
           },
-          "context": 1000000,
-          "output_limit": 128000,
+          "context": 1048576,
+          "output_limit": 512000,
           "reasoning": true,
           "tool_call": true,
           "image": true,
