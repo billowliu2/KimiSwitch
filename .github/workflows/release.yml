@@ -81,11 +81,11 @@ jobs:
 
             ### 本次更新
 
-            - **高级设置**：原「子代理设置」升级为「高级设置」，聚合子代理模型指定、实验功能开关与 WebUI 快捷入口
-            - **仪表盘热力图双击弹窗**：双击热力图方块即可查看当日模型用量分布，每种模型展示 Token / 请求次数 / 费用 / 命中率
-            - **子代理模型指定（实验功能）**：为子代理绑定次主力模型，不再默认继承主模型；实验开关改为滑动开关并修复开启态隐形
-            - **兼容 kimi-code 0.33+（v2 引擎）**：`loop_control` 写入新键名 `max_attempts_per_step`，旧配置自动迁移并保留旧键兼容 `KIMI_CODE_LEGACY_FLAG=1`；hooks 候选补充新事件
-            - models.dev 模型数据同步；官网企业版视觉升级；出品公司标识统一
+            - **模型数据同步（models.dev 2026-08-27）**：7343 个模型 / 203 个供应商
+            - **新增 GLM-5.3 / GLM-5.3-Flash 全线接入**：智谱官方、OpenRouter、Cloudflare、DeepInfra、HuggingFace、火山引擎等约 20 条渠道；GLM-5.3-Flash 定价 $0.075 / $0.25（输入/输出，每百万 token）
+            - 新增 coding plan 渠道：`zhipuai-coding-plan/glm-5.3`、`glm-5.3-highspeed`、`glm-5.3-flash`
+            - 新增 Qwen3.8 系列、火山引擎豆包 Seed 2.x 全系、DeepSeek-V4 GA 版、MiniMax-M2.7/M3 等共 74 个模型条目
+            - 价格更新 58 处、能力信息修正 56 处（详见 release-notes-v0.7.9.md）
 
             ### Downloads by platform
 
