@@ -148,7 +148,7 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
             let provider_type = table
                 .get("type")
                 .and_then(|v| v.as_str())
-                .map(provider_type_for_kimi_type)
+                .map(ProviderType::from_kimi_type)
                 .unwrap_or(ProviderType::Kimi);
 
             let base_url = table.get("base_url").and_then(|v| v.as_str()).map(|s| s.to_string());
@@ -216,19 +216,23 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
         }
     }
 
-    let raw_other = {
-        let mut rest = root;
-        rest.remove("default_model");
-        rest.remove("providers");
-        rest.remove("models");
-        toml_value_to_json(&TomlValue::Table(rest))
-    };
+    let mut rest = root;
+    rest.remove("default_model");
+    rest.remove("providers");
+    rest.remove("models");
+    // Baseline of top-level keys seen at import time (table order). Export
+    // only drops baseline keys that later disappeared from raw_other, i.e.
+    // sections the user removed in the UI — sections the CLI adds after
+    // import are not in the baseline and survive the round-trip.
+    let imported_section_keys: Vec<String> = rest.keys().cloned().collect();
+    let raw_other = toml_value_to_json(&TomlValue::Table(rest));
 
     Config {
         default_model,
         providers,
         models,
         raw_other,
+        imported_section_keys,
     }
 }
 
@@ -354,10 +358,13 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
     // Sync UI-managed top-level sections (thinking, experimental,
     // secondary_model, ...) from config.raw_other back into the root.
     // At import time every top-level key except default_model/providers/
-    // models was collected into raw_other, so raw_other is the authoritative
-    // snapshot of those sections. This both persists UI edits to those
-    // sections and drops sections the user explicitly removed (absent from
-    // raw_other but still present in `existing`).
+    // models was collected into raw_other, and their keys recorded in
+    // `imported_section_keys` (the import-time baseline). Keys present in
+    // raw_other are written back (persisting UI edits); keys that were in
+    // the baseline but are absent from raw_other were removed by the user
+    // and are dropped from `existing`. Top-level keys NOT in the baseline
+    // were added by the CLI after import and are preserved untouched. An
+    // empty baseline (Config not built via import) deletes nothing.
     let mut managed_keys = std::collections::HashSet::new();
     if let TomlValue::Table(extra) =
         json_to_toml(&config.raw_other).unwrap_or(TomlValue::Table(Table::new()))
@@ -377,6 +384,7 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
                 && *k != "providers"
                 && *k != "models"
                 && !managed_keys.contains(*k)
+                && config.imported_section_keys.iter().any(|b| b == *k)
         })
         .cloned()
         .collect();
@@ -385,17 +393,6 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
     }
 
     TomlValue::Table(root)
-}
-
-fn provider_type_for_kimi_type(typ: &str) -> ProviderType {
-    match typ {
-        "anthropic" => ProviderType::Anthropic,
-        "openai" => ProviderType::Openai,
-        "openai_responses" => ProviderType::OpenaiResponses,
-        "google-genai" => ProviderType::GoogleGenai,
-        "vertexai" => ProviderType::Vertexai,
-        _ => ProviderType::Kimi,
-    }
 }
 
 fn toml_value_to_json(value: &TomlValue) -> Value {
@@ -572,6 +569,7 @@ api_key = ""
             providers,
             models,
             raw_other: Value::Null,
+            imported_section_keys: Vec::new(),
         };
 
         let exported = config_to_kimi_code(&config, None);
@@ -705,6 +703,7 @@ default_effort = "low"
             providers,
             models,
             raw_other: Value::Null,
+            imported_section_keys: Vec::new(),
         };
 
         let exported = config_to_kimi_code(&config, None);
@@ -818,6 +817,7 @@ max_context_size = 1048576
             providers,
             models: IndexMap::new(),
             raw_other: Value::Null,
+            imported_section_keys: Vec::new(),
         };
 
         let exported = config_to_kimi_code(&config, None);
@@ -858,6 +858,7 @@ max_context_size = 1048576
             providers,
             models: IndexMap::new(),
             raw_other: Value::Null,
+            imported_section_keys: Vec::new(),
         };
 
         let exported = config_to_kimi_code(&config, None);
@@ -908,6 +909,7 @@ max_context_size = 1048576
             )]),
             models: IndexMap::new(),
             raw_other: Value::Null,
+            imported_section_keys: Vec::new(),
         };
         let exported = config_to_kimi_code(&config, None);
         let provider = exported
@@ -927,6 +929,7 @@ max_context_size = 1048576
             )]),
             models: IndexMap::new(),
             raw_other: Value::Null,
+            imported_section_keys: Vec::new(),
         };
         let exported = config_to_kimi_code(&config, None);
         let provider = exported
@@ -938,6 +941,127 @@ max_context_size = 1048576
         assert_eq!(
             provider.get("api_key").and_then(|v| v.as_str()),
             Some("sk-user-key")
+        );
+    }
+
+    #[test]
+    fn kimi_code_unknown_provider_type_roundtrip() {
+        // A provider `type` string the CLI knows but Kimi Switch does not
+        // must survive import → export verbatim, not be rewritten to "kimi".
+        let toml_str = r#"
+default_model = "p1/custom-model"
+
+[providers.p1]
+type = "custom-xyz"
+api_key = "sk-x"
+
+[models."p1/custom-model"]
+provider = "p1"
+model = "custom-model"
+max_context_size = 128000
+"#;
+        let value: TomlValue = toml_str.parse().unwrap();
+        let config = kimi_code_to_config(&value);
+
+        let provider = config.providers.get("p1").unwrap();
+        assert_eq!(
+            provider.provider_type,
+            ProviderType::Unknown("custom-xyz".to_string())
+        );
+
+        let exported = config_to_kimi_code(&config, Some(&value));
+        let provider = exported
+            .as_table().unwrap()
+            .get("providers").unwrap()
+            .as_table().unwrap()
+            .get("p1").unwrap()
+            .as_table().unwrap();
+        assert_eq!(
+            provider.get("type").and_then(|v| v.as_str()),
+            Some("custom-xyz"),
+            "unknown provider type must round-trip verbatim"
+        );
+    }
+
+    #[test]
+    fn kimi_code_export_preserves_sections_added_after_import() {
+        // Top-level sections the CLI added AFTER we imported (not in the
+        // import-time baseline) must survive export instead of being wiped
+        // by the stale-key cleanup.
+        let imported_str = r#"
+default_model = "glm-5.2"
+
+[providers."glmzhongzhuan"]
+type = "anthropic"
+api_key = "sk-test"
+
+[models."glm-5.2"]
+provider = "glmzhongzhuan"
+model = "glm-5.2"
+max_context_size = 900000
+
+[thinking]
+enabled = true
+"#;
+        let imported: TomlValue = imported_str.parse().unwrap();
+        let config = kimi_code_to_config(&imported);
+
+        // The on-disk file now contains an extra [swarm] section the CLI
+        // wrote after our import.
+        let existing: TomlValue = format!("{}\n[swarm]\ntimeout_ms = 123\n", imported_str.trim_end())
+            .parse()
+            .unwrap();
+
+        let exported = config_to_kimi_code(&config, Some(&existing));
+        let root = exported.as_table().unwrap();
+        let swarm = root.get("swarm").unwrap().as_table().unwrap();
+        assert_eq!(
+            swarm.get("timeout_ms").and_then(|v| v.as_integer()),
+            Some(123),
+            "CLI-added [swarm] section must be preserved"
+        );
+        // Baseline sections are still synced as before.
+        let thinking = root.get("thinking").unwrap().as_table().unwrap();
+        assert_eq!(thinking.get("enabled").and_then(|v| v.as_bool()), Some(true));
+    }
+
+    #[test]
+    fn kimi_code_export_drops_user_removed_sections() {
+        // A section that WAS in the import baseline but was removed from
+        // raw_other (the user deleted it in the UI) must still be dropped
+        // from the exported file.
+        let toml_str = r#"
+default_model = "glm-5.2"
+
+[providers."glmzhongzhuan"]
+type = "anthropic"
+api_key = "sk-test"
+
+[models."glm-5.2"]
+provider = "glmzhongzhuan"
+model = "glm-5.2"
+max_context_size = 900000
+
+[thinking]
+enabled = true
+"#;
+        let value: TomlValue = toml_str.parse().unwrap();
+        let mut config = kimi_code_to_config(&value);
+        assert!(
+            config.imported_section_keys.contains(&"thinking".to_string()),
+            "baseline must record the imported [thinking] section"
+        );
+
+        // UI removed the thinking section.
+        let mut raw = config.raw_other.as_object().unwrap().clone();
+        raw.remove("thinking");
+        config.raw_other = Value::Object(raw);
+
+        let exported = config_to_kimi_code(&config, Some(&value));
+        let root = exported.as_table().unwrap();
+        assert!(
+            !root.contains_key("thinking"),
+            "user-removed section must be dropped on export"
         );
     }
 }

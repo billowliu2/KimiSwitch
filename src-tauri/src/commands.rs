@@ -244,6 +244,7 @@ fn build_active_config(config: &Config) -> Config {
         providers,
         models,
         raw_other: config.raw_other.clone(),
+        imported_section_keys: config.imported_section_keys.clone(),
     }
 }
 
@@ -277,6 +278,9 @@ pub async fn list_provider_models(provider: Provider) -> Result<Vec<DiscoveredMo
         ProviderType::Anthropic => fetch_anthropic_models(&base, &api_key).await,
         ProviderType::GoogleGenai => fetch_google_genai_models(&base, &api_key).await,
         ProviderType::Vertexai => Err("Vertex AI model discovery requires GCP project/location configuration and is not yet supported".to_string()),
+        ProviderType::Unknown(s) => Err(format!(
+            "unsupported provider type for model discovery: {s}"
+        )),
     }
 }
 
@@ -338,8 +342,12 @@ fn resolve_api_key(provider: &Provider) -> Option<String> {
             return Some(key.clone());
         }
     }
-    let env_key = expected_api_key_key(&provider.provider_type);
-    provider.env.get(env_key).filter(|s| !s.is_empty()).cloned()
+    if let Some(env_key) = expected_api_key_key(&provider.provider_type) {
+        if let Some(key) = provider.env.get(env_key).filter(|s| !s.is_empty()) {
+            return Some(key.clone());
+        }
+    }
+    None
 }
 
 fn resolve_base_url(provider: &Provider) -> String {
@@ -356,13 +364,16 @@ fn resolve_base_url(provider: &Provider) -> String {
         })
 }
 
-fn expected_api_key_key(provider_type: &ProviderType) -> &'static str {
+/// Well-known env var fallback for the API key per provider type; `None`
+/// for unknown types (no well-known variable name to look up).
+fn expected_api_key_key(provider_type: &ProviderType) -> Option<&'static str> {
     match provider_type {
-        ProviderType::Kimi => "KIMI_API_KEY",
-        ProviderType::Anthropic => "ANTHROPIC_API_KEY",
-        ProviderType::Openai | ProviderType::OpenaiResponses => "OPENAI_API_KEY",
-        ProviderType::GoogleGenai => "GOOGLE_API_KEY",
-        ProviderType::Vertexai => "VERTEXAI_API_KEY",
+        ProviderType::Kimi => Some("KIMI_API_KEY"),
+        ProviderType::Anthropic => Some("ANTHROPIC_API_KEY"),
+        ProviderType::Openai | ProviderType::OpenaiResponses => Some("OPENAI_API_KEY"),
+        ProviderType::GoogleGenai => Some("GOOGLE_API_KEY"),
+        ProviderType::Vertexai => Some("VERTEXAI_API_KEY"),
+        ProviderType::Unknown(_) => None,
     }
 }
 
@@ -650,9 +661,8 @@ pub async fn query_provider_usage(
         .clone()
         .filter(|s| !s.trim().is_empty())
         .or_else(|| {
-            provider
-                .env
-                .get(expected_api_key_key(&provider.provider_type))
+            expected_api_key_key(&provider.provider_type)
+                .and_then(|env_key| provider.env.get(env_key))
                 .cloned()
                 .filter(|s| !s.is_empty())
         });

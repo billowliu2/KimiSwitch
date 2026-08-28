@@ -1,5 +1,7 @@
+use std::borrow::Cow;
+
 use indexmap::IndexMap;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
 /// Target agent whose provider/model config is being edited.
@@ -19,18 +21,35 @@ impl Agent {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProviderType {
     Anthropic,
     Openai,
-    #[serde(rename = "openai_responses")]
     OpenaiResponses,
-    #[serde(rename = "google-genai")]
     GoogleGenai,
     Vertexai,
     /// Kept for compatibility; mapped to OpenAI-compatible in Pi.
     Kimi,
+    /// A provider type string the CLI knows but Kimi Switch does not.
+    /// Kept verbatim so new upstream `type` values survive the round-trip
+    /// instead of being rewritten to "kimi".
+    Unknown(String),
+}
+
+// Serde is hand-written to keep a pure string wire format: known variants
+// map to their CLI string, `Unknown(s)` maps to `s` itself. A derived
+// representation would expose the internal variant names.
+impl Serialize for ProviderType {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for ProviderType {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        Ok(ProviderType::from_kimi_type(&s))
+    }
 }
 
 const fn default_true() -> bool {
@@ -38,14 +57,29 @@ const fn default_true() -> bool {
 }
 
 impl ProviderType {
-    pub fn as_str(&self) -> &'static str {
+    pub fn as_str(&self) -> Cow<'static, str> {
         match self {
-            ProviderType::Anthropic => "anthropic",
-            ProviderType::Openai => "openai",
-            ProviderType::OpenaiResponses => "openai_responses",
-            ProviderType::GoogleGenai => "google-genai",
-            ProviderType::Vertexai => "vertexai",
-            ProviderType::Kimi => "kimi",
+            ProviderType::Anthropic => Cow::Borrowed("anthropic"),
+            ProviderType::Openai => Cow::Borrowed("openai"),
+            ProviderType::OpenaiResponses => Cow::Borrowed("openai_responses"),
+            ProviderType::GoogleGenai => Cow::Borrowed("google-genai"),
+            ProviderType::Vertexai => Cow::Borrowed("vertexai"),
+            ProviderType::Kimi => Cow::Borrowed("kimi"),
+            ProviderType::Unknown(s) => Cow::Owned(s.clone()),
+        }
+    }
+
+    /// Map a CLI `type` string to a `ProviderType`; unrecognized values
+    /// become `Unknown(s)` so the original string round-trips on export.
+    pub fn from_kimi_type(s: &str) -> ProviderType {
+        match s {
+            "anthropic" => ProviderType::Anthropic,
+            "openai" => ProviderType::Openai,
+            "openai_responses" => ProviderType::OpenaiResponses,
+            "google-genai" => ProviderType::GoogleGenai,
+            "vertexai" => ProviderType::Vertexai,
+            "kimi" => ProviderType::Kimi,
+            other => ProviderType::Unknown(other.to_string()),
         }
     }
 
@@ -55,7 +89,7 @@ impl ProviderType {
                 Some("https://api.openai.com/v1")
             }
             ProviderType::GoogleGenai => Some("https://generativelanguage.googleapis.com"),
-            ProviderType::Anthropic | ProviderType::Vertexai => None,
+            ProviderType::Anthropic | ProviderType::Vertexai | ProviderType::Unknown(_) => None,
         }
     }
 
@@ -203,6 +237,12 @@ pub struct Config {
     pub models: IndexMap<String, Model>,
     #[serde(default, skip_serializing_if = "Value::is_null")]
     pub raw_other: Value,
+    /// Top-level section keys captured at import time. Export uses this
+    /// baseline to distinguish "user removed this section in the UI" from
+    /// "the CLI added this section after we imported" — only baseline keys
+    /// absent from the current raw_other are dropped on export.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub imported_section_keys: Vec<String>,
 }
 
 impl PartialEq for Config {
@@ -211,6 +251,7 @@ impl PartialEq for Config {
             && self.providers == other.providers
             && self.models == other.models
             && self.raw_other == other.raw_other
+            && self.imported_section_keys == other.imported_section_keys
     }
 }
 

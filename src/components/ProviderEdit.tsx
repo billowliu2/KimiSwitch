@@ -54,6 +54,8 @@ function defaultBaseUrl(agent: Agent, type: ProviderType): string {
       case "anthropic":
       case "vertexai":
         return "";
+      default:
+        return "";
     }
   }
   // Pi defaults
@@ -67,6 +69,8 @@ function defaultBaseUrl(agent: Agent, type: ProviderType): string {
       return "https://generativelanguage.googleapis.com";
     case "anthropic":
     case "vertexai":
+      return "";
+    default:
       return "";
   }
 }
@@ -307,6 +311,11 @@ export function ProviderEdit({
                           {t}
                         </option>
                       ))}
+                      {!PROVIDER_TYPES.includes(provider.provider_type) && (
+                        <option value={provider.provider_type}>
+                          {t("apiFormatUnknown", { type: provider.provider_type })}
+                        </option>
+                      )}
                     </select>
                   </div>
                 </div>

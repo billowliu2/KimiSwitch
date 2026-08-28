@@ -74,6 +74,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   kimiOAuthStart: "Start sign-in",
   apiSettings: "API Settings",
   apiFormat: "API Format",
+  apiFormatUnknown: "Unknown format ({type}, kept verbatim)",
   authField: "Auth Field",
   apiKey: "API Key",
   getApiKeyLink: "Get API Key",

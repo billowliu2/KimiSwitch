@@ -205,8 +205,10 @@ pub fn pi_api_for_provider(provider_type: &ProviderType) -> &'static str {
         ProviderType::Anthropic => "anthropic-messages",
         ProviderType::GoogleGenai => "google-generative-ai",
         ProviderType::Vertexai => "google-vertex",
-        // Treat Kimi as OpenAI-compatible since it is not a native Pi API.
-        ProviderType::Kimi => "openai-completions",
+        // Treat Kimi as OpenAI-compatible since it is not a native Pi API;
+        // unknown upstream types get the same lenient handling (Pi is a
+        // legacy path).
+        ProviderType::Kimi | ProviderType::Unknown(_) => "openai-completions",
     }
 }
 
@@ -383,6 +385,7 @@ pub fn pi_file_to_config(file: &PiModelsFile) -> Config {
         providers,
         models,
         raw_other: file.extra.clone(),
+        imported_section_keys: Vec::new(),
     }
 }
 

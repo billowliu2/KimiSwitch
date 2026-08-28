@@ -72,6 +72,7 @@ export const zhTranslations = {
   kimiOAuthStart: "开始登录",
   apiSettings: "API 设置",
   apiFormat: "API 格式",
+  apiFormatUnknown: "未知格式（{type}，原样保留）",
   authField: "认证字段",
   apiKey: "API Key",
   getApiKeyLink: "获取 API Key",

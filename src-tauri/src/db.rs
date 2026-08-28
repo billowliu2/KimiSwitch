@@ -207,6 +207,9 @@ pub fn load_config(agent: &Agent) -> DbResult<Config> {
         providers,
         models,
         raw_other: Value::Null,
+        // The SQLite snapshot stores no import baseline; an empty baseline
+        // makes export's stale-key cleanup a no-op (safe degradation).
+        imported_section_keys: Vec::new(),
     })
 }
 
@@ -328,12 +331,5 @@ pub fn delete_setting_pub(key: &str) -> DbResult<()> {
 }
 
 fn provider_type_for_str(s: &str) -> ProviderType {
-    match s {
-        "anthropic" => ProviderType::Anthropic,
-        "openai" => ProviderType::Openai,
-        "openai_responses" => ProviderType::OpenaiResponses,
-        "google-genai" => ProviderType::GoogleGenai,
-        "vertexai" => ProviderType::Vertexai,
-        _ => ProviderType::Kimi,
-    }
+    ProviderType::from_kimi_type(s)
 }

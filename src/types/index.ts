@@ -6,7 +6,9 @@ export type ProviderType =
   | "openai"
   | "openai_responses"
   | "google-genai"
-  | "vertexai";
+  | "vertexai"
+  /** Any other string the CLI writes — preserved verbatim on round-trip. */
+  | (string & {});
 
 export interface Provider {
   name: string;
@@ -62,6 +64,12 @@ export interface Config {
   providers: Record<string, Provider>;
   models: Record<string, Model>;
   raw_other?: unknown;
+  /**
+   * Top-level section keys captured at import time by the Rust side.
+   * Export drops only baseline keys absent from raw_other (sections the
+   * user removed in the UI); CLI-added sections are preserved.
+   */
+  imported_section_keys?: string[];
 }
 
 /**
