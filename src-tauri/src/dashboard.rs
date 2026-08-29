@@ -1234,6 +1234,49 @@ fn read_state_safe(session_dir: &Path) -> (Option<String>, Option<String>, Optio
     (None, None, None, None)
 }
 
+/// Whether a session is archived per its `state.json` metadata: the
+/// kimi-code v2 engine writes `archived: true` (plus an `archivedAt` epoch-ms
+/// timestamp) when archiving and clears both on restore. Unparseable or
+/// missing state.json counts as not archived (and won't panic).
+fn read_state_archived(session_dir: &Path) -> bool {
+    let sp = session_dir.join("state.json");
+    let Ok(content) = fs::read_to_string(&sp) else { return false };
+    let Ok(obj) = serde_json::from_str::<serde_json::Value>(&content) else { return false };
+    obj.get("archived").and_then(|v| v.as_bool()).unwrap_or(false)
+}
+
+/// Set or clear the archived metadata on a session's `state.json`, preserving
+/// every other field. Mirrors upstream kimi-code v2 `SessionMetadata.setArchived`:
+/// archive writes `{ archived: true, archivedAt: Date.now() }` (epoch ms, same
+/// `Date.now()` format as the CLI), restore writes `{ archived: false }` and
+/// drops the `archivedAt` key; `updatedAt` is untouched in both cases.
+/// The write is atomic (tmp file + rename), same pattern as the plugin store.
+/// Missing or malformed state.json returns a descriptive error, never a panic.
+fn set_session_archived_meta(session_dir: &Path, archived: bool) -> Result<(), String> {
+    let sp = session_dir.join("state.json");
+    let content = fs::read_to_string(&sp).map_err(|e| format!("read state.json: {e}"))?;
+    let mut obj: serde_json::Value =
+        serde_json::from_str(&content).map_err(|e| format!("parse state.json: {e}"))?;
+    let obj = obj
+        .as_object_mut()
+        .ok_or_else(|| "state.json is not a JSON object".to_string())?;
+    obj.insert("archived".into(), serde_json::Value::Bool(archived));
+    if archived {
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+        obj.insert("archivedAt".into(), serde_json::Value::Number(now_ms.into()));
+    } else {
+        obj.remove("archivedAt");
+    }
+    let out = serde_json::to_string(&obj).map_err(|e| format!("serialize state.json: {e}"))?;
+    let tmp = sp.with_file_name("state.json.tmp");
+    fs::write(&tmp, out).map_err(|e| format!("write state.json: {e}"))?;
+    fs::rename(&tmp, &sp).map_err(|e| format!("commit state.json: {e}"))?;
+    Ok(())
+}
+
 fn humanize_workspace(id: &str) -> String {
     let re = Regex::new(r"^wd_(.+)_[0-9a-fA-F]{8,}$").unwrap();
     if let Some(caps) = re.captures(id) {
@@ -1243,7 +1286,11 @@ fn humanize_workspace(id: &str) -> String {
     }
 }
 
-fn list_sessions_in_dir(dir: &Path, workspace_id: &str, status: &str) -> Vec<SessionRow> {
+/// List session rows under one directory. `in_archive_dir` marks `.kcd-archive`
+/// (legacy physical archive); a session is additionally archived when its own
+/// `state.json` carries `archived: true` — so CLI-v2 metadata-archived sessions
+/// that still live at the active root are correctly classified.
+fn list_sessions_in_dir(dir: &Path, workspace_id: &str, in_archive_dir: bool) -> Vec<SessionRow> {
     let mut sessions = Vec::new();
     if !dir.exists() { return sessions; }
     let re = session_re();
@@ -1251,6 +1298,8 @@ fn list_sessions_in_dir(dir: &Path, workspace_id: &str, status: &str) -> Vec<Ses
         if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) { continue; }
         let name = entry.file_name().to_string_lossy().to_string();
         if !re.is_match(&name) { continue; }
+        let archived = in_archive_dir || read_state_archived(&entry.path());
+        let status = if archived { "archived" } else { "active" };
         let (title, work_dir, created_at, updated_at) = read_state_safe(&entry.path());
         let (bytes, files) = file_size_approx(&entry.path());
         let mtime = entry.path().metadata().ok().and_then(|m| m.modified().ok())
@@ -1311,19 +1360,33 @@ fn list_sessions_cmd(home: &Path, status: &str, workspace_filter: Option<String>
 
         let active_dir = root.join(wid);
         let arch_dir = archive_root.join(wid);
-        let active_all = list_sessions_in_dir(&active_dir, wid, "active");
-        let arch_all = list_sessions_in_dir(&arch_dir, wid, "archived");
-        let active_list = if status == "archived" { vec![] } else { active_all.clone() };
-        let arch_list = if status == "active" { vec![] } else { arch_all.clone() };
+        // Merge both sources, deduping by session id (ids are UUIDs and never
+        // reused; a stale legacy copy under .kcd-archive loses to the entry at
+        // the active root). Status comes from each row, so metadata-archived
+        // sessions surface in the archived filter and the archive-only counts.
+        let mut by_id: HashMap<String, SessionRow> = HashMap::new();
+        for row in list_sessions_in_dir(&active_dir, wid, false) {
+            by_id.insert(row.id.clone(), row);
+        }
+        for row in list_sessions_in_dir(&arch_dir, wid, true) {
+            by_id.entry(row.id.clone()).or_insert(row);
+        }
+        let all: Vec<SessionRow> = by_id.into_values().collect();
+        let active_count = all.iter().filter(|s| s.status == "active").count();
+        let archived_count = all.iter().filter(|s| s.status == "archived").count();
+        let listed: Vec<SessionRow> = match status {
+            "active" => all.iter().filter(|s| s.status == "active").cloned().collect(),
+            "archived" => all.iter().filter(|s| s.status == "archived").cloned().collect(),
+            _ => all,
+        };
 
-        let empty = active_all.is_empty() && arch_all.is_empty();
+        let empty = active_count == 0 && archived_count == 0;
         workspaces.push(WorkspaceRow {
             id: wid.clone(), name, root: root_path,
             created_at: None, last_opened_at: None,
-            active_count: active_all.len(), archived_count: arch_all.len(), empty,
+            active_count, archived_count, empty,
         });
-        all_sessions.extend(active_list);
-        all_sessions.extend(arch_list);
+        all_sessions.extend(listed);
     }
 
     all_sessions.sort_by(|a, b| {
@@ -1356,38 +1419,57 @@ fn assert_safe_path(home: &Path, workspace_id: &str, session_id: &str) -> Result
 }
 
 fn archive_session_cmd(home: &Path, workspace_id: &str, session_id: &str) -> Result<ActionResponse, String> {
-    let src = assert_safe_path(home, workspace_id, session_id)?;
-    let dest = sessions_root(home).join(".kcd-archive").join(workspace_id).join(session_id);
-    if !src.exists() { return Err("session not found".into()); }
-    if let Some(parent) = dest.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("mkdir: {}", e))?;
+    let dir = assert_safe_path(home, workspace_id, session_id)?;
+    if !dir.exists() { return Err("session not found".into()); }
+    // Metadata archive, matching upstream kimi-code v2: write `archived: true`
+    // + `archivedAt` into state.json, leave the session directory in place, and
+    // do NOT touch session_index.jsonl — archived state is derived from
+    // state.json, and the CLI reconciles its own index mirror. A session
+    // without a readable state.json gets a clear error rather than a panic.
+    let sp = dir.join("state.json");
+    if !sp.is_file() {
+        return Err(format!("session {session_id} has no state.json; cannot archive"));
     }
-    fs::rename(&src, &dest).or_else(|_| {
-        // cross-device fallback
-        fs_extra::dir::copy(&src, dest.parent().unwrap(), &Default::default()).ok();
-        fs::remove_dir_all(&src).ok();
-        Ok::<(), String>(())
-    }).map_err(|e: String| format!("move: {}", e))?;
-    scrub_session_index(home, session_id);
+    set_session_archived_meta(&dir, true)?;
     Ok(ActionResponse {
         ok: true, workspace_id: workspace_id.to_string(),
         session_id: session_id.to_string(), status: Some("archived".into()),
-        path: Some(dest.to_string_lossy().to_string()), deleted: None,
+        path: Some(dir.to_string_lossy().to_string()), deleted: None,
     })
 }
 
 fn unarchive_session_cmd(home: &Path, workspace_id: &str, session_id: &str) -> Result<ActionResponse, String> {
-    let src = sessions_root(home).join(".kcd-archive").join(workspace_id).join(session_id);
     let dest = assert_safe_path(home, workspace_id, session_id)?;
-    if !src.exists() { return Err("archived session not found".into()); }
-    if let Some(parent) = dest.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("mkdir: {}", e))?;
+    // 1) Legacy recovery: sessions physically moved to .kcd-archive by older
+    //    KimiSwitch versions are moved back, then their metadata flag is
+    //    cleared per upstream restore semantics (archived:false + archivedAt
+    //    dropped). A missing state.json is fine here — there is no flag.
+    let archived_dir = sessions_root(home).join(".kcd-archive").join(workspace_id).join(session_id);
+    if archived_dir.exists() {
+        if let Some(parent) = dest.parent() {
+            fs::create_dir_all(parent).map_err(|e| format!("mkdir: {}", e))?;
+        }
+        fs::rename(&archived_dir, &dest).or_else(|_| {
+            // cross-device fallback
+            fs_extra::dir::copy(&archived_dir, dest.parent().unwrap(), &Default::default()).ok();
+            fs::remove_dir_all(&archived_dir).ok();
+            Ok::<(), String>(())
+        }).map_err(|e: String| format!("move: {}", e))?;
+        // The move already restored the session; a corrupt state.json must not
+        // turn a successful restore into an error — the session simply lists
+        // as active with its flag intact.
+        if dest.join("state.json").is_file() {
+            let _ = set_session_archived_meta(&dest, false);
+        }
+        return Ok(ActionResponse {
+            ok: true, workspace_id: workspace_id.to_string(),
+            session_id: session_id.to_string(), status: Some("active".into()),
+            path: Some(dest.to_string_lossy().to_string()), deleted: None,
+        });
     }
-    fs::rename(&src, &dest).or_else(|_| {
-        fs_extra::dir::copy(&src, dest.parent().unwrap(), &Default::default()).ok();
-        fs::remove_dir_all(&src).ok();
-        Ok::<(), String>(())
-    }).map_err(|e: String| format!("move: {}", e))?;
+    // 2) Metadata-archived session: still at the active root, just clear the flag.
+    if !dest.exists() { return Err("archived session not found".into()); }
+    set_session_archived_meta(&dest, false)?;
     Ok(ActionResponse {
         ok: true, workspace_id: workspace_id.to_string(),
         session_id: session_id.to_string(), status: Some("active".into()),
@@ -1398,6 +1480,9 @@ fn unarchive_session_cmd(home: &Path, workspace_id: &str, session_id: &str) -> R
 fn delete_session_cmd(home: &Path, workspace_id: &str, session_id: &str, status_hint: Option<&str>) -> Result<ActionResponse, String> {
     let active = assert_safe_path(home, workspace_id, session_id)?;
     let archived = sessions_root(home).join(".kcd-archive").join(workspace_id).join(session_id);
+    // Metadata-archived sessions still live at the active root, so a
+    // status_hint of "archived" with no legacy .kcd-archive copy falls through
+    // to the default arm and removes the in-place directory.
     let target = match status_hint {
         Some("archived") if archived.exists() => archived,
         Some("active") if active.exists() => active,
@@ -1440,11 +1525,11 @@ fn delete_workspace_cmd(home: &Path, workspace_id: &str, _confirm: bool, _force:
     let arch_dir = root.join(".kcd-archive").join(workspace_id);
 
     if active_dir.exists() {
-        let active_list = list_sessions_in_dir(&active_dir, workspace_id, "active");
+        let active_list = list_sessions_in_dir(&active_dir, workspace_id, false);
         if !active_list.is_empty() { return Err("workspace is not empty; archive/delete sessions first".into()); }
     }
     if arch_dir.exists() {
-        let arch_list = list_sessions_in_dir(&arch_dir, workspace_id, "archived");
+        let arch_list = list_sessions_in_dir(&arch_dir, workspace_id, true);
         if !arch_list.is_empty() { return Err("workspace is not empty; archive/delete sessions first".into()); }
     }
 
@@ -1546,6 +1631,10 @@ fn get_session_preview_cmd(home: &Path, workspace_id: &str, session_id: &str, st
     let archived = root.join(".kcd-archive").join(workspace_id).join(session_id);
     let session_dir = match status_hint {
         Some("archived") if archived.exists() => archived,
+        // Metadata-archived sessions stay at the active root (kimi-code v2
+        // writes state.json.archived, no physical move) — read them in place.
+        Some("archived") if active.exists() => active,
+        Some("active") if active.exists() => active,
         _ => if active.exists() { active } else if archived.exists() { archived }
             else { return Err("session not found".into()); }
     };
@@ -1666,7 +1755,11 @@ fn get_session_preview_cmd(home: &Path, workspace_id: &str, session_id: &str, st
     Ok(PreviewResult {
         workspace_id: workspace_id.to_string(),
         session_id: session_id.to_string(),
-        status: if session_dir.to_string_lossy().contains(".kcd-archive") { "archived".into() } else { "active".into() },
+        status: if session_dir.to_string_lossy().contains(".kcd-archive") || read_state_archived(&session_dir) {
+            "archived".into()
+        } else {
+            "active".into()
+        },
         title, work_dir, created_at, updated_at,
         message_count: messages.len(),
         truncated,
@@ -1996,5 +2089,221 @@ mod pricing_tests {
         assert_eq!(cost.0, input);
         assert_eq!(cost.1, false);
         assert_eq!(ch, 0.11);
+    }
+}
+
+#[cfg(test)]
+mod session_tests {
+    use super::*;
+
+    const WID: &str = "wd_proj_a1b2c3d4e5f6";
+    const SID: &str = "session_11111111-2222-3333-4444-555555555555";
+
+    fn setup_home() -> (tempfile::TempDir, PathBuf) {
+        let td = tempfile::tempdir().unwrap();
+        let home = td.path().join("home");
+        fs::create_dir_all(home.join("sessions").join(WID)).unwrap();
+        (td, home)
+    }
+
+    fn active_dir(home: &Path) -> PathBuf {
+        home.join("sessions").join(WID)
+    }
+
+    fn legacy_arch_dir(home: &Path) -> PathBuf {
+        home.join("sessions").join(".kcd-archive").join(WID)
+    }
+
+    fn write_state(session_dir: &Path, archived: bool, archived_at: Option<u64>) {
+        let mut obj = serde_json::json!({
+            "id": SID,
+            "version": 2,
+            "cwd": "/tmp/work",
+            "createdAt": 1_700_000_000_000u64,
+            "updatedAt": 1_700_000_000_000u64,
+            "archived": archived,
+            "title": "test session",
+        });
+        let o = obj.as_object_mut().unwrap();
+        match archived_at {
+            Some(at) => { o.insert("archivedAt".into(), serde_json::json!(at)); }
+            None => { o.remove("archivedAt"); }
+        }
+        fs::write(session_dir.join("state.json"), serde_json::to_string(&obj).unwrap()).unwrap();
+    }
+
+    fn read_state_json(session_dir: &Path) -> serde_json::Value {
+        serde_json::from_str(&fs::read_to_string(session_dir.join("state.json")).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn metadata_archive_roundtrip() {
+        let (_td, home) = setup_home();
+        let dir = active_dir(&home).join(SID);
+        fs::create_dir_all(&dir).unwrap();
+        write_state(&dir, false, None);
+
+        // Fresh session lists as active.
+        let res = list_sessions_cmd(&home, "all", None);
+        assert_eq!(res.sessions.len(), 1);
+        assert_eq!(res.sessions[0].status, "active");
+        assert_eq!(res.workspaces[0].active_count, 1);
+        assert_eq!(res.workspaces[0].archived_count, 0);
+
+        // Archive is metadata-only: dir stays put, flag + epoch-ms archivedAt written.
+        let ar = archive_session_cmd(&home, WID, SID).unwrap();
+        assert_eq!(ar.status.as_deref(), Some("archived"));
+        assert!(dir.exists(), "metadata archive must not move the session dir");
+        assert!(!legacy_arch_dir(&home).join(SID).exists(), "nothing moves into .kcd-archive");
+        let st = read_state_json(&dir);
+        assert_eq!(st["archived"], true);
+        let archived_at = st["archivedAt"].as_u64().expect("archivedAt as epoch ms");
+        assert!(archived_at > 0, "archivedAt is a Date.now()-style epoch-ms number");
+
+        // List reflects the new status.
+        let res = list_sessions_cmd(&home, "all", None);
+        assert_eq!(res.sessions[0].status, "archived");
+        assert_eq!(res.workspaces[0].active_count, 0);
+        assert_eq!(res.workspaces[0].archived_count, 1);
+        assert!(list_sessions_cmd(&home, "active", None).sessions.is_empty());
+        assert_eq!(list_sessions_cmd(&home, "archived", None).sessions.len(), 1);
+
+        // Unarchive clears the flag in place (archived:false, archivedAt dropped).
+        let ur = unarchive_session_cmd(&home, WID, SID).unwrap();
+        assert_eq!(ur.status.as_deref(), Some("active"));
+        assert!(dir.exists(), "unarchive must not move the dir either");
+        let st = read_state_json(&dir);
+        assert_eq!(st["archived"], false);
+        assert!(st.get("archivedAt").is_none(), "archivedAt key removed on restore");
+
+        let res = list_sessions_cmd(&home, "all", None);
+        assert_eq!(res.sessions[0].status, "active");
+        assert_eq!(res.workspaces[0].active_count, 1);
+        assert_eq!(res.workspaces[0].archived_count, 0);
+    }
+
+    #[test]
+    fn metadata_archive_preserves_other_state_fields() {
+        let (_td, home) = setup_home();
+        let dir = active_dir(&home).join(SID);
+        fs::create_dir_all(&dir).unwrap();
+        let mut obj = serde_json::json!({
+            "id": SID,
+            "version": 2,
+            "cwd": "/repo",
+            "createdAt": 1,
+            "updatedAt": 2,
+            "archived": false,
+            "title": "keep me",
+            "custom": { "goal": "x" },
+            "agents": { "main": { "type": "main" } },
+        });
+        obj.as_object_mut().unwrap().insert("someFutureField".into(), serde_json::json!([1, 2, 3]));
+        fs::write(dir.join("state.json"), serde_json::to_string(&obj).unwrap()).unwrap();
+
+        archive_session_cmd(&home, WID, SID).unwrap();
+        unarchive_session_cmd(&home, WID, SID).unwrap();
+
+        let st = read_state_json(&dir);
+        assert_eq!(st["title"], "keep me");
+        assert_eq!(st["custom"]["goal"], "x");
+        assert_eq!(st["agents"]["main"]["type"], "main");
+        assert_eq!(st["someFutureField"][0], 1);
+        assert_eq!(st["updatedAt"], 2, "updatedAt untouched, like upstream touchUpdatedAt:false");
+    }
+
+    #[test]
+    fn cli_archived_session_in_active_root_lists_as_archived() {
+        // A session already carrying archived:true in state.json while still
+        // living at the active root (written by kimi-code CLI v2 itself) must
+        // surface in the archived filter / counts.
+        let (_td, home) = setup_home();
+        let dir = active_dir(&home).join(SID);
+        fs::create_dir_all(&dir).unwrap();
+        write_state(&dir, true, Some(1_700_000_000_000u64));
+        fs::write(dir.join("wire.jsonl"), "").unwrap();
+
+        let res = list_sessions_cmd(&home, "all", None);
+        assert_eq!(res.sessions.len(), 1);
+        assert_eq!(res.sessions[0].status, "archived");
+        assert_eq!(res.workspaces[0].active_count, 0);
+        assert_eq!(res.workspaces[0].archived_count, 1);
+        assert!(list_sessions_cmd(&home, "active", None).sessions.is_empty());
+        assert_eq!(list_sessions_cmd(&home, "archived", None).sessions.len(), 1);
+
+        // Preview resolves it in place with status "archived".
+        let pv = get_session_preview_cmd(&home, WID, SID, Some("archived")).unwrap();
+        assert_eq!(pv.status, "archived");
+    }
+
+    #[test]
+    fn legacy_kcd_archive_dir_still_listed_and_restored() {
+        let (_td, home) = setup_home();
+        let arch_dir = legacy_arch_dir(&home).join(SID);
+        fs::create_dir_all(&arch_dir).unwrap();
+        write_state(&arch_dir, false, None);
+
+        // Legacy physical archive still shows as archived.
+        let res = list_sessions_cmd(&home, "all", None);
+        assert_eq!(res.sessions.len(), 1);
+        assert_eq!(res.sessions[0].status, "archived");
+        assert_eq!(res.workspaces[0].active_count, 0);
+        assert_eq!(res.workspaces[0].archived_count, 1);
+        assert!(list_sessions_cmd(&home, "active", None).sessions.is_empty());
+
+        // Unarchive moves it back and clears the flag.
+        let ur = unarchive_session_cmd(&home, WID, SID).unwrap();
+        assert_eq!(ur.status.as_deref(), Some("active"));
+        assert!(!arch_dir.exists(), "legacy .kcd-archive copy moved back");
+        let restored = active_dir(&home).join(SID);
+        assert!(restored.exists());
+        let st = read_state_json(&restored);
+        assert_eq!(st["archived"], false);
+        assert!(st.get("archivedAt").is_none());
+
+        let res = list_sessions_cmd(&home, "all", None);
+        assert_eq!(res.sessions[0].status, "active");
+        assert_eq!(res.workspaces[0].active_count, 1);
+        assert_eq!(res.workspaces[0].archived_count, 0);
+    }
+
+    #[test]
+    fn corrupt_state_json_archive_errors_without_panic() {
+        let (_td, home) = setup_home();
+        let dir = active_dir(&home).join(SID);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("state.json"), "{ this is not json").unwrap();
+
+        let err = archive_session_cmd(&home, WID, SID).unwrap_err();
+        assert!(err.contains("state.json"), "clear error mentioning state.json, got: {err}");
+        assert!(dir.exists(), "failed archive leaves the session dir in place");
+        assert_eq!(fs::read_to_string(dir.join("state.json")).unwrap(), "{ this is not json");
+    }
+
+    #[test]
+    fn missing_state_json_archive_errors_without_panic() {
+        let (_td, home) = setup_home();
+        let dir = active_dir(&home).join(SID);
+        fs::create_dir_all(&dir).unwrap();
+
+        let err = archive_session_cmd(&home, WID, SID).unwrap_err();
+        assert!(err.contains("no state.json"), "clear error, got: {err}");
+        assert!(dir.exists());
+    }
+
+    #[test]
+    fn delete_session_covers_metadata_archived() {
+        // Status hint "archived" without a legacy .kcd-archive copy falls back
+        // to removing the metadata-archived in-place directory.
+        let (_td, home) = setup_home();
+        let dir = active_dir(&home).join(SID);
+        fs::create_dir_all(&dir).unwrap();
+        write_state(&dir, true, Some(1_700_000_000_000u64));
+
+        let del = delete_session_cmd(&home, WID, SID, Some("archived")).unwrap();
+        assert_eq!(del.deleted, Some(true));
+        assert!(!dir.exists(), "metadata-archived session deleted in place");
+        assert!(!legacy_arch_dir(&home).join(SID).exists());
+        assert!(list_sessions_cmd(&home, "all", None).sessions.is_empty());
     }
 }
