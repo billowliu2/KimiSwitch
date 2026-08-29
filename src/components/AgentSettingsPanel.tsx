@@ -1,7 +1,14 @@
+import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "../i18n";
 import type { TranslationKey } from "../i18n/zh";
 import { getAgentSettings, setAgentSettings } from "../lib/agent-settings";
-import type { AgentSettings, Hook, PermissionRule } from "../types";
+import type {
+  AgentSettings,
+  ExperimentalEnvStatus,
+  Hook,
+  PermissionRule,
+} from "../types";
 import { Card, Checkbox, NumberField, Segmented } from "./ui/controls";
 
 interface AgentSettingsPanelProps {
@@ -9,12 +16,12 @@ interface AgentSettingsPanelProps {
   onChange: (nextRawOther: unknown) => void;
 }
 
-const THINKING_LEVELS = ["low", "medium", "high", "max"] as const;
+// Upstream removed the "max" effort tier (auto-migrates to "high").
+const THINKING_LEVELS = ["low", "medium", "high"] as const;
 const THINKING_LABELS: Record<(typeof THINKING_LEVELS)[number], TranslationKey> = {
   low: "thinkingLow",
   medium: "thinkingMedium",
   high: "thinkingHigh",
-  max: "thinkingMax",
 };
 
 const PERMISSION_DECISIONS = ["allow", "deny", "ask"] as const;
@@ -40,9 +47,23 @@ const COMMON_EVENTS = [
 export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelProps) {
   const { t } = useTranslation();
   const settings = getAgentSettings(rawOther);
+  /**
+   * KIMI_CODE_LEGACY_FLAG=1 keeps the v1 loop_control keys dual-written for
+   * v1-engine users; the default (v2) writes only max_attempts_per_step.
+   */
+  const [legacyV1, setLegacyV1] = useState(false);
+
+  useEffect(() => {
+    invoke<ExperimentalEnvStatus>("get_experimental_env_status")
+      .then((env) => {
+        const value = env?.KIMI_CODE_LEGACY_FLAG ?? "";
+        setLegacyV1(["1", "true", "yes", "on"].includes(value.trim().toLowerCase()));
+      })
+      .catch(() => setLegacyV1(false));
+  }, []);
 
   const update = (patch: Partial<AgentSettings>) => {
-    onChange(setAgentSettings(rawOther, patch));
+    onChange(setAgentSettings(rawOther, patch, { legacyV1 }));
   };
 
   const updateThinking = (patch: Partial<AgentSettings["thinking"]>) => {
@@ -95,7 +116,7 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
           label={t("thinkingKeep")}
           checked={settings.thinking?.keep === "all"}
           disabled={!thinkingEnabled}
-          onChange={(checked) => updateThinking({ keep: checked ? "all" : false })}
+          onChange={(checked) => updateThinking({ keep: checked ? "all" : "off" })}
         />
         <p className="text-xs text-content-muted">{t("thinkingContextHint")}</p>
       </Card>

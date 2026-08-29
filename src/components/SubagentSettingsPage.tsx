@@ -9,6 +9,7 @@ import {
   forcedEnvValue,
   getExperimentalFlags,
   getSubagentModelPool,
+  isExperimentalFlagSet,
   isFlagLockedByEnv,
   isMasterEnvOn,
   removeSubagentPoolEntry,
@@ -33,12 +34,12 @@ interface SubagentSettingsPageProps {
   onBack: () => void;
 }
 
-const EFFORTS = ["low", "medium", "high", "max"] as const;
+// Upstream removed the "max" effort tier (auto-migrates to "high").
+const EFFORTS = ["low", "medium", "high"] as const;
 const EFFORT_LABELS: Record<(typeof EFFORTS)[number], TranslationKey> = {
   low: "thinkingLow",
   medium: "thinkingMedium",
   high: "thinkingHigh",
-  max: "thinkingMax",
 };
 
 const FLAG_LABELS: Record<string, { name: TranslationKey; desc: TranslationKey }> = {
@@ -55,6 +56,7 @@ const FLAG_LABELS: Record<string, { name: TranslationKey; desc: TranslationKey }
     name: "flagAutoSessionTitle",
     desc: "flagAutoSessionTitleDesc",
   },
+  "remote-control": { name: "flagRemoteControl", desc: "flagRemoteControlDesc" },
 };
 
 /** Validation-error i18n key per engine rule, for the pre-write self-check. */
@@ -235,7 +237,9 @@ export function SubagentSettingsPage({
         ? `${Math.round(n / 1000)}K`
         : String(n);
   const effortLabel = (e: string): string => {
-    const key = EFFORT_LABELS[e as (typeof EFFORTS)[number]];
+    // Stored "max" tiers from old configs are shown as "high" (upstream
+    // removed the tier; it auto-migrates to "high").
+    const key = EFFORT_LABELS[e === "max" ? "high" : (e as (typeof EFFORTS)[number])];
     return key ? t(key) : e;
   };
 
@@ -297,15 +301,27 @@ export function SubagentSettingsPage({
   const renderFlagRow = (flag: ExperimentalFlagDef) => {
     const labels = FLAG_LABELS[flag.id];
     const locked = masterOn || isFlagLockedByEnv(env, flag);
+    // An explicitly written flag (true or false) wins; an absent flag falls
+    // back to the upstream default (`defaultEnabled`).
+    const explicitlySet = isExperimentalFlagSet(rawOther, flag.id);
     const on = masterOn
       ? true
       : isFlagLockedByEnv(env, flag)
         ? forcedEnvValue(env, flag)
-        : flags[flag.id] === true;
+        : explicitlySet
+          ? flags[flag.id] === true
+          : (flag.defaultEnabled ?? false);
     return (
       <div key={flag.id} className="flex items-center gap-3">
         <div className="flex-1 min-w-0">
-          <div className="text-sm text-content-primary">{t(labels.name)}</div>
+          <div className="flex items-center gap-2 text-sm text-content-primary">
+            {t(labels.name)}
+            {!locked && !explicitlySet && flag.defaultEnabled && (
+              <span className="shrink-0 text-xs text-blue-600 dark:text-blue-400 border border-blue-500/30 rounded px-1">
+                {t("flagDefaultOn")}
+              </span>
+            )}
+          </div>
           <div className="text-xs text-content-muted">
             {t(labels.desc)}
             <code className="ml-2">{flag.envVar}</code>

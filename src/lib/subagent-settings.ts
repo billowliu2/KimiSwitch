@@ -28,27 +28,36 @@ export interface ExperimentalFlagDef {
   id: string;
   /** Single-feature env var that can force the flag (locks the UI toggle). */
   envVar: string;
+  /** Feature turned on by default upstream; an absent config key falls back
+   *  to this, while an explicit `false` in `[experimental]` still wins. */
+  defaultEnabled?: boolean;
 }
 
 /** Known experimental flags — mirrors the kimi-code v2 flag registry
  * (the per-feature flag.ts files under packages/agent-core-v2/src:
  * secondary-model, tool-select, persistence_minidb_readmodel, tower,
- * subagent_fork, wait_for, auto_session_title). `acp-v2` was removed
- * upstream and is dropped here. */
+ * subagent_fork, wait_for, auto_session_title, remote-control). `acp-v2` was
+ * removed upstream and is dropped here. */
 export const EXPERIMENTAL_FLAGS: ExperimentalFlagDef[] = [
   { id: "secondary-model", envVar: "KIMI_CODE_EXPERIMENTAL_SECONDARY_MODEL" },
   { id: "tool-select", envVar: "KIMI_CODE_EXPERIMENTAL_TOOL_SELECT" },
   {
     id: "persistence_minidb_readmodel",
     envVar: "KIMI_CODE_EXPERIMENTAL_PERSISTENCE_MINIDB_READMODEL",
+    defaultEnabled: true,
   },
   { id: "tower", envVar: "KIMI_CODE_EXPERIMENTAL_TOWER" },
   { id: "subagent_fork", envVar: "KIMI_CODE_EXPERIMENTAL_SUBAGENT_FORK" },
-  { id: "wait_for", envVar: "KIMI_CODE_EXPERIMENTAL_WAIT_FOR" },
+  {
+    id: "wait_for",
+    envVar: "KIMI_CODE_EXPERIMENTAL_WAIT_FOR",
+    defaultEnabled: true,
+  },
   {
     id: "auto_session_title",
     envVar: "KIMI_CODE_EXPERIMENTAL_AUTO_SESSION_TITLE",
   },
+  { id: "remote-control", envVar: "KIMI_CODE_EXPERIMENTAL_REMOTE_CONTROL" },
 ];
 
 export const EXPERIMENTAL_MASTER_ENV = "KIMI_CODE_EXPERIMENTAL_FLAG";
@@ -85,6 +94,15 @@ export function getExperimentalFlags(rawOther: unknown): Record<string, boolean>
     out[k] = v === true;
   }
   return out;
+}
+
+/** Whether a flag is explicitly written in `[experimental]` (true *or* false).
+ *  An absent flag falls back to the upstream default (`defaultEnabled`). */
+export function isExperimentalFlagSet(rawOther: unknown, id: string): boolean {
+  return Object.prototype.hasOwnProperty.call(
+    asRecord(asRecord(rawOther)["experimental"]),
+    id
+  );
 }
 
 /** Set one flag in `[experimental]`. Removing all flags drops the section. */
@@ -256,8 +274,11 @@ export function setSubagentModelPool(
   return root;
 }
 
-/** Add or update one alias in the pool `models` table. The rest of the
- *  section (default, force, unknown fields) is preserved untouched. */
+/** Add or update one alias in the pool `models` table. When the section is
+ *  the implicit single-entry form (a `default_model`/`model` but no table),
+ *  the effective default is materialized into the table first — otherwise the
+ *  new table would fail the engine rule "default_model must be a pool key".
+ *  The rest of the section (force, unknown fields) is preserved untouched. */
 export function upsertSubagentPoolEntry(
   rawOther: unknown,
   alias: string,
@@ -269,8 +290,21 @@ export function upsertSubagentPoolEntry(
   for (const [k, v] of Object.entries(section)) next[k] = v;
   const models: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(asRecord(next.models))) models[k] = v;
+  const effectiveDefault =
+    typeof next.default_model === "string" && next.default_model !== ""
+      ? next.default_model
+      : typeof next.model === "string" && next.model !== ""
+        ? next.model
+        : undefined;
+  if (effectiveDefault !== undefined && !(effectiveDefault in models)) {
+    models[effectiveDefault] = "";
+  }
   models[alias] = description;
   next.models = models;
+  if (effectiveDefault !== undefined) {
+    next.default_model = effectiveDefault;
+    next.model = effectiveDefault;
+  }
   root.secondary_model = next;
   return root;
 }

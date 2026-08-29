@@ -100,7 +100,18 @@ export interface DiscoveredModel {
 
 export interface ThinkingConfig {
   enabled?: boolean;
+  /**
+   * Effort tier. `max` is read-compatible only — upstream removed the tier
+   * (old configs auto-migrate to `high`); the UI normalizes it and the
+   * serialization path never writes it.
+   */
   effort?: "low" | "medium" | "high" | "max";
+  /**
+   * Keep thinking content. The legacy off values (`false`, `0`, "no", "none",
+   * `null`) are read-compatible — old configs may carry them; the UI
+   * normalizes them to `"off"` and the serialization path never emits a
+   * boolean (upstream engines only accept string off values).
+   */
   keep?: "all" | false | 0 | "no" | "off" | "none" | null;
 }
 
@@ -109,7 +120,8 @@ export interface LoopControlConfig {
   max_attempts_per_step?: number;
   /** v2 engine key (kimi-code 0.33+): `max_steps_per_run` was renamed. */
   max_steps_per_turn?: number;
-  /** Legacy v1 key — written in sync so KIMI_CODE_LEGACY_FLAG=1 still works. */
+  /** Legacy v1 key — read fallback only; written/kept only when
+   *  KIMI_CODE_LEGACY_FLAG=1 (v1 engine compat). v2 saves strip it. */
   max_retries_per_step?: number;
   reserved_context_size?: number;
 }

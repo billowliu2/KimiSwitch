@@ -49,11 +49,24 @@ export function getAgentSettings(rawOther: unknown): AgentSettings {
   ) {
     loop.max_attempts_per_step = sectionLoop.max_retries_per_step;
   }
+  const thinking = {
+    ...DEFAULT_SETTINGS.thinking,
+    ...getSection<AgentSettings["thinking"]>(rawOther, "thinking"),
+  };
+  // Upstream engines only accept string off values ("off"/"none"/"no"; see
+  // KEEP_OFF_VALUES) — a `false` from an old config fails the v2 validator
+  // and the v1 strict parse. Normalize every legacy off value to "off" for
+  // display; the serialization path (setAgentSettings) writes the string.
+  if (thinking.keep !== undefined && thinking.keep !== "all") {
+    thinking.keep = "off";
+  }
+  // The "max" effort tier was removed upstream (auto-migrates to "high");
+  // old configs still carrying it are shown as "high" (not rewritten on read).
+  if (thinking.effort === "max") {
+    thinking.effort = "high";
+  }
   return {
-    thinking: {
-      ...DEFAULT_SETTINGS.thinking,
-      ...getSection<AgentSettings["thinking"]>(rawOther, "thinking"),
-    },
+    thinking,
     loop_control: loop,
     background: {
       ...DEFAULT_SETTINGS.background,
@@ -70,7 +83,8 @@ export function getAgentSettings(rawOther: unknown): AgentSettings {
 
 export function setAgentSettings(
   rawOther: unknown,
-  patch: Partial<AgentSettings>
+  patch: Partial<AgentSettings>,
+  opts?: { legacyV1?: boolean }
 ): unknown {
   const root = { ...asRecord(rawOther) };
   const current = getAgentSettings(rawOther);
@@ -84,6 +98,20 @@ export function setAgentSettings(
     hooks: patch.hooks ?? current.hooks ?? [],
   };
 
+  // `keep` is only written when the source config explicitly carries it or the
+  // patch sets it — an absent key keeps the engine default ("all") instead of
+  // being materialized, so a plain save does not add the key.
+  const rawThinking = asRecord(getSection(rawOther, "thinking"));
+  const patchHasKeep = patch.thinking !== undefined && "keep" in patch.thinking;
+  if (!("keep" in rawThinking) && !patchHasKeep) {
+    delete next.thinking?.keep;
+  }
+
+  // The v2 engine (default) only reads max_attempts_per_step; the legacy v1
+  // key is stripped on save unless KIMI_CODE_LEGACY_FLAG=1 (v1 engine compat).
+  if (!opts?.legacyV1) {
+    delete next.loop_control?.max_retries_per_step;
+  }
   if (next.thinking) root.thinking = next.thinking;
   if (next.loop_control) root.loop_control = next.loop_control;
   if (next.background) root.background = next.background;

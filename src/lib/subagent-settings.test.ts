@@ -231,6 +231,31 @@ describe("pool mutations", () => {
     expect(section(updated).default_model).toBe("kimi-k1");
   });
 
+  it("upsertSubagentPoolEntry materializes the implicit default into a new table", () => {
+    // Implicit single-entry form (default_model set, no models table): adding a
+    // second alias must pull the default into the table, otherwise the result
+    // violates "default_model must be a pool key" (rule 3) and gets rejected.
+    const raw = rawWith({ default_model: "kimi-k1", force: false });
+    const added = upsertSubagentPoolEntry(raw, "kimi-k2", "");
+    expect(modelsOf(added)).toEqual({ "kimi-k1": "", "kimi-k2": "" });
+    expect(section(added).default_model).toBe("kimi-k1");
+    const pool = getSubagentModelPool(added);
+    expect(pool).toBeDefined();
+    expect(
+      validateSubagentPool(pool!, ["kimi-k1", "kimi-k2"]),
+    ).toEqual([]);
+  });
+
+  it("upsertSubagentPoolEntry upgrades a legacy `model`-only section to a valid pool", () => {
+    const raw = rawWith({ model: "kimi-k1" });
+    const added = upsertSubagentPoolEntry(raw, "kimi-k2", "K2");
+    expect(modelsOf(added)).toEqual({ "kimi-k1": "", "kimi-k2": "K2" });
+    expect(section(added).default_model).toBe("kimi-k1");
+    expect(section(added).model).toBe("kimi-k1");
+    const pool = getSubagentModelPool(added);
+    expect(validateSubagentPool(pool!, ["kimi-k1", "kimi-k2"])).toEqual([]);
+  });
+
   it("removeSubagentPoolEntry keeps the default when removing a non-default alias", () => {
     const raw = rawWith({
       default_model: "kimi-k1",
