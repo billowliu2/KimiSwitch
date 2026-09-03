@@ -528,6 +528,7 @@ export const enTranslations: Record<TranslationKey, string> = {
     "Open the new Web UI in an independent in-app window, or in your system browser (built into kimi-code 0.33+). Requires the kimi CLI on PATH.",
   openWebUIEmbedded: "Open in App",
   openWebUIBrowser: "Open in Browser",
+  webuiOpening: "Opening...",
 
   // Plugin marketplace
   pluginMarketplace: "Plugin Marketplace",

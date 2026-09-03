@@ -520,6 +520,7 @@ export const zhTranslations = {
     "以独立窗口在应用内打开新版 Web 界面，也可以选择在系统浏览器打开（kimi-code 0.33+ 内置 code-app；需要 kimi 命令在 PATH 中）。",
   openWebUIEmbedded: "在应用内打开",
   openWebUIBrowser: "在浏览器打开",
+  webuiOpening: "打开中...",
 
   // Plugin marketplace
   pluginMarketplace: "插件市场",

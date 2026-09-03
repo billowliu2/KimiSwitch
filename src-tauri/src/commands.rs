@@ -1014,6 +1014,9 @@ pub struct KimiWebState {
     window: Mutex<Option<tauri::WebviewWindow>>,
     /// The `kimi web` child spawned by this app (None when reusing a server).
     child: Mutex<Option<std::process::Child>>,
+    /// Serializes `open_kimi_web_embedded` invocations: a rapid double-click
+    /// queues here instead of racing the window/server setup.
+    launch_lock: tokio::sync::Mutex<()>,
 }
 
 const KIMI_WEB_PORT: u16 = 58627;
@@ -1064,7 +1067,13 @@ pub async fn open_kimi_web_embedded(
     app: tauri::AppHandle,
     state: tauri::State<'_, KimiWebState>,
 ) -> Result<(), String> {
-    // Singleton: focus the existing window instead of creating a second one.
+    // Serialize concurrent invocations (rapid double-click): a second call
+    // waits here until the first has finished building the window, then
+    // re-checks the singleton below and focuses it instead.
+    let _guard = state.launch_lock.lock().await;
+
+    // Singleton (re-checked after acquiring the lock): focus the existing
+    // window instead of creating a second one.
     if let Ok(guard) = state.window.lock() {
         if let Some(w) = guard.as_ref() {
             if w.is_visible().unwrap_or(false) {
@@ -1075,8 +1084,21 @@ pub async fn open_kimi_web_embedded(
         }
     }
 
-    // Reuse an already-running server, otherwise spawn `kimi web --no-open`.
-    if !kimi_web_alive(Duration::from_millis(800)).await {
+    // Reuse the server this app spawned earlier (still running), or a server
+    // already running outside the app; only spawn when neither is present.
+    // `spawned_by_me` gates every failure-path kill, so a reused server is
+    // never terminated.
+    let mut spawned_by_me = false;
+    let mut child_running = false;
+    if let Ok(mut guard) = state.child.lock() {
+        // try_wait: Ok(None) = still running. Exited or unwaitable children
+        // are treated as gone so a fresh server is spawned below.
+        child_running = guard
+            .as_mut()
+            .map(|child| child.try_wait().map(|st| st.is_none()).unwrap_or(false))
+            .unwrap_or(false);
+    }
+    if !child_running && !kimi_web_alive(Duration::from_millis(800)).await {
         let mut cmd = std::process::Command::new("kimi");
         cmd.args(["web", "--no-open", "--port", &KIMI_WEB_PORT.to_string()]);
         #[cfg(windows)]
@@ -1091,6 +1113,7 @@ pub async fn open_kimi_web_embedded(
                 format!("failed to start `kimi web`: {e}")
             }
         })?;
+        spawned_by_me = true;
         if let Ok(mut guard) = state.child.lock() {
             *guard = Some(child);
         }
@@ -1098,57 +1121,79 @@ pub async fn open_kimi_web_embedded(
 
     // Wait for the server to come up (fresh start takes a moment).
     if !kimi_web_alive(Duration::from_secs(8)).await {
-        kill_spawned_kimi_web(&state);
+        if spawned_by_me {
+            kill_spawned_kimi_web(&state);
+        }
         return Err(format!("kimi web did not come up within 8s ({KIMI_WEB_ORIGIN})"));
     }
 
-    // Create the window on the main thread (required on macOS).
+    // Build the URL, then create the window on the main thread (required on
+    // macOS). The build result is awaited while still holding `launch_lock`,
+    // so a concurrent second invocation blocks here and then lands on the
+    // singleton re-check above once the window exists.
     let url: tauri::Url = match kimi_web_url().parse() {
         Ok(u) => u,
         Err(_) => return Err("invalid kimi web url".to_string()),
     };
-    let app = app.clone();
-    tauri::async_runtime::spawn(async move {
-        let builder_app = app.clone();
-        let _ = app.run_on_main_thread(move || {
-            match tauri::WebviewWindowBuilder::new(
-                &builder_app,
-                KIMI_WEB_WINDOW_LABEL,
-                tauri::WebviewUrl::External(url),
-            )
-            .title("Kimi Code WebUI")
-            .inner_size(1100.0, 750.0)
-            .resizable(true)
-            .center()
-            .build()
-            {
-                Ok(window) => {
-                    // Track the window for the singleton check.
-                    if let Ok(mut guard) = builder_app.state::<KimiWebState>().window.lock() {
-                        *guard = Some(window.clone());
-                    }
-                    // Clean up when the window closes: forget it and stop the
-                    // `kimi web` server we spawned (reused servers are untouched).
-                    let w = window.clone();
-                    window.on_window_event(move |event| match event {
-                        tauri::WindowEvent::Destroyed => {
-                            let app = w.app_handle().clone();
-                            let state = app.state::<KimiWebState>();
-                            if let Ok(mut guard) = state.window.lock() {
-                                *guard = None;
-                            }
-                            kill_spawned_kimi_web(&state);
-                        }
-                        _ => {}
-                    });
+    let (tx, rx) = tokio::sync::oneshot::channel::<Result<(), String>>();
+    let builder_app = app.clone();
+    app.run_on_main_thread(move || {
+        let result = build_kimi_web_window(&builder_app, &url);
+        let _ = tx.send(result);
+    })
+    .map_err(|e| format!("failed to queue window creation: {e}"))?;
+    match rx.await {
+        Ok(result) => {
+            if let Err(e) = result {
+                // Window creation failed (e.g. label already taken): only stop
+                // the server when this invocation spawned it.
+                if spawned_by_me {
+                    kill_spawned_kimi_web(&state);
                 }
-                Err(_) => {
-                    // Window creation failed (e.g. rapid double-click racing
-                    // the singleton check): don't leak the server we spawned.
-                    kill_spawned_kimi_web(&builder_app.state::<KimiWebState>());
-                }
+                return Err(e);
             }
-        });
+            Ok(())
+        }
+        // Sender dropped without a result (app shutting down, build never
+        // ran): never kill the server — a later invocation may reuse it.
+        Err(_) => Ok(()),
+    }
+}
+
+/// Build the embedded WebUI window on the main thread and track it for the
+/// singleton check. On success, wires close/destroy events to forget the
+/// window and stop the `kimi web` server this app spawned (reused servers are
+/// untouched).
+fn build_kimi_web_window(app: &tauri::AppHandle, url: &tauri::Url) -> Result<(), String> {
+    let window = tauri::WebviewWindowBuilder::new(
+        app,
+        KIMI_WEB_WINDOW_LABEL,
+        tauri::WebviewUrl::External(url.clone()),
+    )
+    .title("Kimi Code WebUI")
+    .inner_size(1100.0, 750.0)
+    .resizable(true)
+    .center()
+    .build()
+    .map_err(|e| format!("failed to create kimi web window: {e}"))?;
+
+    // Track the window for the singleton check.
+    if let Ok(mut guard) = app.state::<KimiWebState>().window.lock() {
+        *guard = Some(window.clone());
+    }
+    // Clean up when the window closes: forget it and stop the `kimi web`
+    // server we spawned (reused servers are untouched).
+    let w = window.clone();
+    window.on_window_event(move |event| match event {
+        tauri::WindowEvent::Destroyed => {
+            let app = w.app_handle().clone();
+            let state = app.state::<KimiWebState>();
+            if let Ok(mut guard) = state.window.lock() {
+                *guard = None;
+            }
+            kill_spawned_kimi_web(&state);
+        }
+        _ => {}
     });
     Ok(())
 }

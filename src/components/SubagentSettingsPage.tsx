@@ -162,6 +162,8 @@ export function SubagentSettingsPage({
   const [poolErrors, setPoolErrors] = useState<PoolValidationError[]>([]);
   /** Local draft for the "add pool entry" select (reset after each pick). */
   const [addSelection, setAddSelection] = useState("");
+  /** WebUI-open button in flight; disables both buttons while non-null. */
+  const [webuiBusy, setWebuiBusy] = useState<"embedded" | "browser" | null>(null);
 
   useEffect(() => {
     invoke<ExperimentalEnvStatus>("get_experimental_env_status")
@@ -371,29 +373,37 @@ export function SubagentSettingsPage({
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
+              disabled={webuiBusy !== null}
               onClick={async () => {
+                setWebuiBusy("embedded");
                 try {
                   await invoke("open_kimi_web_embedded");
                 } catch (err) {
                   alert(err instanceof Error ? err.message : String(err));
+                } finally {
+                  setWebuiBusy(null);
                 }
               }}
-              className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {t("openWebUIEmbedded")}
+              {webuiBusy === "embedded" ? t("webuiOpening") : t("openWebUIEmbedded")}
             </button>
             <button
               type="button"
+              disabled={webuiBusy !== null}
               onClick={async () => {
+                setWebuiBusy("browser");
                 try {
                   await invoke("open_kimi_web");
                 } catch (err) {
                   alert(err instanceof Error ? err.message : String(err));
+                } finally {
+                  setWebuiBusy(null);
                 }
               }}
-              className="px-3 py-1.5 text-sm border border-border rounded hover:bg-hover-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="px-3 py-1.5 text-sm border border-border rounded hover:bg-hover-2 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {t("openWebUIBrowser")}
+              {webuiBusy === "browser" ? t("webuiOpening") : t("openWebUIBrowser")}
             </button>
           </div>
         </Card>
