@@ -16,43 +16,43 @@ const zh = {
     performance: "性能",
     changelog: "更新日志",
     download: "下载",
-    downloadBtn: "下载 v0.7.4",
+    downloadBtn: "下载 v0.7.12",
   },
   hero: {
-    badge: "v0.7.4 · 开源 MIT · Windows / macOS / Linux",
+    badge: "v0.7.12 · 开源 MIT · Windows / macOS / Linux",
     titleBefore: "统一管理你的",
     titleAccent: "AI 供应商",
     titleAfter: "",
     subtitle:
-      "一键切换 Kimi / 智谱 GLM / MiniMax / DeepSeek / OpenRouter / 基元律动，用量与账单一目了然。",
+      "Kimi Code 的供应商配置不用再手改 config.toml：22 个预设选好即写入（写入前自动备份），用量与账单直读各厂商官方接口。",
     download: "免费下载",
     source: "查看源码",
     stats: [
       { value: "22", label: "预设供应商" },
-      { value: "5910", label: "模型价格库" },
-      { value: "100%", label: "开源免费" },
+      { value: "7495", label: "模型价格库" },
+      { value: "MIT", label: "开源协议" },
     ],
   },
   features: {
     title: "核心功能",
-    subtitle: "从多供应商管理到用量监控，一站搞定。",
+    subtitle: "配置、切换、用量、账单、会话——都落在本机那份 ~/.kimi-code/config.toml 上。",
     items: [
       {
         id: "multi-provider",
         title: "多供应商管理",
-        desc: "Kimi / 智谱 GLM / MiniMax / DeepSeek / OpenRouter / 基元律动等 22 个预设，一键添加与切换。",
+        desc: "Kimi / 智谱 GLM / MiniMax / DeepSeek / OpenRouter / 基元律动等 22 个预设，Base URL 与模型映射已填好，选定即写入配置。",
         img: "screenshots/preset-picker.png",
       },
       {
         id: "custom-provider",
         title: "自定义供应商",
-        desc: "自定义 Base URL / API Key / 模型映射，支持 JSON 高级编辑。",
+        desc: "Base URL、API Key、模型别名逐字段编辑，也可切到 JSON 页签直接改；配置里的未知字段原样保留。",
         img: "screenshots/edit-provider-basic-managed.png",
       },
       {
         id: "usage",
         title: "用量与账单监控",
-        desc: "套餐类 5 小时 / 每周用量 + 按量余额，models.dev 真实价格计算成本，卡片直显。",
+        desc: "套餐的 5 小时 / 每周额度与按量余额直接显示在卡片上，成本按 models.dev 牌价折算。",
         img: "screenshots/dashboard-light.png",
       },
       {
@@ -63,7 +63,7 @@ const zh = {
       },
       {
         id: "kimi-auth",
-        title: "Kimi 一键授权登录",
+        title: "Kimi 授权登录",
         desc: "应用内置设备码授权（等同 kimi login），浏览器授权即用，15 分钟过期自动续期。",
         img: "screenshots/kimi-oauth-dialog.png",
       },
@@ -75,31 +75,31 @@ const zh = {
       },
       {
         id: "model-discovery",
-        title: "智能模型发现",
-        desc: "模型能力 / 上下文大小自动从 models.dev 同步，构建时自动拉取，5910 模型覆盖。",
+        title: "模型自动发现",
+        desc: "可用模型直接问供应商 API；显示名 / 上下文 / 能力取自 models.dev 快照（当前 7495 个模型、212 家供应商）。",
         img: "screenshots/kimi-cli-select-model.png",
       },
       {
         id: "auto-update",
         title: "自动更新",
-        desc: "自动检测新版本，一键下载安装，始终保持最新。",
+        desc: "启动时和每 8 小时各查一次新版本（私有镜像优先、GitHub 兜底），应用内下载并引导安装。",
         img: "screenshots/settings.png",
       },
     ],
   },
   showcase: {
     title: "界面演示",
-    subtitle: "真实界面截图，所见即所得。",
+    subtitle: "以下截图取自 v0.7.12 实机运行。",
     items: [
       {
         src: "screenshots/usage-config-page.png",
         title: "配置用量查询",
-        desc: "NewAPI 中转站模板、超时与自动刷新、测试查询一屏搞定",
+        desc: "NewAPI 中转站模板、超时与自动刷新、测试查询放在同一页",
       },
       {
         src: "screenshots/preset-picker.png",
         title: "预设供应商",
-        desc: "22 个预设开箱即用，一键添加常用厂商",
+        desc: "22 个预设，勾选即可添加常用厂商",
       },
       {
         src: "screenshots/kimi-oauth-dialog.png",
@@ -125,7 +125,7 @@ const zh = {
   },
   performance: {
     title: "轻量原生",
-    subtitle: "Tauri + Rust 内核，WebView2 前端，常驻托盘零负担。",
+    subtitle: "Tauri + Rust，复用系统 WebView2，不打包 Chromium。下面三项是空闲状态实测。",
     metrics: [
       { target: 93, suffix: " MB", label: "Working Set", desc: "程序空闲态工作集内存" },
       { target: 34, suffix: " MB", label: "Private WS", desc: "独占内存（WebView2 共享部分扣除）" },
@@ -140,6 +140,17 @@ const zh = {
     syncedNote: "数据已同步 GitHub Releases",
     fallbackNote: "内置版本记录",
     entries: [
+      {
+        version: "v0.7.12",
+        date: "2026-09-03",
+        items: [
+          "适配 kimi-code 0.40.1：实验 flag 清单更新（新增 file_history / search_worker，secondary-model 默认开启）",
+          "flag 优先级语义修正：显式配置优先于总开关，总开关不再锁定全部实验开关",
+          "新增危险命令守卫开关：Auto 模式直接拒绝 rm -rf / shutdown 等危险命令，其它模式强制询问",
+          "修复 WebUI 首次打开慢时多次点击的竞态报错",
+          "models-dev 快照更新至 7495 模型 / 212 供应商",
+        ],
+      },
       {
         version: "v0.7.4",
         date: "2026-08-09",
@@ -170,7 +181,7 @@ const zh = {
           "兼容 kimi-code 0.33+（v2 引擎）：循环控制改用新键 max_attempts_per_step，旧配置自动迁移",
           "models.dev 模型列表与价格数据同步更新",
           "官网企业版视觉升级；出品公司标识统一为 codingplan.site",
-          "macOS 安装优化：Release 附带 install-macos.sh 一键脚本，自动清除下载隔离，免去手动右键打开",
+          "macOS 安装优化：Release 附带 install-macos.sh，自动清除下载隔离，免去手动右键打开",
         ],
       },
       {
@@ -201,7 +212,7 @@ const zh = {
         version: "v0.6.9",
         date: "2026-08-01",
         items: [
-          "最近请求新增缓存命中率列，每次请求命中一目了然",
+          "最近请求新增缓存命中率列，逐条请求的命中情况直接可见",
           "中文模式费用按最新汇率换算人民币（¥）显示，英文模式保持美元",
           "仪表盘性能再优化：价格解析记忆化缓存，扫描从秒级降到百毫秒级；右上角新增加载耗时/数据量跟踪",
         ],
@@ -229,7 +240,7 @@ const zh = {
         version: "v0.6.6",
         date: "2026-08-01",
         items: [
-          "模型价格对标 models.dev，覆盖 5910 个模型",
+          "模型价格数据对标 models.dev，快照随版本更新",
           "新增基元律动供应商与推荐链接",
           "设置页文案与参考来源说明优化",
         ],
@@ -311,34 +322,34 @@ const zh = {
   },
   download: {
     title: "下载 Kimi Switch",
-    subtitle: "当前版本 v0.7.4 · Windows / macOS / Linux 三平台已发布",
-    autoUpdate: "应用内置自动检测更新，新版本发布后在设置页一键升级。",
+    subtitle: "当前版本 v0.7.12 · Windows / macOS / Linux 三平台已发布",
+    autoUpdate: "更新检查跑在启动时和每 8 小时的周期任务里，设置页也可以手动触发。",
     ready: "已发布",
     wip: "开发中",
     githubBtn: "GitHub 下载",
     mirrorBtn: "镜像下载",
     items: [
       { id: "windows", name: "Windows", ready: true, note: ".msi 安装包，系统托盘常驻" },
-      { id: "macos", name: "macOS", ready: true, note: ".dmg 安装包（Apple Silicon），未签名：下载 install-macos.sh 后运行 bash install-macos.sh 一键安装" },
+      { id: "macos", name: "macOS", ready: true, note: ".dmg 安装包（Apple Silicon），未签名：下载 Release 附带的 install-macos.sh，运行 bash install-macos.sh 清除隔离属性" },
       { id: "linux", name: "Linux", ready: true, note: ".deb / .AppImage / .rpm 三格式" },
     ],
   },
   cta: {
-    title: "现在就把所有供应商，放进一个应用",
-    subtitle: "免费 · 开源 MIT · 一分钟完成安装",
+    title: "把供应商配置、用量和账单收进一个窗口",
+    subtitle: "免费 · MIT 开源 · Windows / macOS / Linux",
     download: "免费下载",
     source: "GitHub 源码",
   },
   seo: {
     home: {
-      title: "Kimi Switch — 多 LLM 供应商统一管理 · 用量监控 · 账单一目了然",
+      title: "Kimi Switch — 多 LLM 供应商配置管理 · 用量与账单监控",
       description:
-        "Kimi Switch / KimiCodeSwitch — Windows 桌面端多 LLM 供应商统一管理器，一键切换 Kimi / 智谱 GLM / MiniMax / DeepSeek / OpenRouter / 基元律动，用量账单实时监控，开源 MIT。",
+        "Kimi Switch / KimiCodeSwitch — 桌面端 LLM 供应商配置管理器：22 个预设选好即写入 config.toml，用量与账单直读各厂商官方接口。Tauri + Rust，开源 MIT。",
     },
     features: {
       title: "核心功能 - Kimi Switch",
       description:
-        "Kimi Switch 核心功能：多供应商管理、用量与账单监控、Kimi 一键授权登录、智能模型发现与自动更新，22 个预设开箱即用。",
+        "Kimi Switch 功能页：多供应商预设与自定义配置、用量与账单监控、Kimi 设备码授权、模型自动发现与周期更新检查。",
     },
     changelog: {
       title: "更新日志 - Kimi Switch",
@@ -380,116 +391,116 @@ const en: Dict = {
     performance: "Performance",
     changelog: "Changelog",
     download: "Download",
-    downloadBtn: "Download v0.7.4",
+    downloadBtn: "Download v0.7.12",
   },
   hero: {
-    badge: "v0.7.4 · Open source MIT · Windows / macOS / Linux",
+    badge: "v0.7.12 · Open source MIT · Windows / macOS / Linux",
     titleBefore: "One app for all your ",
     titleAccent: "AI providers",
     titleAfter: "",
     subtitle:
-      "Switch between Kimi, Zhipu GLM, MiniMax, DeepSeek, OpenRouter and TokenRhythm in one click, with usage and billing at a glance.",
+      "Stop hand-editing ~/.kimi-code/config.toml. Pick one of 22 provider presets and it goes straight into your config (backed up first); usage and billing read from each vendor's own API.",
     download: "Free Download",
-    source: "View Source",
+    source: "View source",
     stats: [
       { value: "22", label: "Provider presets" },
-      { value: "5910", label: "Model price DB" },
-      { value: "100%", label: "Open source" },
+      { value: "7495", label: "Model price DB" },
+      { value: "MIT", label: "License" },
     ],
   },
   features: {
-    title: "Core Features",
-    subtitle: "From multi-provider management to usage monitoring, all in one place.",
+    title: "Core features",
+    subtitle: "Configuration, switching, usage, billing and sessions — all against the config.toml on your machine.",
     items: [
       {
         id: "multi-provider",
-        title: "Multi-Provider Management",
-        desc: "22 presets including Kimi, Zhipu GLM, MiniMax, DeepSeek, OpenRouter and TokenRhythm. Add and switch in one click.",
+        title: "Provider presets",
+        desc: "22 presets — Kimi, Zhipu GLM, MiniMax, DeepSeek, OpenRouter, TokenRhythm and more — ship with Base URL and model mapping filled in; picking one writes it to your config.",
         img: "screenshots/preset-picker.png",
       },
       {
         id: "custom-provider",
-        title: "Custom Providers",
-        desc: "Custom Base URL, API Key and model mapping, with advanced JSON editing.",
+        title: "Custom providers",
+        desc: "Edit Base URL, API key and model aliases field by field, or switch to the raw JSON tab; unknown fields are passed through untouched.",
         img: "screenshots/edit-provider-basic-managed.png",
       },
       {
         id: "usage",
-        title: "Usage & Billing",
-        desc: "5-hour / weekly plan quotas plus pay-as-you-go balance, priced with real models.dev rates and shown on cards.",
+        title: "Usage & billing",
+        desc: "5-hour / weekly plan quotas and pay-as-you-go balance shown directly on cards, with costs computed at models.dev list prices.",
         img: "screenshots/dashboard-light.png",
       },
       {
         id: "sessions",
-        title: "Session Manager",
+        title: "Session manager",
         desc: "Browse, search and resume past sessions across providers.",
         img: "screenshots/sessions-light.png",
       },
       {
         id: "kimi-auth",
-        title: "One-Click Kimi Login",
+        title: "Kimi device-code login",
         desc: "Built-in device-code authorization (same as kimi login). Authorize in the browser; 15-minute expiry auto-renews.",
         img: "screenshots/kimi-oauth-dialog.png",
       },
       {
         id: "usage-config",
-        title: "Usage Query Setup",
+        title: "Usage query setup",
         desc: "Full-page config: NewAPI relay templates, timeout, auto-refresh interval, and a test query.",
         img: "screenshots/usage-config-page.png",
       },
       {
         id: "model-discovery",
-        title: "Smart Model Discovery",
-        desc: "Model capabilities and context sizes sync from models.dev at build time, covering 5910 models.",
+        title: "Model discovery",
+        desc: "Model lists are fetched from the provider API itself; display names, context sizes and capabilities come from a build-time models.dev snapshot (7495 models, 212 providers).",
         img: "screenshots/kimi-cli-select-model.png",
       },
       {
         id: "auto-update",
-        title: "Auto Updates",
-        desc: "Automatically detects new versions and installs them in one click.",
+        title: "Auto updates",
+        desc: "Checks at startup and every 8 hours (private mirror first, GitHub fallback), downloads in-app and walks you through install.",
         img: "screenshots/settings.png",
       },
     ],
   },
   showcase: {
     title: "Screenshots",
-    subtitle: "Real screenshots from the app. What you see is what you get.",
+    subtitle: "All screenshots below are taken from the running v0.7.12 build.",
     items: [
       {
         src: "screenshots/usage-config-page.png",
-        title: "Usage Query Setup",
+        title: "Usage query setup",
         desc: "NewAPI relay templates, timeout and auto-refresh, plus a test query, all on one page",
       },
       {
         src: "screenshots/preset-picker.png",
-        title: "Provider Presets",
-        desc: "22 presets ready out of the box, add popular vendors in one click",
+        title: "Provider presets",
+        desc: "Tick through 22 presets to add popular vendors",
       },
       {
         src: "screenshots/kimi-oauth-dialog.png",
-        title: "Kimi Authorization",
+        title: "Kimi authorization",
         desc: "Device-code flow identical to kimi login, auto-renews on expiry",
       },
       {
         src: "screenshots/dashboard-daily-detail.png",
-        title: "Usage Details",
+        title: "Usage details",
         desc: "Daily token and cost trends",
       },
       {
         src: "screenshots/sessions-light.png",
-        title: "Session Manager",
+        title: "Session manager",
         desc: "Browse and resume past sessions across providers",
       },
       {
         src: "screenshots/kimi-plan-quota-card.png",
-        title: "Plan Quota Card",
-        desc: "5-hour / weekly quotas at a glance",
+        title: "Plan quota card",
+        desc: "5-hour / weekly quotas read straight off the card",
       },
     ],
   },
   performance: {
-    title: "Lightweight & Native",
-    subtitle: "Tauri + Rust core with a WebView2 frontend. Zero tray overhead.",
+    title: "Lightweight and native",
+    subtitle: "Tauri + Rust on the system WebView2 — no bundled Chromium. The three numbers below are idle-state measurements.",
     metrics: [
       { target: 93, suffix: " MB", label: "Working Set", desc: "Idle working-set memory" },
       { target: 34, suffix: " MB", label: "Private WS", desc: "Private memory (shared WebView2 excluded)" },
@@ -504,6 +515,17 @@ const en: Dict = {
     syncedNote: "Synced from GitHub Releases",
     fallbackNote: "Built-in release notes",
     entries: [
+      {
+        version: "v0.7.12",
+        date: "2026-09-03",
+        items: [
+          "Adapted to kimi-code 0.40.1: experimental flag list updated (adds file_history / search_worker; secondary-model now on by default)",
+          "Flag priority semantics fixed: explicit configuration takes precedence over the master toggle, which no longer locks every switch",
+          "New dangerous-command guard toggle: Auto mode rejects rm -rf / shutdown outright, other modes force a confirmation prompt",
+          "Fix race-condition errors when clicking repeatedly while the WebUI is slow to open for the first time",
+          "models-dev snapshot updated to 7495 models / 212 providers",
+        ],
+      },
       {
         version: "v0.7.4",
         date: "2026-08-09",
@@ -534,7 +556,7 @@ const en: Dict = {
           "Compatible with kimi-code 0.33+ (v2 engine): loop control now writes max_attempts_per_step with auto-migration",
           "models.dev model list and pricing snapshot synced",
           "Enterprise-style website refresh; publisher identity unified as codingplan.site",
-          "macOS install polish: releases now ship install-macos.sh, a one-click script that clears the download quarantine",
+          "macOS install polish: releases now ship install-macos.sh, which clears the download quarantine for you",
         ],
       },
       {
@@ -565,7 +587,7 @@ const en: Dict = {
         version: "v0.6.9",
         date: "2026-08-01",
         items: [
-          "Recent requests gain a cache-hit-rate column, per request at a glance",
+          "Recent requests gain a cache-hit-rate column, shown per request",
           "Chinese UI now shows costs in CNY (latest exchange rate); English keeps USD",
           "Dashboard speedup: memoized price resolution drops the scan from seconds to milliseconds; load time / payload tracking in the top-right corner",
         ],
@@ -592,7 +614,7 @@ const en: Dict = {
         version: "v0.6.6",
         date: "2026-08-01",
         items: [
-          "Model pricing aligned with models.dev, covering 5910 models",
+          "Model pricing data aligned with models.dev, snapshot refreshed per release",
           "New TokenRhythm provider with referral link",
           "Settings copy and source attribution polish",
         ],
@@ -652,56 +674,56 @@ const en: Dict = {
     ],
   },
   privacy: {
-    title: "Your Data Stays on Your Machine",
+    title: "Your data stays on your machine",
     subtitle: "Our privacy and open-source commitments in three sentences.",
     items: [
       {
         id: "local",
-        title: "Local Storage",
+        title: "Local storage",
         desc: "Configs and usage data live only in ~/.kimi-switch and config.toml. Nothing is uploaded.",
       },
       {
         id: "direct",
-        title: "Direct Connections",
+        title: "Direct connections",
         desc: "Billing queries go straight to each vendor's official API. No middlemen, no tracking.",
       },
       {
         id: "open",
-        title: "Open & Auditable",
+        title: "Open & auditable",
         desc: "Fully open source under MIT on GitHub. Reviews and contributions welcome.",
       },
     ],
   },
   download: {
     title: "Download Kimi Switch",
-    subtitle: "Current version v0.7.4 · Windows, macOS and Linux now released",
-    autoUpdate: "Built-in update detection: upgrade in one click from Settings when a new version ships.",
+    subtitle: "Current version v0.7.12 · Windows, macOS and Linux now released",
+    autoUpdate: "Update checks run at startup and every 8 hours; Settings also has a manual check.",
     ready: "Available",
     wip: "In development",
     githubBtn: "Download from GitHub",
     mirrorBtn: "China mirror",
     items: [
       { id: "windows", name: "Windows", ready: true, note: ".msi installer, lives in the system tray" },
-      { id: "macos", name: "macOS", ready: true, note: ".dmg installer (Apple Silicon), unsigned: download install-macos.sh and run bash install-macos.sh for one-click install" },
+      { id: "macos", name: "macOS", ready: true, note: ".dmg installer (Apple Silicon); unsigned — grab install-macos.sh from the release and run bash install-macos.sh to clear the quarantine flag" },
       { id: "linux", name: "Linux", ready: true, note: ".deb / .AppImage / .rpm" },
     ],
   },
   cta: {
-    title: "Bring every provider into one app",
-    subtitle: "Free · Open source MIT · One-minute install",
+    title: "Put provider config, usage and billing in one window",
+    subtitle: "Free · MIT licensed · Windows / macOS / Linux",
     download: "Free Download",
-    source: "GitHub Source",
+    source: "GitHub source",
   },
   seo: {
     home: {
-      title: "Kimi Switch — Unified Management for AI Providers · Usage & Billing",
+      title: "Kimi Switch — LLM provider config, usage and billing in one app",
       description:
-        "Kimi Switch / KimiCodeSwitch — a Windows desktop manager for multiple LLM providers. Switch between Kimi, Zhipu GLM, MiniMax, DeepSeek, OpenRouter and TokenRhythm in one click, with usage and billing at a glance. Open source MIT.",
+        "Kimi Switch / KimiCodeSwitch — a desktop manager for LLM provider configuration. 22 presets write straight into ~/.kimi-code/config.toml; usage and billing read from each vendor's own API. Open source MIT.",
     },
     features: {
-      title: "Core Features - Kimi Switch",
+      title: "Core features - Kimi Switch",
       description:
-        "Kimi Switch core features: multi-provider management, usage & billing, one-click Kimi login, smart model discovery and auto updates. 22 presets out of the box.",
+        "Kimi Switch features: provider presets and custom config, usage & billing, Kimi device-code login, model discovery and periodic update checks.",
     },
     changelog: {
       title: "Changelog - Kimi Switch",
@@ -715,7 +737,7 @@ const en: Dict = {
     },
   },
   footer: {
-    recommend: "Recommended Providers",
+    recommend: "Recommended providers",
     mirror: "China mirror",
     downloads: "Total GitHub downloads: {n}",
     creditBefore: "Dashboard & session management adapted from ",

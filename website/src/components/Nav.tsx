@@ -24,7 +24,9 @@ export default function Nav() {
           />
           <span>Kimi Switch</span>
         </NavLink>
-        <nav className="flex items-center gap-5 overflow-x-auto overflow-y-hidden text-sm text-muted-foreground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <nav
+          aria-label="Primary"
+          className="flex items-center gap-5 overflow-x-auto overflow-y-hidden text-sm text-muted-foreground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {links.map((l) => (
             <NavLink
               key={l.to}

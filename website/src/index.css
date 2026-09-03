@@ -23,9 +23,9 @@
     --accent: 240 6% 94%;
     --accent-foreground: 240 9% 11%;
     --border: 240 6% 90%;
-    --primary: 221 83% 53%;
+    --primary: 221 74% 50%;
     --primary-foreground: 0 0% 100%;
-    --ring: 221 83% 53%;
+    --ring: 221 74% 50%;
     /* 克制分层阴影（色相一致的 tinted shadow，非荧光发光） */
     --shadow-soft: 0 1px 2px hsl(240 9% 11% / 0.05),
       0 8px 24px hsl(240 9% 11% / 0.06);
@@ -44,9 +44,9 @@
       --accent: 222 25% 14%;
       --accent-foreground: 220 20% 92%;
       --border: 222 22% 17%;
-      --primary: 217 91% 60%;
+      --primary: 216 68% 62%;
       --primary-foreground: 0 0% 100%;
-      --ring: 217 91% 60%;
+      --ring: 216 68% 62%;
       --shadow-soft: 0 1px 2px hsl(222 47% 2% / 0.5),
         0 8px 24px hsl(222 47% 2% / 0.45);
       --shadow-lift: 0 1px 2px hsl(222 47% 2% / 0.5),
@@ -60,24 +60,6 @@
   body {
     @apply bg-background text-foreground antialiased;
   }
-  /* 科技风底纹：固定网格线，极低透明度，不干扰阅读 */
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    background-image:
-      linear-gradient(to right, hsl(var(--primary) / 0.04) 1px, transparent 1px),
-      linear-gradient(to bottom, hsl(var(--primary) / 0.04) 1px, transparent 1px);
-    background-size: 44px 44px;
-    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 75%);
-  }
-  #root {
-    position: relative;
-    z-index: 1;
-  }
-
   /* 选中色与键盘焦点（无障碍） */
   ::selection {
     background: hsl(var(--primary) / 0.16);
@@ -96,19 +78,14 @@
 
 @layer components {
   .container-page {
-    @apply mx-auto w-full max-w-6xl px-6;
+    @apply mx-auto w-full max-w-7xl px-5 md:px-8;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium transition-all duration-200;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium transition-all duration-200;
   }
   .btn-primary {
     @apply btn bg-primary text-primary-foreground hover:bg-primary/90 hover:-translate-y-px active:translate-y-0 active:scale-[0.98];
-    box-shadow: 0 1px 2px hsl(var(--primary) / 0.3),
-      0 6px 16px hsl(var(--primary) / 0.22);
-  }
-  .btn-primary:hover {
-    box-shadow: 0 1px 2px hsl(var(--primary) / 0.3),
-      0 10px 24px hsl(var(--primary) / 0.3);
+    box-shadow: 0 1px 2px hsl(221 45% 25% / 0.25);
   }
   .btn-ghost {
     @apply btn border border-border bg-card/60 text-foreground hover:border-foreground/25 hover:bg-accent active:scale-[0.98];
@@ -126,14 +103,14 @@
   }
   /* 截图容器：限定最大宽高，避免撑满页面 */
   .screenshot {
-    @apply overflow-hidden rounded-2xl border border-border bg-muted;
+    @apply overflow-hidden rounded-xl border border-border bg-muted;
     box-shadow: var(--shadow-lift);
   }
   .screenshot > img {
     @apply block h-auto w-full;
   }
-  /* 图标容器：统一的蓝色徽标容器 */
+  /* 图标容器：中性底、统一描边宽度（Phosphor duotone） */
   .icon-chip {
-    @apply flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary;
+    @apply flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-muted text-foreground;
   }
 }

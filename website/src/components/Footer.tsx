@@ -87,7 +87,7 @@ export default function Footer() {
                   href={link.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="group flex items-start gap-3 rounded-2xl border border-border bg-card p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40"
+                  className="group flex items-start gap-3 rounded-xl border border-border bg-card p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40"
                   style={{ boxShadow: "var(--shadow-soft)" }}
                 >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-white">

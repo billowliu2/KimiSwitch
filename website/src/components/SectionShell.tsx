@@ -15,7 +15,7 @@ export default function SectionShell({ id, title, subtitle, children }: SectionS
       ref={ref}
       id={id}
       aria-labelledby={`${id}-title`}
-      className={`py-20 transition-all duration-700 ease-out ${
+      className={`pt-16 pb-20 transition-all duration-700 ease-out ${
         inView
           ? "motion-safe:opacity-100 motion-safe:translate-y-0"
           : "motion-safe:opacity-0 motion-safe:translate-y-6"
@@ -30,7 +30,9 @@ export default function SectionShell({ id, title, subtitle, children }: SectionS
             {title}
           </h2>
           {subtitle && (
-            <p className="mt-3 text-base leading-relaxed text-muted-foreground">{subtitle}</p>
+            <p className="mt-3 max-w-[68ch] text-base leading-relaxed text-muted-foreground">
+              {subtitle}
+            </p>
           )}
         </div>
         {children}

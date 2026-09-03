@@ -45,6 +45,8 @@ export default function Features() {
               key={f.id}
               style={{ transitionDelay: `${i * 60}ms` }}
               className={`card overflow-hidden p-0 transition-all duration-500 ease-out hover:border-primary/50 ${
+                i % 2 === 1 ? "sm:mt-12" : ""
+              } ${
                 gridInView
                   ? "motion-safe:opacity-100 motion-safe:translate-y-0"
                   : "motion-safe:opacity-0 motion-safe:translate-y-4"

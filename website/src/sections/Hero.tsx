@@ -23,15 +23,6 @@ export default function Hero() {
       aria-labelledby="hero-title"
       className="relative overflow-hidden pt-16 pb-20 md:pt-24"
     >
-      {/* 克制的同色系光晕（去紫，统一蓝色 + 中性） */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -top-32 right-[-10%] h-[420px] w-[420px] rounded-full bg-primary/10 blur-3xl"
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -left-40 top-1/2 h-[320px] w-[320px] rounded-full bg-primary/5 blur-3xl"
-      />
       <div className="container-page relative grid grid-cols-1 gap-10 md:grid-cols-2 md:items-center">
         <div>
           <div {...reveal(0)}>
@@ -87,7 +78,7 @@ export default function Hero() {
           <div className="screenshot max-h-[420px]">
             <img
               src={asset("screenshots/hero.png")}
-              alt="Kimi Switch: multi-LLM provider list with one-click switching"
+              alt="Kimi Switch provider list, active provider pinned to the top"
               loading="eager"
             />
           </div>

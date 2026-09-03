@@ -21,12 +21,18 @@ export default function Showcase() {
             key={s.src}
             style={{ transitionDelay: `${i * 60}ms` }}
             className={`transition-all duration-500 ease-out ${
+              i === 0 ? "sm:col-span-2" : ""
+            } ${
               gridInView
                 ? "motion-safe:opacity-100 motion-safe:translate-y-0"
                 : "motion-safe:opacity-0 motion-safe:translate-y-4"
             }`}
           >
-            <div className="screenshot group aspect-[4/3] overflow-hidden">
+            <div
+              className={`screenshot group overflow-hidden ${
+                i === 0 ? "aspect-[16/9]" : "aspect-[4/3]"
+              }`}
+            >
               <img
                 src={asset(s.src)}
                 alt={`Kimi Switch - ${s.title}`}
