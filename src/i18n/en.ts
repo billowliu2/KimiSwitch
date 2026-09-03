@@ -151,6 +151,9 @@ export const enTranslations: Record<TranslationKey, string> = {
   permissionAllow: "Allow",
   permissionDeny: "Deny",
   permissionAsk: "Ask",
+  permissionDangerousGuard: "Dangerous Command Guard",
+  permissionDangerousGuardDesc:
+    "When on (default): Auto mode refuses dangerous commands (rm -rf, shutdown, dd of=, ...) and other modes always prompt; turning it off restores the previous behavior. Env KIMI_CODE_DANGEROUS_COMMAND_GUARD overrides this config",
   addRule: "+ Add rule",
   addCommonRules: "Add common rules",
   hooks: "Lifecycle Hooks",
@@ -477,9 +480,15 @@ export const enTranslations: Record<TranslationKey, string> = {
   flagAutoSessionTitleDesc: "Generate session titles automatically via the managed chat_title tool",
   flagRemoteControl: "Remote Control",
   flagRemoteControlDesc: "Enable the experimental remote control feature",
+  flagSearchWorker: "Search Worker",
+  flagSearchWorkerDesc: "Run the kap-server global search backend in a background worker host",
+  flagFileHistory: "File History",
+  flagFileHistoryDesc:
+    "Snapshot edited files before/after each turn (last 5 turns across 30 sessions, stored in the session data dir) for real whole-file diffs",
   flagDefaultOn: "On by default",
   lockedByEnv: "Locked by env var",
-  masterEnvOnHint: "KIMI_CODE_EXPERIMENTAL_FLAG is set: all experimental features are forced on by the env var",
+  masterEnvOnHint:
+    "KIMI_CODE_EXPERIMENTAL_FLAG is set: flags without an explicit [experimental] entry are forced on; explicit entries in config.toml still win",
   secondaryModelSection: "Subagent Model (Secondary Model)",
   secondaryModelDisabledHint:
     "The experimental flag \"Subagent Secondary Model\" is off and this config will not take effect — enable the toggle above first",

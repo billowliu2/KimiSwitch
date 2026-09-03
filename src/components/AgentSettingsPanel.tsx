@@ -157,6 +157,25 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
       </Card>
 
       <Card title={t("permissionRules")}>
+        {/* kimi-code 0.40.1 `[permission] dangerous_command_guard`. The env
+            var KIMI_CODE_DANGEROUS_COMMAND_GUARD (literal "true"/"false")
+            outranks this config at runtime; no env-lock UI here (deliberate
+            minimal scope). Absent key = upstream default on. */}
+        <Checkbox
+          label={t("permissionDangerousGuard")}
+          checked={settings.permission?.dangerous_command_guard ?? true}
+          onChange={(checked) =>
+            update({
+              permission: {
+                ...settings.permission,
+                dangerous_command_guard: checked,
+              },
+            })
+          }
+        />
+        <p className="text-xs text-content-muted">
+          {t("permissionDangerousGuardDesc")}
+        </p>
         <div className="space-y-2">
           {(settings.permission?.rules ?? []).map((rule, idx) => (
             <div key={idx} className="flex items-center gap-2">

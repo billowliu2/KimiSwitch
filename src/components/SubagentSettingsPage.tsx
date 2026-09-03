@@ -57,6 +57,8 @@ const FLAG_LABELS: Record<string, { name: TranslationKey; desc: TranslationKey }
     desc: "flagAutoSessionTitleDesc",
   },
   "remote-control": { name: "flagRemoteControl", desc: "flagRemoteControlDesc" },
+  search_worker: { name: "flagSearchWorker", desc: "flagSearchWorkerDesc" },
+  file_history: { name: "flagFileHistory", desc: "flagFileHistoryDesc" },
 };
 
 /** Validation-error i18n key per engine rule, for the pre-write self-check. */
@@ -187,13 +189,18 @@ export function SubagentSettingsPage({
   const secondaryFlag = EXPERIMENTAL_FLAGS[0]; // "secondary-model"
   const otherFlags = EXPERIMENTAL_FLAGS.slice(1);
 
-  /** Effective state of the secondary-model flag (env overrides config). */
-  const secondaryEnabled = masterOn
-    ? true
-    : isFlagLockedByEnv(env, secondaryFlag)
-      ? forcedEnvValue(env, secondaryFlag)
-      : flags["secondary-model"] === true;
-  const secondaryLocked = masterOn || isFlagLockedByEnv(env, secondaryFlag);
+  /** Effective state of the secondary-model flag. Mirrors the kimi-code
+   *  0.40.1 priority: single-flag env > explicit [experimental] value >
+   *  master env (force-on only) > upstream default. The master env no
+   *  longer locks the toggle — only the flag's own env var does. */
+  const secondaryEnabled = isFlagLockedByEnv(env, secondaryFlag)
+    ? forcedEnvValue(env, secondaryFlag)
+    : isExperimentalFlagSet(rawOther, secondaryFlag.id)
+      ? flags["secondary-model"] === true
+      : masterOn
+        ? true
+        : (secondaryFlag.defaultEnabled ?? false);
+  const secondaryLocked = isFlagLockedByEnv(env, secondaryFlag);
 
   const aliasList = Object.keys(models).sort();
 
@@ -302,17 +309,24 @@ export function SubagentSettingsPage({
 
   const renderFlagRow = (flag: ExperimentalFlagDef) => {
     const labels = FLAG_LABELS[flag.id];
-    const locked = masterOn || isFlagLockedByEnv(env, flag);
-    // An explicitly written flag (true or false) wins; an absent flag falls
-    // back to the upstream default (`defaultEnabled`).
+    // Only the flag's own env var locks the toggle. The master env force-ons
+    // undefined flags but an explicit config entry outranks it, so the user
+    // can still flip values here while it is set.
+    const locked = isFlagLockedByEnv(env, flag);
+    // Resolution order mirrors kimi-code 0.40.1 flagService:
+    // single-flag env > explicit [experimental] value (true *or* false) >
+    // master env (on-only) > upstream default (`defaultEnabled`).
     const explicitlySet = isExperimentalFlagSet(rawOther, flag.id);
-    const on = masterOn
-      ? true
-      : isFlagLockedByEnv(env, flag)
-        ? forcedEnvValue(env, flag)
-        : explicitlySet
-          ? flags[flag.id] === true
+    const on = locked
+      ? forcedEnvValue(env, flag)
+      : explicitlySet
+        ? flags[flag.id] === true
+        : masterOn
+          ? true
           : (flag.defaultEnabled ?? false);
+    // Turning the flag off only sticks via an explicit `false` when the
+    // fallback (master env or the upstream default) would otherwise keep it on.
+    const explicitFalse = masterOn || flag.defaultEnabled === true;
     return (
       <div key={flag.id} className="flex items-center gap-3">
         <div className="flex-1 min-w-0">
@@ -339,7 +353,9 @@ export function SubagentSettingsPage({
           disabled={locked}
           ariaLabel={t(labels.name)}
           onChange={(checked) =>
-            onChange(setExperimentalFlag(rawOther, flag.id, checked))
+            onChange(
+              setExperimentalFlag(rawOther, flag.id, checked, { explicitFalse })
+            )
           }
         />
       </div>
@@ -560,6 +576,16 @@ export function SubagentSettingsPage({
           <div className="border-t border-border" />
           <div className="flex items-center gap-3">
             <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 text-sm text-content-primary">
+                {t(FLAG_LABELS[secondaryFlag.id].name)}
+                {!secondaryLocked &&
+                  !isExperimentalFlagSet(rawOther, secondaryFlag.id) &&
+                  secondaryFlag.defaultEnabled && (
+                    <span className="shrink-0 text-xs text-blue-600 dark:text-blue-400 border border-blue-500/30 rounded px-1">
+                      {t("flagDefaultOn")}
+                    </span>
+                  )}
+              </div>
               <div className="text-xs text-content-muted">
                 {t(FLAG_LABELS[secondaryFlag.id].desc)}
                 <code className="ml-2">{secondaryFlag.envVar}</code>
@@ -575,7 +601,11 @@ export function SubagentSettingsPage({
               disabled={secondaryLocked}
               ariaLabel={t(FLAG_LABELS[secondaryFlag.id].name)}
               onChange={(checked) =>
-                onChange(setExperimentalFlag(rawOther, secondaryFlag.id, checked))
+                onChange(
+                  setExperimentalFlag(rawOther, secondaryFlag.id, checked, {
+                    explicitFalse: masterOn || secondaryFlag.defaultEnabled === true,
+                  })
+                )
               }
             />
           </div>

@@ -36,10 +36,16 @@ export interface ExperimentalFlagDef {
 /** Known experimental flags — mirrors the kimi-code v2 flag registry
  * (the per-feature flag.ts files under packages/agent-core-v2/src:
  * secondary-model, tool-select, persistence_minidb_readmodel, tower,
- * subagent_fork, wait_for, auto_session_title, remote-control). `acp-v2` was
- * removed upstream and is dropped here. */
+ * subagent_fork, wait_for, auto_session_title, remote-control,
+ * search_worker, file_history). `acp-v2` was removed upstream and is
+ * dropped here. Keep the env-var list in sync with
+ * `get_experimental_env_status` in src-tauri/src/commands.rs. */
 export const EXPERIMENTAL_FLAGS: ExperimentalFlagDef[] = [
-  { id: "secondary-model", envVar: "KIMI_CODE_EXPERIMENTAL_SECONDARY_MODEL" },
+  {
+    id: "secondary-model",
+    envVar: "KIMI_CODE_EXPERIMENTAL_SECONDARY_MODEL",
+    defaultEnabled: true, // on by default since kimi-code 0.40.1
+  },
   { id: "tool-select", envVar: "KIMI_CODE_EXPERIMENTAL_TOOL_SELECT" },
   {
     id: "persistence_minidb_readmodel",
@@ -58,11 +64,21 @@ export const EXPERIMENTAL_FLAGS: ExperimentalFlagDef[] = [
     envVar: "KIMI_CODE_EXPERIMENTAL_AUTO_SESSION_TITLE",
   },
   { id: "remote-control", envVar: "KIMI_CODE_EXPERIMENTAL_REMOTE_CONTROL" },
+  {
+    id: "search_worker",
+    envVar: "KIMI_CODE_EXPERIMENTAL_SEARCH_WORKER",
+    defaultEnabled: true,
+  },
+  { id: "file_history", envVar: "KIMI_CODE_EXPERIMENTAL_FILE_HISTORY" },
 ];
 
 export const EXPERIMENTAL_MASTER_ENV = "KIMI_CODE_EXPERIMENTAL_FLAG";
 
-/** Whether the master env var is set to a truthy value (locks every flag on). */
+/** Whether the master env var is set to a truthy value. Since kimi-code
+ *  0.40.1 it only force-ONs flags that have *no* explicit `[experimental]`
+ *  entry (an explicit config value — true or false — outranks it, and the
+ *  master env can never force a flag off). It locks no UI toggles; only a
+ *  flag's own single-feature env var does. */
 export function isMasterEnvOn(env: ExperimentalEnvStatus | null): boolean {
   return isTruthyEnv(env?.[EXPERIMENTAL_MASTER_ENV]);
 }
@@ -105,16 +121,24 @@ export function isExperimentalFlagSet(rawOther: unknown, id: string): boolean {
   );
 }
 
-/** Set one flag in `[experimental]`. Removing all flags drops the section. */
+/** Set one flag in `[experimental]`. Removing all flags drops the section.
+ *  Pass `explicitFalse` when deleting the key would NOT express "off" —
+ *  i.e. the flag is on by upstream default (`defaultEnabled`) or the master
+ *  env force-ons undefined flags — and write a literal `false` instead,
+ *  which outranks both under the kimi-code 0.40.1 priority
+ *  (single env > explicit config > master env > default). */
 export function setExperimentalFlag(
   rawOther: unknown,
   id: string,
-  enabled: boolean
+  enabled: boolean,
+  opts?: { explicitFalse?: boolean }
 ): unknown {
   const root = { ...asRecord(rawOther) };
   const flags = { ...getExperimentalFlags(rawOther) };
   if (enabled) {
     flags[id] = true;
+  } else if (opts?.explicitFalse) {
+    flags[id] = false;
   } else {
     delete flags[id];
   }

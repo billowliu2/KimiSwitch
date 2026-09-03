@@ -1339,26 +1339,42 @@ pub async fn kimi_oauth_poll(
 // ---------------------------------------------------------------------------
 
 /// Read the Kimi Code environment variables that are currently set (non-empty)
-/// in this process's environment. The experimental-feature vars are used by the
-/// frontend to mark config.toml `[experimental]` toggles as locked: env vars
-/// outrank the config file in Kimi Code's flag resolution. `KIMI_CODE_LEGACY_FLAG`
-/// is probed too — the AgentSettingsPanel uses it to decide whether to
+/// in this process's environment. Every `[experimental]` feature env var is
+/// probed — the frontend uses a per-feature env var to mark the matching
+/// config.toml `[experimental]` toggle as locked, since a single-feature env
+/// var outranks the config file in Kimi Code's flag resolution. The master
+/// `KIMI_CODE_EXPERIMENTAL_FLAG` (0.40.1+: only force-ONs flags without an
+/// explicit config entry; never locks a toggle) and `KIMI_CODE_LEGACY_FLAG`
+/// are probed too — the latter lets AgentSettingsPanel decide whether to
 /// dual-write the v1 engine's loop_control keys.
+///
+/// The flag id → env var mapping mirrors `EXPERIMENTAL_FLAGS` in
+/// src/lib/subagent-settings.ts; keep both lists in sync.
 ///
 /// Truthy values per the CLI: `1` / `true` / `yes` / `on` (case-insensitive);
 /// the raw values are returned and the truthy check happens on the frontend.
 #[tauri::command]
 pub fn get_experimental_env_status() -> HashMap<String, String> {
-    const VARS: [&str; 6] = [
-        "KIMI_CODE_EXPERIMENTAL_FLAG",
-        "KIMI_CODE_EXPERIMENTAL_SECONDARY_MODEL",
-        "KIMI_CODE_EXPERIMENTAL_TOOL_SELECT",
-        "KIMI_CODE_EXPERIMENTAL_PERSISTENCE_MINIDB_READMODEL",
-        "KIMI_CODE_EXPERIMENTAL_REMOTE_CONTROL",
-        "KIMI_CODE_LEGACY_FLAG",
+    const VARS: [(&str, &str); 12] = [
+        ("secondary-model", "KIMI_CODE_EXPERIMENTAL_SECONDARY_MODEL"),
+        ("tool-select", "KIMI_CODE_EXPERIMENTAL_TOOL_SELECT"),
+        (
+            "persistence_minidb_readmodel",
+            "KIMI_CODE_EXPERIMENTAL_PERSISTENCE_MINIDB_READMODEL",
+        ),
+        ("tower", "KIMI_CODE_EXPERIMENTAL_TOWER"),
+        ("subagent_fork", "KIMI_CODE_EXPERIMENTAL_SUBAGENT_FORK"),
+        ("wait_for", "KIMI_CODE_EXPERIMENTAL_WAIT_FOR"),
+        ("auto_session_title", "KIMI_CODE_EXPERIMENTAL_AUTO_SESSION_TITLE"),
+        ("remote-control", "KIMI_CODE_EXPERIMENTAL_REMOTE_CONTROL"),
+        ("search_worker", "KIMI_CODE_EXPERIMENTAL_SEARCH_WORKER"),
+        ("file_history", "KIMI_CODE_EXPERIMENTAL_FILE_HISTORY"),
+        // Non-flag probes consumed by the frontend:
+        ("master", "KIMI_CODE_EXPERIMENTAL_FLAG"),
+        ("legacy", "KIMI_CODE_LEGACY_FLAG"),
     ];
     let mut out = HashMap::new();
-    for name in VARS {
+    for (_, name) in VARS {
         if let Ok(value) = std::env::var(name) {
             if !value.trim().is_empty() {
                 out.insert(name.to_string(), value);

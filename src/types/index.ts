@@ -149,7 +149,15 @@ export interface AgentSettings {
   thinking?: ThinkingConfig;
   loop_control?: LoopControlConfig;
   background?: BackgroundConfig;
-  permission?: { rules?: PermissionRule[] };
+  permission?: {
+    rules?: PermissionRule[];
+    /** kimi-code 0.40.1 `[permission]` key. Default true when the key is
+     *  absent: Auto mode refuses dangerous commands (rm -rf, shutdown,
+     *  dd of=, …) and other modes always prompt; false restores the
+     *  previous behavior. Env KIMI_CODE_DANGEROUS_COMMAND_GUARD (literal
+     *  "true"/"false" only) outranks this config. */
+    dangerous_command_guard?: boolean;
+  };
   hooks?: Hook[];
 }
 

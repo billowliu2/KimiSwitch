@@ -65,6 +65,10 @@ export function getAgentSettings(rawOther: unknown): AgentSettings {
   if (thinking.effort === "max") {
     thinking.effort = "high";
   }
+  const sectionPermission = getSection<AgentSettings["permission"]>(
+    rawOther,
+    "permission"
+  );
   return {
     thinking,
     loop_control: loop,
@@ -73,9 +77,15 @@ export function getAgentSettings(rawOther: unknown): AgentSettings {
       ...getSection<AgentSettings["background"]>(rawOther, "background"),
     },
     permission: {
-      rules:
-        getSection<AgentSettings["permission"]>(rawOther, "permission")?.rules ??
-        [],
+      rules: sectionPermission?.rules ?? [],
+      // `dangerous_command_guard` stays undefined unless the config carries
+      // an explicit boolean — upstream defaults it to ON (kimi-code 0.40.1),
+      // so an absent key means "on". The env var
+      // KIMI_CODE_DANGEROUS_COMMAND_GUARD (literal "true"/"false" only)
+      // outranks this config value at kimi-code runtime.
+      ...(typeof sectionPermission?.dangerous_command_guard === "boolean"
+        ? { dangerous_command_guard: sectionPermission.dangerous_command_guard }
+        : {}),
     },
     hooks: getSection<AgentSettings["hooks"]>(rawOther, "hooks") ?? [],
   };
@@ -88,13 +98,20 @@ export function setAgentSettings(
 ): unknown {
   const root = { ...asRecord(rawOther) };
   const current = getAgentSettings(rawOther);
+  // Explicit guard value wins over the carried-over one; undefined keeps the
+  // key absent (upstream default = on).
+  const guard =
+    patch.permission?.dangerous_command_guard ??
+    current.permission?.dangerous_command_guard;
+  const permission: NonNullable<AgentSettings["permission"]> = {
+    rules: patch.permission?.rules ?? current.permission?.rules ?? [],
+    ...(typeof guard === "boolean" ? { dangerous_command_guard: guard } : {}),
+  };
   const next: AgentSettings = {
     thinking: { ...current.thinking, ...patch.thinking },
     loop_control: { ...current.loop_control, ...patch.loop_control },
     background: { ...current.background, ...patch.background },
-    permission: {
-      rules: patch.permission?.rules ?? current.permission?.rules ?? [],
-    },
+    permission,
     hooks: patch.hooks ?? current.hooks ?? [],
   };
 
@@ -115,8 +132,19 @@ export function setAgentSettings(
   if (next.thinking) root.thinking = next.thinking;
   if (next.loop_control) root.loop_control = next.loop_control;
   if (next.background) root.background = next.background;
-  if (next.permission?.rules && next.permission.rules.length > 0) {
-    root.permission = next.permission;
+  // Keep `[permission]` when it carries rules *or* an explicit
+  // dangerous_command_guard — dropping the section would silently lose a
+  // guard=false write (absent key = upstream default on). An empty rules
+  // array is omitted rather than written as `rules = []`.
+  const hasRules = !!permission.rules && permission.rules.length > 0;
+  const hasGuard = typeof permission.dangerous_command_guard === "boolean";
+  if (hasRules || hasGuard) {
+    root.permission = {
+      ...(hasRules ? { rules: permission.rules } : {}),
+      ...(hasGuard
+        ? { dangerous_command_guard: permission.dangerous_command_guard }
+        : {}),
+    };
   } else {
     delete root.permission;
   }

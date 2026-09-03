@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  EXPERIMENTAL_FLAGS,
+  getExperimentalFlags,
   getSecondaryModel,
   getSubagentModelPool,
+  isExperimentalFlagSet,
   removeSubagentPoolEntry,
+  setExperimentalFlag,
   setSecondaryModelOnly,
   setSubagentDefault,
   setSubagentForce,
@@ -447,5 +451,78 @@ describe("validateSubagentPool", () => {
       aliases
     );
     expect(errors).toContainEqual({ key: "forceExcludesModels" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// [experimental] — flag registry (kimi-code 0.40.1) + write semantics
+// ---------------------------------------------------------------------------
+
+describe("experimental flag registry", () => {
+  it("mirrors the 0.40.1 v2 registry (10 flags incl. file_history)", () => {
+    expect(EXPERIMENTAL_FLAGS.map((f) => f.id)).toEqual([
+      "secondary-model",
+      "tool-select",
+      "persistence_minidb_readmodel",
+      "tower",
+      "subagent_fork",
+      "wait_for",
+      "auto_session_title",
+      "remote-control",
+      "search_worker",
+      "file_history",
+    ]);
+    const fh = EXPERIMENTAL_FLAGS.find((f) => f.id === "file_history");
+    expect(fh?.envVar).toBe("KIMI_CODE_EXPERIMENTAL_FILE_HISTORY");
+    expect(fh?.defaultEnabled).toBeUndefined();
+  });
+
+  it("secondary-model is on by default since 0.40.1", () => {
+    expect(
+      EXPERIMENTAL_FLAGS.find((f) => f.id === "secondary-model")?.defaultEnabled
+    ).toBe(true);
+  });
+});
+
+describe("setExperimentalFlag", () => {
+  const rawExp = (section: Record<string, unknown>) => ({
+    experimental: section,
+  });
+
+  it("enabling writes true; disabling a default-off flag deletes the key", () => {
+    const on = setExperimentalFlag({}, "tool-select", true) as {
+      experimental: Record<string, unknown>;
+    };
+    expect(on.experimental["tool-select"]).toBe(true);
+    const off = setExperimentalFlag(on, "tool-select", false) as Record<
+      string,
+      unknown
+    >;
+    expect(off).not.toHaveProperty("experimental"); // empty section dropped
+  });
+
+  it("disabling a default-on flag with explicitFalse writes a literal false", () => {
+    const next = setExperimentalFlag(
+      rawExp({ wait_for: true }),
+      "wait_for",
+      false,
+      { explicitFalse: true }
+    ) as { experimental: Record<string, unknown> };
+    expect(next.experimental.wait_for).toBe(false);
+    expect(isExperimentalFlagSet(next, "wait_for")).toBe(true);
+    expect(getExperimentalFlags(next).wait_for).toBe(false);
+  });
+
+  it("an explicit false coexists with other flags and keeps the section", () => {
+    const next = setExperimentalFlag(
+      rawExp({ "secondary-model": false }),
+      "tower",
+      true,
+      { explicitFalse: true }
+    ) as { experimental: Record<string, unknown> };
+    expect(next.experimental).toEqual({
+      "secondary-model": false,
+      tower: true,
+    });
   });
 });

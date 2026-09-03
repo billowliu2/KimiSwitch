@@ -149,6 +149,9 @@ export const zhTranslations = {
   permissionAllow: "允许",
   permissionDeny: "拒绝",
   permissionAsk: "询问",
+  permissionDangerousGuard: "危险命令防护",
+  permissionDangerousGuardDesc:
+    "开启（默认）时：Auto 模式直接拒绝危险命令（rm -rf、shutdown、dd of= 等），其它模式强制询问；关闭后回归旧行为。环境变量 KIMI_CODE_DANGEROUS_COMMAND_GUARD 会覆盖本配置",
   addRule: "+ 添加规则",
   addCommonRules: "添加常用规则",
   hooks: "生命周期钩子",
@@ -472,9 +475,15 @@ export const zhTranslations = {
   flagAutoSessionTitleDesc: "通过托管 chat_title 工具自动生成会话标题",
   flagRemoteControl: "远程控制",
   flagRemoteControlDesc: "启用实验性远程控制功能",
+  flagSearchWorker: "搜索 Worker",
+  flagSearchWorkerDesc: "kap-server 全局搜索的后台 worker 宿主服务",
+  flagFileHistory: "文件历史",
+  flagFileHistoryDesc:
+    "记录每轮编辑文件的前后快照（最近 30 个会话×最近 5 轮，存于会话数据目录），用于真实的整文件 diff",
   flagDefaultOn: "默认开启",
   lockedByEnv: "被环境变量锁定",
-  masterEnvOnHint: "KIMI_CODE_EXPERIMENTAL_FLAG 已设置：全部实验功能被环境变量强制开启",
+  masterEnvOnHint:
+    "KIMI_CODE_EXPERIMENTAL_FLAG 已设置：未显式配置的实验项将被强制开启；config.toml 中的显式配置优先生效",
   secondaryModelSection: "子代理模型（次主力模型）",
   secondaryModelDisabledHint:
     "实验开关「子代理次主力模型」未启用，本配置不会生效——请先在上方打开对应开关",

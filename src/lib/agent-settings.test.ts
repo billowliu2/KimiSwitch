@@ -132,3 +132,75 @@ describe("loop_control — v1/v2 key handling", () => {
     expect(s.loop_control?.max_retries_per_step).toBe(4);
   });
 });
+
+// ---------------------------------------------------------------------------
+// [permission] dangerous_command_guard (kimi-code 0.40.1) — absent key means
+// upstream default ON; an explicit false must survive even with no rules
+// ---------------------------------------------------------------------------
+
+describe("permission.dangerous_command_guard", () => {
+  it("reads as undefined when the key is absent (default on)", () => {
+    expect(
+      getAgentSettings({}).permission?.dangerous_command_guard
+    ).toBeUndefined();
+    expect(
+      getAgentSettings({ permission: { rules: [] } }).permission
+        ?.dangerous_command_guard
+    ).toBeUndefined();
+  });
+
+  it("reads an explicit true / false", () => {
+    expect(
+      getAgentSettings({ permission: { dangerous_command_guard: false } })
+        .permission?.dangerous_command_guard
+    ).toBe(false);
+    expect(
+      getAgentSettings({ permission: { dangerous_command_guard: true } })
+        .permission?.dangerous_command_guard
+    ).toBe(true);
+  });
+
+  it("writes guard=false even with no rules (section kept)", () => {
+    const next = setAgentSettings(
+      {},
+      { permission: { rules: [], dangerous_command_guard: false } }
+    ) as { permission?: Record<string, unknown> };
+    expect(next.permission).toEqual({ dangerous_command_guard: false });
+  });
+
+  it("writes guard together with rules", () => {
+    const rules = [{ decision: "allow" as const, pattern: "Read" }];
+    const next = setAgentSettings(
+      {},
+      { permission: { rules, dangerous_command_guard: true } }
+    ) as { permission?: Record<string, unknown> };
+    expect(next.permission).toEqual({
+      rules,
+      dangerous_command_guard: true,
+    });
+  });
+
+  it("a rules-only update carries the existing guard through", () => {
+    const raw = { permission: { dangerous_command_guard: false } };
+    const next = setAgentSettings(raw, {
+      permission: { rules: [{ decision: "deny" as const, pattern: "Bash" }] },
+    }) as { permission?: Record<string, unknown> };
+    expect(next.permission?.dangerous_command_guard).toBe(false);
+    expect(next.permission?.rules).toHaveLength(1);
+  });
+
+  it("omits an empty rules array; keeps an explicit guard on plain saves", () => {
+    const raw = { permission: { dangerous_command_guard: true } };
+    const off = setAgentSettings(raw, {
+      permission: { rules: [], dangerous_command_guard: false },
+    }) as { permission?: Record<string, unknown> };
+    expect(off.permission).toEqual({ dangerous_command_guard: false });
+    expect(off.permission).not.toHaveProperty("rules");
+    // An explicit true is materialized on plain saves (harmless, and it
+    // documents the state the UI toggle shows).
+    const on = setAgentSettings(raw, {}) as {
+      permission?: Record<string, unknown>;
+    };
+    expect(on.permission).toEqual({ dangerous_command_guard: true });
+  });
+});
