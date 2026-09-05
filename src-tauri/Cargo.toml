@@ -1,6 +1,6 @@
 [package]
 name = "kimiswitch"
-version = "0.7.12"
+version = "0.7.13"
 description = "Kimi Switch - model config manager"
 authors = ["codingplan.site"]
 edition = "2021"
