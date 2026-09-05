@@ -58,7 +58,6 @@ const FLAG_LABELS: Record<string, { name: TranslationKey; desc: TranslationKey }
   },
   "remote-control": { name: "flagRemoteControl", desc: "flagRemoteControlDesc" },
   search_worker: { name: "flagSearchWorker", desc: "flagSearchWorkerDesc" },
-  file_history: { name: "flagFileHistory", desc: "flagFileHistoryDesc" },
 };
 
 /** Validation-error i18n key per engine rule, for the pre-write self-check. */

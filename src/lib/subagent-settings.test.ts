@@ -455,11 +455,11 @@ describe("validateSubagentPool", () => {
 });
 
 // ---------------------------------------------------------------------------
-// [experimental] — flag registry (kimi-code 0.40.1) + write semantics
+// [experimental] — flag registry (kimi-code 0.41.0) + write semantics
 // ---------------------------------------------------------------------------
 
 describe("experimental flag registry", () => {
-  it("mirrors the 0.40.1 v2 registry (10 flags incl. file_history)", () => {
+  it("mirrors the 0.41.0 v2 registry (9 flags, file_history removed)", () => {
     expect(EXPERIMENTAL_FLAGS.map((f) => f.id)).toEqual([
       "secondary-model",
       "tool-select",
@@ -470,11 +470,10 @@ describe("experimental flag registry", () => {
       "auto_session_title",
       "remote-control",
       "search_worker",
-      "file_history",
     ]);
-    const fh = EXPERIMENTAL_FLAGS.find((f) => f.id === "file_history");
-    expect(fh?.envVar).toBe("KIMI_CODE_EXPERIMENTAL_FILE_HISTORY");
-    expect(fh?.defaultEnabled).toBeUndefined();
+    // Upstream removed the flag in 0.41.0 (turn-level file history is
+    // always on), so the adapter must not mirror it either.
+    expect(EXPERIMENTAL_FLAGS.some((f) => f.id === "file_history")).toBe(false);
   });
 
   it("secondary-model is on by default since 0.40.1", () => {

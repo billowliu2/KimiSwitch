@@ -690,8 +690,8 @@ pub async fn query_provider_usage(
 
     let base_url = resolve_base_url(provider);
 
-    // NewAPI template: query the gateway's own /api/user/self with the
-    // web-console access token, bypassing usage_kinds entirely.
+    // NewAPI template: query the gateway's own usage endpoints with its
+    // dedicated credentials, bypassing usage_kinds entirely.
     if let Some(cfg) = &provider.usage_config {
         if cfg.template_type == UsageConfig::TEMPLATE_NEWAPI {
             // Err = transient (network) → propagate for retry, same semantics
@@ -1355,7 +1355,7 @@ pub async fn kimi_oauth_poll(
 /// the raw values are returned and the truthy check happens on the frontend.
 #[tauri::command]
 pub fn get_experimental_env_status() -> HashMap<String, String> {
-    const VARS: [(&str, &str); 12] = [
+    const VARS: [(&str, &str); 11] = [
         ("secondary-model", "KIMI_CODE_EXPERIMENTAL_SECONDARY_MODEL"),
         ("tool-select", "KIMI_CODE_EXPERIMENTAL_TOOL_SELECT"),
         (
@@ -1368,7 +1368,6 @@ pub fn get_experimental_env_status() -> HashMap<String, String> {
         ("auto_session_title", "KIMI_CODE_EXPERIMENTAL_AUTO_SESSION_TITLE"),
         ("remote-control", "KIMI_CODE_EXPERIMENTAL_REMOTE_CONTROL"),
         ("search_worker", "KIMI_CODE_EXPERIMENTAL_SEARCH_WORKER"),
-        ("file_history", "KIMI_CODE_EXPERIMENTAL_FILE_HISTORY"),
         // Non-flag probes consumed by the frontend:
         ("master", "KIMI_CODE_EXPERIMENTAL_FLAG"),
         ("legacy", "KIMI_CODE_LEGACY_FLAG"),

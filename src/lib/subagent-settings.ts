@@ -37,8 +37,9 @@ export interface ExperimentalFlagDef {
  * (the per-feature flag.ts files under packages/agent-core-v2/src:
  * secondary-model, tool-select, persistence_minidb_readmodel, tower,
  * subagent_fork, wait_for, auto_session_title, remote-control,
- * search_worker, file_history). `acp-v2` was removed upstream and is
- * dropped here. Keep the env-var list in sync with
+ * search_worker). `acp-v2` was removed upstream and is dropped here;
+ * `file_history` was removed in kimi-code 0.41.0 (turn-level file
+ * history is always on, no flag). Keep the env-var list in sync with
  * `get_experimental_env_status` in src-tauri/src/commands.rs. */
 export const EXPERIMENTAL_FLAGS: ExperimentalFlagDef[] = [
   {
@@ -69,7 +70,6 @@ export const EXPERIMENTAL_FLAGS: ExperimentalFlagDef[] = [
     envVar: "KIMI_CODE_EXPERIMENTAL_SEARCH_WORKER",
     defaultEnabled: true,
   },
-  { id: "file_history", envVar: "KIMI_CODE_EXPERIMENTAL_FILE_HISTORY" },
 ];
 
 export const EXPERIMENTAL_MASTER_ENV = "KIMI_CODE_EXPERIMENTAL_FLAG";

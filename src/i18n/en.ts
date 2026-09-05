@@ -153,7 +153,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   permissionAsk: "Ask",
   permissionDangerousGuard: "Dangerous Command Guard",
   permissionDangerousGuardDesc:
-    "When on (default): Auto mode refuses dangerous commands (rm -rf, shutdown, dd of=, ...) and other modes always prompt; turning it off restores the previous behavior. Env KIMI_CODE_DANGEROUS_COMMAND_GUARD overrides this config",
+    "When on (default): Manual/YOLO modes force a prompt for dangerous commands (rm -rf, shutdown, dd of=, ...) and commands that cannot be statically analyzed; Auto (never-ask) mode no longer intercepts them since kimi-code 0.41.0. Turning it off restores the previous behavior. Env KIMI_CODE_DANGEROUS_COMMAND_GUARD overrides this config",
   addRule: "+ Add rule",
   addCommonRules: "Add common rules",
   hooks: "Lifecycle Hooks",
@@ -482,9 +482,6 @@ export const enTranslations: Record<TranslationKey, string> = {
   flagRemoteControlDesc: "Enable the experimental remote control feature",
   flagSearchWorker: "Search Worker",
   flagSearchWorkerDesc: "Run the kap-server global search backend in a background worker host",
-  flagFileHistory: "File History",
-  flagFileHistoryDesc:
-    "Snapshot edited files before/after each turn (last 5 turns across 30 sessions, stored in the session data dir) for real whole-file diffs",
   flagDefaultOn: "On by default",
   lockedByEnv: "Locked by env var",
   masterEnvOnHint:

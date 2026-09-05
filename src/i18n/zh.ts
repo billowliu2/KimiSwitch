@@ -151,7 +151,7 @@ export const zhTranslations = {
   permissionAsk: "询问",
   permissionDangerousGuard: "危险命令防护",
   permissionDangerousGuardDesc:
-    "开启（默认）时：Auto 模式直接拒绝危险命令（rm -rf、shutdown、dd of= 等），其它模式强制询问；关闭后回归旧行为。环境变量 KIMI_CODE_DANGEROUS_COMMAND_GUARD 会覆盖本配置",
+    "开启（默认）时：Manual/YOLO 模式下，危险命令（rm -rf、shutdown、dd of= 等）和无法静态分析的命令会强制询问；自动（永不询问）模式自 kimi-code 0.41.0 起不再拦截。关闭后回归旧行为。环境变量 KIMI_CODE_DANGEROUS_COMMAND_GUARD 会覆盖本配置",
   addRule: "+ 添加规则",
   addCommonRules: "添加常用规则",
   hooks: "生命周期钩子",
@@ -477,9 +477,6 @@ export const zhTranslations = {
   flagRemoteControlDesc: "启用实验性远程控制功能",
   flagSearchWorker: "搜索 Worker",
   flagSearchWorkerDesc: "kap-server 全局搜索的后台 worker 宿主服务",
-  flagFileHistory: "文件历史",
-  flagFileHistoryDesc:
-    "记录每轮编辑文件的前后快照（最近 30 个会话×最近 5 轮，存于会话数据目录），用于真实的整文件 diff",
   flagDefaultOn: "默认开启",
   lockedByEnv: "被环境变量锁定",
   masterEnvOnHint:

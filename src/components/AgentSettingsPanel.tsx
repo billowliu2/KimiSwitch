@@ -157,10 +157,13 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
       </Card>
 
       <Card title={t("permissionRules")}>
-        {/* kimi-code 0.40.1 `[permission] dangerous_command_guard`. The env
+        {/* kimi-code `[permission] dangerous_command_guard`. The env
             var KIMI_CODE_DANGEROUS_COMMAND_GUARD (literal "true"/"false")
             outranks this config at runtime; no env-lock UI here (deliberate
-            minimal scope). Absent key = upstream default on. */}
+            minimal scope). Absent key = upstream default on. Since
+            kimi-code 0.41.0 the guard only gates Manual/YOLO modes —
+            Auto (never-ask) mode no longer intercepts dangerous
+            commands. */}
         <Checkbox
           label={t("permissionDangerousGuard")}
           checked={settings.permission?.dangerous_command_guard ?? true}
