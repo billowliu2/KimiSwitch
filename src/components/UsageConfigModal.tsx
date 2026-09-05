@@ -4,7 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { ArrowLeft, Eye, EyeOff, Loader2, Play } from "lucide-react";
 import { useTranslation } from "../i18n";
 import type { TranslationKey } from "../i18n/zh";
-import { localizeUsageError, planLabel } from "../lib/usage-display";
+import { formatAmount, localizeUsageError, planLabel } from "../lib/usage-display";
 import type { Agent, Provider, UsageConfig } from "../types";
 
 interface UsageResult {
@@ -134,7 +134,7 @@ export function UsageConfigModal({ open, agent, provider, onClose, onSave }: Usa
           .map((d) => {
             const parts: string[] = [];
             if (d.planName) parts.push(planLabel(d.planName, t));
-            if (d.remaining != null) parts.push(`${t("usageRemaining")} ${d.remaining}${d.unit ?? ""}`);
+            if (d.remaining != null) parts.push(`${t("usageRemaining")} ${formatAmount(d.remaining, d.unit)}`);
             if (d.used != null && d.total != null && d.total > 0)
               parts.push(`${Math.round((d.used / d.total) * 100)}%`);
             return parts.join(" ");

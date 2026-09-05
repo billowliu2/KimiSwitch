@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { useTranslation } from "../i18n";
-import { localizeUsageError, planLabel } from "../lib/usage-display";
+import { formatAmount, localizeUsageError, planLabel } from "../lib/usage-display";
 import type { UsageData, UsageQueryState } from "../hooks/useUsageQuery";
 
 interface UsageFooterProps {
@@ -34,17 +34,6 @@ export function UsageFooter({ usage, variant = "detail" }: UsageFooterProps) {
     if (d.remaining != null && d.total != null && d.total > 0)
       return (1 - d.remaining / d.total) * 100;
     return null;
-  };
-
-  const formatAmount = (
-    value: number | null | undefined,
-    unit?: string | null
-  ): string => {
-    if (value == null) return "—";
-    const symbol =
-      unit === "CNY" ? "¥" : unit === "USD" ? "$" : unit ? `${unit} ` : "";
-    const num = Number.isInteger(value) ? String(value) : value.toFixed(2);
-    return `${symbol}${num}`;
   };
 
   const formatReset = (resetsAt?: string | null): string | null => {

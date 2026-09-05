@@ -97,6 +97,11 @@ pub fn detect_provider(base_url: &str) -> Vec<UsageKind> {
     if url.contains("openrouter.ai") {
         kinds.push(UsageKind::BalanceOpenrouter);
     }
+    // codingplan.site 检测为 NewAPI 实例（本工具仅支持 NewAPI 查询）；
+    // 家族匹配意味着 ai. 子域也自然命中该规则。
+    if url.contains("codingplan.site") {
+        kinds.push(UsageKind::BalanceNewapi);
+    }
     if url.contains("api.stepfun.com") {
         kinds.push(UsageKind::BalanceStepfun);
     }
@@ -124,6 +129,19 @@ pub fn detect_provider(base_url: &str) -> Vec<UsageKind> {
         kinds.push(UsageKind::PlanOpencodeGo);
     }
     kinds
+}
+
+/// BalanceNewapi 模板所需凭据（web 控制台 access token + user id）。
+/// 两者都必须存在且非空；返回 None 表示缺少凭据（确定性配置错误）。
+fn newapi_creds(
+    usage_config: Option<&crate::models::UsageConfig>,
+) -> Option<(&str, &str)> {
+    usage_config.and_then(|c| {
+        c.access_token
+            .as_deref()
+            .zip(c.user_id.as_deref())
+            .filter(|(t, u)| !t.is_empty() && !u.is_empty())
+    })
 }
 
 /// 按 kind 路由到对应查询实现。`base_url` 用于消歧同一家供应商的
@@ -155,16 +173,13 @@ pub async fn query_kind(
             balance::query_kimi(api_key, !lower.contains("moonshot.ai"), timeout).await
         }
         UsageKind::BalanceNewapi => {
-            let (token, uid) = usage_config
-                .and_then(|c| {
-                    c.access_token
-                        .as_deref()
-                        .zip(c.user_id.as_deref())
-                        .filter(|(t, u)| !t.is_empty() && !u.is_empty())
-                })
-                .ok_or_else(|| {
-                    "newapi template requires accessToken and userId".to_string()
-                })?;
+            // 缺凭据是确定性配置错误 → Ok(failure)（前端按前缀本地化提示），
+            // 而非 Err（Err 语义 = 瞬时网络错误，见 commands.rs newapi 分支）。
+            let Some((token, uid)) = newapi_creds(usage_config) else {
+                return Ok(UsageResult::failure(
+                    "newapi template requires accessToken and userId".to_string(),
+                ));
+            };
             let url = usage_config
                 .and_then(|c| c.base_url.as_deref())
                 .filter(|s| !s.is_empty())
@@ -263,6 +278,28 @@ mod tests {
     }
 
     #[test]
+    fn detect_provider_codingplan_site_family() {
+        // codingplan.site 是 NewAPI 实例（本工具仅支持 NewAPI 查询）：
+        // 主域与 ai. 子域都命中家族规则，且只映射到 BalanceNewapi。
+        assert_eq!(
+            detect_provider("https://codingplan.site"),
+            vec![UsageKind::BalanceNewapi]
+        );
+        assert_eq!(
+            detect_provider("https://codingplan.site/v1"),
+            vec![UsageKind::BalanceNewapi]
+        );
+        assert_eq!(
+            detect_provider("https://ai.codingplan.site"),
+            vec![UsageKind::BalanceNewapi]
+        );
+        assert_eq!(
+            detect_provider("https://ai.codingplan.site/v1"),
+            vec![UsageKind::BalanceNewapi]
+        );
+    }
+
+    #[test]
     fn usage_kind_string_roundtrip() {
         use std::str::FromStr;
         for kind in UsageKind::ALL {
@@ -271,5 +308,31 @@ mod tests {
         }
         assert!(UsageKind::from_str("balance:unknown").is_err());
         assert!(UsageKind::from_str("").is_err());
+    }
+
+    #[test]
+    fn newapi_creds_requires_both_and_nonempty() {
+        use crate::models::UsageConfig;
+        let cfg = |token: Option<&str>, uid: Option<&str>| UsageConfig {
+            enabled: true,
+            template_type: "newapi".to_string(),
+            base_url: None,
+            access_token: token.map(str::to_string),
+            user_id: uid.map(str::to_string),
+            auto_query_interval_minutes: None,
+            timeout_seconds: None,
+        };
+        // 缺 config / 缺任一项 / 空字符串 → None（确定性配置错误）
+        assert_eq!(newapi_creds(None), None);
+        assert_eq!(newapi_creds(Some(&cfg(None, None))), None);
+        assert_eq!(newapi_creds(Some(&cfg(Some("tok"), None))), None);
+        assert_eq!(newapi_creds(Some(&cfg(None, Some("uid")))), None);
+        assert_eq!(newapi_creds(Some(&cfg(Some(""), Some("uid")))), None);
+        assert_eq!(newapi_creds(Some(&cfg(Some("tok"), Some("")))), None);
+        // 两项齐全 → Some
+        assert_eq!(
+            newapi_creds(Some(&cfg(Some("tok"), Some("uid")))),
+            Some(("tok", "uid"))
+        );
     }
 }

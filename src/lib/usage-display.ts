@@ -35,12 +35,32 @@ export function planLabel(name: string, t: TranslateFn): string {
  * src-tauri/src/commands.rs and src-tauri/src/services/*.
  */
 export function localizeUsageError(error: string, t: TranslateFn): string {
-  if (error.startsWith("unsupported provider")) return t("usageUnsupportedProvider");
-  if (error.startsWith("no API key configured")) return t("usageErrNoKey");
-  if (error.startsWith("usage query disabled")) return t("usageErrDisabled");
-  if (/login expired|refresh failed/i.test(error)) return t("usageErrLoginExpired");
-  if (error.startsWith("no Kimi Code OAuth credentials")) return t("usageErrNoOauth");
-  if (error.startsWith("newapi template requires")) return t("usageErrNewapiCreds");
-  if (error.startsWith("Authentication failed")) return t("usageInvalidKey");
+  // commands.rs 的 kinds 循环把单条错误包成 `{kind}: {msg}`（kind 含数字，
+  // 如 plan:zhipu），先剥离再按前缀匹配；未知错误仍回退按原文展示（保留 kind
+  // 前缀，属诊断细节）。
+  const stripped = error.replace(/^(balance|plan):[a-z0-9_]+:\s*/, "");
+  if (stripped.startsWith("unsupported provider")) return t("usageUnsupportedProvider");
+  if (stripped.startsWith("no API key configured")) return t("usageErrNoKey");
+  if (stripped.startsWith("usage query disabled")) return t("usageErrDisabled");
+  if (/login expired|refresh failed/i.test(stripped)) return t("usageErrLoginExpired");
+  if (stripped.startsWith("no Kimi Code OAuth credentials")) return t("usageErrNoOauth");
+  if (stripped.startsWith("newapi template requires")) return t("usageErrNewapiCreds");
+  if (stripped.startsWith("Authentication failed")) return t("usageInvalidKey");
   return error;
+}
+
+/**
+ * Format a usage amount with its unit. `¤` (U+00A4) is NewAPI's placeholder
+ * when the site has no custom currency symbol configured — treat it as "no
+ * symbol" and render only the number.
+ */
+export function formatAmount(
+  value: number | null | undefined,
+  unit?: string | null
+): string {
+  if (value == null) return "—";
+  const symbol =
+    unit === "CNY" ? "¥" : unit === "USD" ? "$" : unit && unit.trim() !== "¤" ? `${unit} ` : "";
+  const num = Number.isInteger(value) ? String(value) : value.toFixed(2);
+  return `${symbol}${num}`;
 }
