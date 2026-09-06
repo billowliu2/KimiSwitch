@@ -62,7 +62,8 @@ export function useUsageQuery(
   agent: Agent,
   providerName: string,
   usageKinds?: string[],
-  autoIntervalMinutes?: number
+  autoIntervalMinutes?: number,
+  disabled?: boolean
 ): UsageQueryState {
   const supported = (usageKinds?.length ?? 0) > 0;
   // Cache key includes the agent so a Kimi Code provider and a Pi provider
@@ -79,12 +80,13 @@ export function useUsageQuery(
 
   const runQuery = useCallback(
     async (forceRefresh: boolean) => {
+      if (disabled) return;
       const gen = ++genRef.current;
       setStatus("loading");
       setError(undefined);
       const finish = (entry: CacheEntry) => {
-        cache.set(cacheKey, entry);
         if (genRef.current !== gen) return;
+        cache.set(cacheKey, entry);
         setStatus(entry.status);
         setData(entry.data);
         setError(entry.error);
@@ -129,11 +131,21 @@ export function useUsageQuery(
         });
       }
     },
-    [agent, providerName, cacheKey]
+    [agent, providerName, cacheKey, disabled]
   );
 
   // On mount / provider change: serve fresh cache, otherwise query once.
   useEffect(() => {
+    if (disabled) {
+      // Toggle back off: stop immediately and return to idle so the footer
+      // hides; bump gen so an in-flight response is dropped (no stale write).
+      genRef.current += 1;
+      setStatus("idle");
+      setData([]);
+      setError(undefined);
+      setUpdatedAt(null);
+      return;
+    }
     if (!supported) return;
     const cached = cache.get(cacheKey);
     if (cached) {
@@ -144,7 +156,7 @@ export function useUsageQuery(
       if (Date.now() - cached.updatedAt < STALE_TTL_MS) return;
     }
     void runQuery(false);
-  }, [supported, cacheKey, runQuery]);
+  }, [supported, cacheKey, runQuery, disabled]);
 
   // Ignore late responses after unmount.
   useEffect(() => {
@@ -156,12 +168,12 @@ export function useUsageQuery(
   // Auto query interval — the hook is called once per provider card and both
   // variants read the same state, so there is no second mount to double-fire.
   useEffect(() => {
-    if (!supported) return;
+    if (!supported || disabled) return;
     const mins = autoIntervalMinutes ?? 0;
     if (mins <= 0) return;
     const id = setInterval(() => void runQuery(false), mins * 60_000);
     return () => clearInterval(id);
-  }, [supported, autoIntervalMinutes, runQuery]);
+  }, [supported, autoIntervalMinutes, runQuery, disabled]);
 
   return {
     status,

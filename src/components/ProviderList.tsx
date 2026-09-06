@@ -69,7 +69,8 @@ function ProviderCard({
     agent,
     provider.name,
     provider.usageKinds,
-    provider.usageConfig?.autoQueryIntervalMinutes
+    provider.usageConfig?.autoQueryIntervalMinutes,
+    provider.usageConfig?.enabled === false
   );
   const providerModels = Object.values(models).filter(
     (m) => m.provider === provider.name
