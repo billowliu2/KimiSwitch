@@ -51,10 +51,13 @@ fi
 
 for ASSET in "$@"; do
   [[ -f "$ASSET" ]] || { echo "skip missing asset: $ASSET" >&2; continue; }
-  NAME=$(basename "$ASSET")
+  NAME=$(basename "$ASSET" | tr ' ' '.')
+  STAGED=$(mktemp "${TMPDIR:-/tmp}/upload.XXXXXX.${NAME##*.}")
+  cp "$ASSET" "$STAGED"
   CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 600 "${AUTH[@]}" \
-    -F "attachment=@$ASSET" \
+    -F "attachment=@$STAGED" \
     "$GITEA/repos/$REPO/releases/$RELEASE_ID/assets?name=$NAME")
+  rm -f "$STAGED"
   echo "upload $NAME -> HTTP $CODE"
   [[ "$CODE" == 2* ]] || { echo "upload failed: $NAME" >&2; exit 1; }
 done
