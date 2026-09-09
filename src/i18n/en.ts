@@ -288,6 +288,7 @@ export const enTranslations: Record<TranslationKey, string> = {
 
   // Dashboard — ranges / status
   rangeToday: "Today",
+  rangeYesterday: "Yesterday",
   range7d: "7d",
   range30d: "30d",
   rangeAll: "All",
@@ -309,6 +310,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   cardDailyTrendSubCapped: "Last 30 days · {n} days total",
   tabModelTrend: "Model usage trend",
   tabProviderTrend: "Provider–model usage trend",
+  tabModelTotals: "Model usage totals",
   tabDailyTrend: "Daily usage trend",
   providerUnknown: "Unknown provider",
   cardDailyTrendSub: "{n} days",

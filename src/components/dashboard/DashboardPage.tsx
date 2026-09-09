@@ -8,10 +8,11 @@ import { fmtInt, fmtPct, fmtTime, fmtTokens } from "../../lib/dashboard-format";
 import { DailyBars } from "./DailyBars";
 import { DailyDetailModal } from "./DailyDetailModal";
 import { Heatmap } from "./Heatmap";
+import { ModelTotalsChart } from "./ModelTotalsChart";
 import { TrendLineChart } from "./TrendLineChart";
 import type { DailyRow, HeatmapCell } from "../../types/dashboard";
 
-const RANGES: DashboardRange[] = ["today", "7d", "30d", "all"];
+const RANGES: DashboardRange[] = ["today", "yesterday", "7d", "30d", "all"];
 
 /** Per-request cache hit rate: cached tokens / total input tokens. */
 function cacheHitOf(r: { inputOther: number; inputCacheRead: number }): number {
@@ -59,13 +60,14 @@ export function DashboardPage() {
   const { range, changeRange, data, loading, error, refresh, loadStats } = useDashboard();
   const [showAllModels, setShowAllModels] = useState(false);
   const [recentPage, setRecentPage] = useState(1);
-  const [trendTab, setTrendTab] = useState<"daily" | "model" | "provider">("daily");
+  const [trendTab, setTrendTab] = useState<"daily" | "model" | "provider" | "totals">("daily");
   const [heatmapSelected, setHeatmapSelected] = useState<DailyRow | null>(null);
 
   const daily = data?.stats.daily ?? [];
 
   const RANGE_LABELS: Record<DashboardRange, string> = {
     today: t("rangeToday"),
+    yesterday: t("rangeYesterday"),
     "7d": t("range7d"),
     "30d": t("range30d"),
     all: t("rangeAll"),
@@ -192,7 +194,7 @@ export function DashboardPage() {
       </div>
 
       {/* Range overview cards */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {RANGES.map((r) => {
           const tot = rangeTotals[r];
           if (!tot) return null;
@@ -272,13 +274,26 @@ export function DashboardPage() {
               >
                 {t("tabProviderTrend")}
               </button>
+              <button
+                type="button"
+                onClick={() => setTrendTab("totals")}
+                className={`px-3 py-2 -mb-px border-b-2 text-sm font-medium transition-colors ${
+                  trendTab === "totals"
+                    ? "border-blue-500 text-content-primary"
+                    : "border-transparent text-content-muted hover:text-content-primary"
+                }`}
+              >
+                {t("tabModelTotals")}
+              </button>
             </div>
             <span className="pb-2 text-xs text-content-muted">
               {trendTab === "daily"
                 ? t("trendLineSub", { n: trendDaily.length })
-                : daily.length > 30
-                  ? t("cardDailyTrendSubCapped", { n: daily.length })
-                  : t("cardDailyTrendSub", { n: daily.length })}
+                : trendTab === "totals"
+                  ? t("cardModelUsageSub", { n: data.stats.modelsByName.length })
+                  : daily.length > 30
+                    ? t("cardDailyTrendSubCapped", { n: daily.length })
+                    : t("cardDailyTrendSub", { n: daily.length })}
             </span>
           </div>
           {/* Active tab content */}
@@ -286,6 +301,10 @@ export function DashboardPage() {
             {trendTab === "daily" ? (
               <div className="flex-1 min-h-[240px]">
                 <TrendLineChart daily={trendDaily} />
+              </div>
+            ) : trendTab === "totals" ? (
+              <div className="flex-1 min-h-[240px]">
+                <ModelTotalsChart rows={data.stats.modelsByName} />
               </div>
             ) : (
               <div className="flex-1 min-h-[240px]">

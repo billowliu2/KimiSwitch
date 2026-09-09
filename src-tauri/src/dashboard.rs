@@ -102,6 +102,9 @@ pub struct RangeStats {
     pub totals: TotalsRow,
     pub daily: Vec<DailyRow>,
     pub models: Vec<ModelRow>,
+    /// Model totals keyed by bare model name (provider prefix stripped), so the
+    /// same model served by multiple providers merges into one row.
+    pub models_by_name: Vec<ModelRow>,
     pub recent: Vec<RecentRow>,
     pub recent_total: usize,
     pub recent_limit: usize,
@@ -976,6 +979,7 @@ fn aggregate(records: &[UsageRecord], range: &str, now_ms: u64) -> RangeStats {
             totals: TotalsRow::default(),
             daily: vec![],
             models: vec![],
+            models_by_name: vec![],
             recent: vec![],
             recent_total: 0,
             recent_limit: 500,
@@ -985,6 +989,7 @@ fn aggregate(records: &[UsageRecord], range: &str, now_ms: u64) -> RangeStats {
     let mut totals = TotalsRow::default();
     let mut by_day: HashMap<String, (TotalsRow, HashMap<String, TotalsRow>, HashMap<String, HashMap<String, u64>>)> = HashMap::new();
     let mut by_model: HashMap<String, (ModelRow, TotalsRow)> = HashMap::new();
+    let mut by_name: HashMap<String, (ModelRow, TotalsRow)> = HashMap::new();
 
     for r in &filtered {
         totals.add(r);
@@ -1017,6 +1022,28 @@ fn aggregate(records: &[UsageRecord], range: &str, now_ms: u64) -> RangeStats {
         entry.1.add(r);
         entry.0.cost_estimated = entry.0.cost_estimated || r.cost_estimated;
         entry.0.is_secondary = entry.0.is_secondary || r.is_secondary;
+
+        // Provider-agnostic bucket: secondary (subagent) records keep the
+        // stable "__secondary__" marker; everything else keys on the bare
+        // model name so the same model across providers merges into one row.
+        let nk = if r.is_secondary { "__secondary__".to_string() } else { r.model_resolved.clone() };
+        let name_entry = by_name.entry(nk.clone()).or_insert_with(|| {
+            let m = ModelRow {
+                model: nk.clone(),
+                model_display: nk.clone(),
+                model_resolved: nk.clone(),
+                price_id: r.price_id.clone(),
+                cost_estimated: r.cost_estimated,
+                is_secondary: r.is_secondary,
+                requests: 0, input_other: 0, output: 0,
+                input_cache_read: 0, input_cache_creation: 0,
+                cost_usd: 0.0, total_tokens: 0, cache_hit_rate: 0.0,
+            };
+            (m, TotalsRow::default())
+        });
+        name_entry.1.add(r);
+        name_entry.0.cost_estimated = name_entry.0.cost_estimated || r.cost_estimated;
+        name_entry.0.is_secondary = name_entry.0.is_secondary || r.is_secondary;
     }
 
     let total_input = totals.input_other + totals.input_cache_read + totals.input_cache_creation;
@@ -1063,6 +1090,17 @@ fn aggregate(records: &[UsageRecord], range: &str, now_ms: u64) -> RangeStats {
     }).collect();
     models.sort_by(|a, b| b.total_tokens.cmp(&a.total_tokens));
 
+    let mut models_by_name: Vec<ModelRow> = by_name.into_iter().map(|(_, (mut m, t))| {
+        let ti = t.input_other + t.input_cache_read + t.input_cache_creation;
+        m.cache_hit_rate = if ti > 0 { t.input_cache_read as f64 / ti as f64 } else { 0.0 };
+        m.requests = t.requests;
+        m.input_other = t.input_other; m.output = t.output;
+        m.input_cache_read = t.input_cache_read; m.input_cache_creation = t.input_cache_creation;
+        m.cost_usd = t.cost_usd; m.total_tokens = t.total_tokens;
+        m
+    }).collect();
+    models_by_name.sort_by(|a, b| b.total_tokens.cmp(&a.total_tokens));
+
     let recent_total = filtered.len();
     let recent_limit = 500;
     let recent: Vec<RecentRow> = filtered.iter().take(recent_limit).map(|r| RecentRow {
@@ -1081,6 +1119,7 @@ fn aggregate(records: &[UsageRecord], range: &str, now_ms: u64) -> RangeStats {
         totals,
         daily,
         models,
+        models_by_name,
         recent,
         recent_total,
         recent_limit,
@@ -1109,24 +1148,40 @@ impl TotalsRow {
 fn filter_by_range<'a>(records: &'a [UsageRecord], range: &str, now_ms: u64) -> Vec<&'a UsageRecord> {
     if range == "all" { return records.iter().collect(); }
     let start = range_start(range, now_ms);
-    records.iter().filter(|r| r.time >= start).collect()
+    match range_end(range, now_ms) {
+        Some(end) => records.iter().filter(|r| r.time >= start && r.time < end).collect(),
+        None => records.iter().filter(|r| r.time >= start).collect(),
+    }
+}
+
+/// Upper bound (exclusive) for bounded ranges. Only "yesterday" has one —
+/// it must not bleed into today.
+fn range_end(range: &str, now_ms: u64) -> Option<u64> {
+    match range {
+        "yesterday" => Some(local_midnight_ms(now_ms, 0)),
+        _ => None,
+    }
+}
+
+/// LOCAL midnight `days_ago` days before today, in epoch ms. Not UTC midnight:
+/// without local-midnight anchoring, users east of UTC see day boundaries at
+/// the wrong hour (e.g. UTC+8 users get cutoff at local 08:00).
+fn local_midnight_ms(now_ms: u64, days_ago: i64) -> u64 {
+    let now_utc = DateTime::from_timestamp((now_ms / 1000) as i64, 0).unwrap_or_default();
+    let now_local = now_utc.with_timezone(&Local);
+    let date = now_local.date_naive() - chrono::Duration::days(days_ago);
+    let day_start = date.and_hms_opt(0, 0, 0).unwrap_or_default();
+    Local
+        .from_local_datetime(&day_start)
+        .single()
+        .map(|dt| dt.timestamp() as u64 * 1000)
+        .unwrap_or_else(|| day_start.and_utc().timestamp() as u64 * 1000)
 }
 
 fn range_start(range: &str, now_ms: u64) -> u64 {
     match range {
-        "today" => {
-            // LOCAL midnight today — not UTC midnight. Without this, users east of UTC see
-            // "today" begin at the wrong hour (e.g. UTC+8 users get cutoff at local 08:00).
-            let now_utc = DateTime::from_timestamp((now_ms / 1000) as i64, 0).unwrap_or_default();
-            let now_local = now_utc.with_timezone(&Local);
-            let today_date = now_local.date_naive();
-            let today_start = today_date.and_hms_opt(0, 0, 0).unwrap_or_default();
-            Local
-                .from_local_datetime(&today_start)
-                .single()
-                .map(|dt| dt.timestamp() as u64 * 1000)
-                .unwrap_or_else(|| today_start.and_utc().timestamp() as u64 * 1000)
-        }
+        "today" => local_midnight_ms(now_ms, 0),
+        "yesterday" => local_midnight_ms(now_ms, 1),
         "7d" => now_ms - 7 * 24 * 3600 * 1000,
         "30d" => now_ms - 30 * 24 * 3600 * 1000,
         _ => now_ms - 30 * 24 * 3600 * 1000,
@@ -1836,7 +1891,7 @@ pub fn get_summary(home_override: Option<String>, range: Option<String>, refresh
 
     let all_model_count = all_models.len();
     let mut range_totals = HashMap::new();
-    for r_k in ["today", "7d", "30d", "all"] {
+    for r_k in ["today", "yesterday", "7d", "30d", "all"] {
         let s = aggregate(&records, r_k, now_ms);
         range_totals.insert(r_k.to_string(), s.totals);
     }
@@ -1977,10 +2032,10 @@ mod pricing_tests {
         let idx = models_dev_cost_index();
         // The compiled-in snapshot must carry real models.dev prices.
         assert!(idx.len() > 1000, "expected >1000 priced models, got {}", idx.len());
-        let kimi = idx.get("moonshotai/kimi-k2.5").copied().expect("kimi-k2.5 present");
-        assert_eq!(kimi.input, 0.6);
-        assert_eq!(kimi.output, 3.0);
-        assert_eq!(kimi.cache_read, 0.1);
+        let kimi = idx.get("moonshotai/kimi-k3").copied().expect("kimi-k3 present");
+        assert_eq!(kimi.input, 3.0);
+        assert_eq!(kimi.output, 15.0);
+        assert_eq!(kimi.cache_read, 0.3);
     }
 
     #[test]
@@ -1992,9 +2047,9 @@ mod pricing_tests {
         assert_eq!(input, 0.6);
         assert_eq!(output, 2.2);
 
-        let (id, _, _, _, est) = match_price("kimi/k2.5");
+        let (id, _, _, _, est) = match_price("kimi/k3");
         assert!(!est);
-        assert_eq!(id, "moonshotai/kimi-k2.5");
+        assert_eq!(id, "moonshotai/kimi-k3");
     }
 
     #[test]
@@ -2305,5 +2360,75 @@ mod session_tests {
         assert!(!dir.exists(), "metadata-archived session deleted in place");
         assert!(!legacy_arch_dir(&home).join(SID).exists());
         assert!(list_sessions_cmd(&home, "all", None).sessions.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod range_and_model_totals_tests {
+    use super::*;
+
+    fn rec(time: u64, model: &str, resolved: &str, secondary: bool) -> UsageRecord {
+        UsageRecord {
+            time,
+            model: model.to_string(),
+            input_other: 100,
+            output: 50,
+            input_cache_read: 50,
+            input_cache_creation: 0,
+            cost_usd: 0.01,
+            cost_estimated: false,
+            price_id: String::new(),
+            model_resolved: resolved.to_string(),
+            model_display: model.to_string(),
+            provider: None,
+            from_env: false,
+            is_secondary: secondary,
+        }
+    }
+
+    #[test]
+    fn yesterday_range_is_bounded_to_yesterday() {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
+        let today_start = local_midnight_ms(now, 0);
+        let yesterday_start = local_midnight_ms(now, 1);
+        assert!(yesterday_start < today_start, "yesterday midnight precedes today's");
+        assert_eq!(range_end("yesterday", now), Some(today_start));
+        assert_eq!(range_end("today", now), None);
+        assert_eq!(range_end("7d", now), None);
+
+        let records = vec![
+            rec(yesterday_start + 1, "a/m1", "m1", false),   // yesterday → in
+            rec(today_start + 1, "a/m1", "m1", false),       // today → out
+            rec(yesterday_start.saturating_sub(1), "a/m1", "m1", false), // before → out
+        ];
+        let stats = aggregate(&records, "yesterday", now);
+        assert_eq!(stats.totals.requests, 1, "only yesterday's record counts");
+    }
+
+    #[test]
+    fn models_by_name_merges_providers_and_keeps_secondary() {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
+        let records = vec![
+            rec(now, "openai/gpt-x", "gpt-x", false),
+            rec(now, "azure/gpt-x", "gpt-x", false),
+            rec(now, "__secondary__", "__secondary__", true),
+        ];
+        let stats = aggregate(&records, "all", now);
+
+        // by_model keeps provider-qualified rows separate
+        assert_eq!(stats.models.len(), 3);
+        // by_name merges the two gpt-x rows, subagent stays its own row
+        assert_eq!(stats.models_by_name.len(), 2);
+        let gptx = stats.models_by_name.iter().find(|m| m.model == "gpt-x").expect("merged gpt-x row");
+        assert_eq!(gptx.requests, 2);
+        assert_eq!(gptx.total_tokens, 2 * 200);
+        let sub = stats.models_by_name.iter().find(|m| m.model == "__secondary__").expect("secondary row");
+        assert!(sub.is_secondary);
+        // sorted by total_tokens desc — every record has equal tokens here, so
+        // just assert the set is complete and totals add up.
+        let total: u64 = stats.models_by_name.iter().map(|m| m.total_tokens).sum();
+        assert_eq!(total, 3 * 200);
     }
 }

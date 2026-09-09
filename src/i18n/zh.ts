@@ -283,6 +283,7 @@ export const zhTranslations = {
 
   // Dashboard — ranges / status
   rangeToday: "今天",
+  rangeYesterday: "昨天",
   range7d: "7 天",
   range30d: "30 天",
   rangeAll: "全部",
@@ -304,6 +305,7 @@ export const zhTranslations = {
   cardDailyTrendSubCapped: "近 30 天 · 共 {n} 天",
   tabModelTrend: "模型用量趋势",
   tabProviderTrend: "供应商模型用量趋势",
+  tabModelTotals: "模型用量统计",
   tabDailyTrend: "每日用量趋势",
   providerUnknown: "未知供应商",
   cardDailyTrendSub: "共 {n} 天",

@@ -52,6 +52,8 @@ export interface RangeStats {
   totals: TotalsRow;
   daily: DailyRow[];
   models: ModelRow[];
+  /** Model totals keyed by bare model name — the same model across providers merges into one row. */
+  modelsByName: ModelRow[];
   recent: RecentRow[];
   recentTotal: number;
   recentLimit: number;

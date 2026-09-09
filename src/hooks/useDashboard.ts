@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { SummaryResult } from "../types/dashboard";
 
-export type DashboardRange = "today" | "7d" | "30d" | "all";
+export type DashboardRange = "today" | "yesterday" | "7d" | "30d" | "all";
 
 const RANGE_STORAGE_KEY = "kimi-switch-dashboard-range";
 
@@ -10,7 +10,7 @@ export function useDashboard() {
   const [range, setRange] = useState<DashboardRange>(() => {
     try {
       const stored = localStorage.getItem(RANGE_STORAGE_KEY) as DashboardRange | null;
-      if (stored === "today" || stored === "7d" || stored === "30d" || stored === "all") {
+      if (stored === "today" || stored === "yesterday" || stored === "7d" || stored === "30d" || stored === "all") {
         return stored;
       }
     } catch {
