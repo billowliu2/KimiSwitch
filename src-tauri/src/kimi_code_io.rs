@@ -236,6 +236,30 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
     }
 }
 
+/// opencode Console Go (the "Go 套餐" gateway) rejects requests that lack an
+/// `x-opencode-session` header (400: required for routing and prompt-cache
+/// affinity). When exporting a provider pointing at the Go endpoint, ensure
+/// the header exists; an existing user-set value is kept as-is.
+fn ensure_opencode_go_session_header(provider: &Provider, pt: &mut Table) {
+    let is_go = provider
+        .base_url
+        .as_deref()
+        .map(|u| u.trim_end_matches('/').starts_with("https://opencode.ai/zen/go"))
+        .unwrap_or(false);
+    if !is_go {
+        return;
+    }
+    let mut headers = pt
+        .get("custom_headers")
+        .and_then(|v| v.as_table())
+        .cloned()
+        .unwrap_or_default();
+    headers
+        .entry("x-opencode-session".to_string())
+        .or_insert_with(|| TomlValue::String("kimi-switch".to_string()));
+    pt.insert("custom_headers".to_string(), TomlValue::Table(headers));
+}
+
 /// Export Kimi Switch's internal `Config` to a Kimi Code TOML config value.
 ///
 /// If `existing` is provided, unknown top-level sections (e.g. `services`) are
@@ -316,6 +340,7 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
                 pt.insert(k, v);
             }
         }
+        ensure_opencode_go_session_header(provider, &mut pt);
         providers_table.insert(name.clone(), TomlValue::Table(pt));
     }
     root.insert("providers".to_string(), TomlValue::Table(providers_table));
@@ -589,6 +614,70 @@ api_key = ""
         assert_eq!(model.get("model").and_then(|v| v.as_str()), Some("glm-5.2"));
         let caps = model.get("capabilities").unwrap().as_array().unwrap();
         assert!(caps.iter().any(|v| v.as_str() == Some("thinking")));
+    }
+
+    #[test]
+    fn kimi_code_export_adds_opencode_go_session_header() {
+        let make_provider = |base_url: &str, raw_other: Value| Provider {
+            name: "p".to_string(),
+            provider_type: ProviderType::Openai,
+            base_url: Some(base_url.to_string()),
+            api_key: Some("sk-test".to_string()),
+            env: IndexMap::new(),
+            note: None,
+            official_url: None,
+            managed: false,
+            enabled: true,
+            active: false,
+            icon: None,
+            icon_color: None,
+            raw_other,
+            usage_kinds: None,
+            usage_config: None,
+        };
+        let export = |p: Provider| {
+            let mut providers = IndexMap::new();
+            providers.insert("p".to_string(), p);
+            let config = Config {
+                default_model: None,
+                providers,
+                models: IndexMap::new(),
+                raw_other: Value::Null,
+                imported_section_keys: Vec::new(),
+            };
+            let exported = config_to_kimi_code(&config, None);
+            let root = exported.as_table().unwrap().clone();
+            root.get("providers")
+                .and_then(|v| v.as_table())
+                .and_then(|t| t.get("p"))
+                .and_then(|v| v.as_table().cloned())
+                .unwrap()
+        };
+
+        // Go endpoint without headers → header injected.
+        let p = export(make_provider("https://opencode.ai/zen/go/v1", Value::Null));
+        let headers = p.get("custom_headers").unwrap().as_table().unwrap();
+        assert_eq!(
+            headers.get("x-opencode-session").and_then(|v| v.as_str()),
+            Some("kimi-switch")
+        );
+
+        // Existing user-set value is preserved, not overwritten.
+        let raw = serde_json::json!({
+            "custom_headers": { "x-opencode-session": "my-session" }
+        });
+        let p = export(make_provider("https://opencode.ai/zen/go/v1", raw));
+        let headers = p.get("custom_headers").unwrap().as_table().unwrap();
+        assert_eq!(
+            headers.get("x-opencode-session").and_then(|v| v.as_str()),
+            Some("my-session")
+        );
+
+        // PAYG zen endpoint and unrelated providers are left alone.
+        let p = export(make_provider("https://opencode.ai/zen/v1", Value::Null));
+        assert!(p.get("custom_headers").is_none());
+        let p = export(make_provider("https://api.deepseek.com/v1", Value::Null));
+        assert!(p.get("custom_headers").is_none());
     }
 
     #[test]
