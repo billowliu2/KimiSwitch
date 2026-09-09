@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   EXPERIMENTAL_FLAGS,
+  forcedEnvValue,
   getExperimentalFlags,
   getSecondaryModel,
   getSubagentModelPool,
   isExperimentalFlagSet,
+  isFlagLockedByEnv,
   removeSubagentPoolEntry,
   setExperimentalFlag,
   setSecondaryModelOnly,
@@ -163,13 +165,13 @@ describe("setSecondaryModelOnly", () => {
 
   it("preserves other top-level raw_other sections", () => {
     const raw = {
-      experimental: { "secondary-model": true },
+      experimental: { wait_for: true },
       secondary_model: { model: "kimi-k1" },
     };
     const next = setSecondaryModelOnly(raw, "kimi-k2") as {
       experimental?: unknown;
     };
-    expect(next.experimental).toEqual({ "secondary-model": true });
+    expect(next.experimental).toEqual({ wait_for: true });
   });
 });
 
@@ -455,31 +457,49 @@ describe("validateSubagentPool", () => {
 });
 
 // ---------------------------------------------------------------------------
-// [experimental] — flag registry (kimi-code 0.41.0) + write semantics
+// [experimental] — flag registry (kimi-code 0.42.0) + write semantics
 // ---------------------------------------------------------------------------
 
 describe("experimental flag registry", () => {
-  it("mirrors the 0.41.0 v2 registry (9 flags, file_history removed)", () => {
+  it("mirrors the 0.42.0 v2 registry (6 flags)", () => {
     expect(EXPERIMENTAL_FLAGS.map((f) => f.id)).toEqual([
-      "secondary-model",
+      "wait_for",
       "tool-select",
-      "persistence_minidb_readmodel",
+      "notify_user",
       "tower",
       "subagent_fork",
-      "wait_for",
       "auto_session_title",
+    ]);
+    // Removed upstream: file_history (0.41.0, turn-level file history is
+    // always on) plus secondary-model / persistence_minidb_readmodel /
+    // remote-control / search_worker (0.42.0 — promoted or moved to
+    // dedicated config, the minidb read-model now lives under [database]),
+    // so the adapter must not mirror them either.
+    for (const id of [
+      "file_history",
+      "secondary-model",
+      "persistence_minidb_readmodel",
       "remote-control",
       "search_worker",
-    ]);
-    // Upstream removed the flag in 0.41.0 (turn-level file history is
-    // always on), so the adapter must not mirror it either.
-    expect(EXPERIMENTAL_FLAGS.some((f) => f.id === "file_history")).toBe(false);
+    ]) {
+      expect(EXPERIMENTAL_FLAGS.some((f) => f.id === id)).toBe(false);
+    }
   });
 
-  it("secondary-model is on by default since 0.40.1", () => {
-    expect(
-      EXPERIMENTAL_FLAGS.find((f) => f.id === "secondary-model")?.defaultEnabled
-    ).toBe(true);
+  it("notify_user is opt-in: no upstream default, own env var", () => {
+    const flag = EXPERIMENTAL_FLAGS.find((f) => f.id === "notify_user");
+    expect(flag?.envVar).toBe("KIMI_CODE_EXPERIMENTAL_NOTIFY_USER");
+    expect(flag?.defaultEnabled).toBeUndefined();
+  });
+
+  it("notify_user is locked by its env var and forced to the env value", () => {
+    const flag = EXPERIMENTAL_FLAGS.find((f) => f.id === "notify_user")!;
+    expect(isFlagLockedByEnv({}, flag)).toBe(false);
+    // A set env var locks the toggle even when it is falsy — it can force
+    // the flag on *or* off.
+    expect(isFlagLockedByEnv({ [flag.envVar]: "0" }, flag)).toBe(true);
+    expect(forcedEnvValue({ [flag.envVar]: "0" }, flag)).toBe(false);
+    expect(forcedEnvValue({ [flag.envVar]: "true" }, flag)).toBe(true);
   });
 });
 
@@ -514,13 +534,13 @@ describe("setExperimentalFlag", () => {
 
   it("an explicit false coexists with other flags and keeps the section", () => {
     const next = setExperimentalFlag(
-      rawExp({ "secondary-model": false }),
+      rawExp({ wait_for: false }),
       "tower",
       true,
       { explicitFalse: true }
     ) as { experimental: Record<string, unknown> };
     expect(next.experimental).toEqual({
-      "secondary-model": false,
+      wait_for: false,
       tower: true,
     });
   });

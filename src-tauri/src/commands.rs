@@ -1335,7 +1335,7 @@ pub async fn kimi_oauth_poll(
 }
 
 // ---------------------------------------------------------------------------
-// Experimental feature env-var probe (Kimi Code secondary model etc.)
+// Experimental feature env-var probe (Kimi Code experimental flags)
 // ---------------------------------------------------------------------------
 
 /// Read the Kimi Code environment variables that are currently set (non-empty)
@@ -1348,6 +1348,11 @@ pub async fn kimi_oauth_poll(
 /// are probed too — the latter lets AgentSettingsPanel decide whether to
 /// dual-write the v1 engine's loop_control keys.
 ///
+/// As of Kimi Code 0.42.0 the upstream registry holds 6 experimental flags;
+/// `secondary-model`, `persistence_minidb_readmodel`, `remote-control` and
+/// `search_worker` have been promoted or removed upstream and are no longer
+/// probed here.
+///
 /// The flag id → env var mapping mirrors `EXPERIMENTAL_FLAGS` in
 /// src/lib/subagent-settings.ts; keep both lists in sync.
 ///
@@ -1355,19 +1360,13 @@ pub async fn kimi_oauth_poll(
 /// the raw values are returned and the truthy check happens on the frontend.
 #[tauri::command]
 pub fn get_experimental_env_status() -> HashMap<String, String> {
-    const VARS: [(&str, &str); 11] = [
-        ("secondary-model", "KIMI_CODE_EXPERIMENTAL_SECONDARY_MODEL"),
+    const VARS: [(&str, &str); 8] = [
         ("tool-select", "KIMI_CODE_EXPERIMENTAL_TOOL_SELECT"),
-        (
-            "persistence_minidb_readmodel",
-            "KIMI_CODE_EXPERIMENTAL_PERSISTENCE_MINIDB_READMODEL",
-        ),
         ("tower", "KIMI_CODE_EXPERIMENTAL_TOWER"),
         ("subagent_fork", "KIMI_CODE_EXPERIMENTAL_SUBAGENT_FORK"),
         ("wait_for", "KIMI_CODE_EXPERIMENTAL_WAIT_FOR"),
         ("auto_session_title", "KIMI_CODE_EXPERIMENTAL_AUTO_SESSION_TITLE"),
-        ("remote-control", "KIMI_CODE_EXPERIMENTAL_REMOTE_CONTROL"),
-        ("search_worker", "KIMI_CODE_EXPERIMENTAL_SEARCH_WORKER"),
+        ("notify_user", "KIMI_CODE_EXPERIMENTAL_NOTIFY_USER"),
         // Non-flag probes consumed by the frontend:
         ("master", "KIMI_CODE_EXPERIMENTAL_FLAG"),
         ("legacy", "KIMI_CODE_LEGACY_FLAG"),

@@ -24,7 +24,7 @@ function isTruthyEnv(value: string | undefined): boolean {
 // ---------------------------------------------------------------------------
 
 export interface ExperimentalFlagDef {
-  /** Flag id as stored in config.toml `[experimental]` (e.g. "secondary-model"). */
+  /** Flag id as stored in config.toml `[experimental]` (e.g. "wait_for"). */
   id: string;
   /** Single-feature env var that can force the flag (locks the UI toggle). */
   envVar: string;
@@ -33,42 +33,29 @@ export interface ExperimentalFlagDef {
   defaultEnabled?: boolean;
 }
 
-/** Known experimental flags — mirrors the kimi-code v2 flag registry
- * (the per-feature flag.ts files under packages/agent-core-v2/src:
- * secondary-model, tool-select, persistence_minidb_readmodel, tower,
- * subagent_fork, wait_for, auto_session_title, remote-control,
- * search_worker). `acp-v2` was removed upstream and is dropped here;
- * `file_history` was removed in kimi-code 0.41.0 (turn-level file
- * history is always on, no flag). Keep the env-var list in sync with
- * `get_experimental_env_status` in src-tauri/src/commands.rs. */
+/** Known experimental flags — mirrors the kimi-code 0.42.0 v2 flag registry
+ * (the per-feature flag.ts files under packages/agent-core-v2/src):
+ * wait_for, tool-select, notify_user, tower, subagent_fork,
+ * auto_session_title. Removed in 0.42.0: secondary-model, remote-control
+ * and search_worker (promoted or dropped upstream — no flag left), and
+ * persistence_minidb_readmodel (now controlled by the `[database]` config
+ * section). `acp-v2` was removed upstream earlier; `file_history` was
+ * removed in kimi-code 0.41.0 (turn-level file history is always on, no
+ * flag). Keep the env-var list in sync with `get_experimental_env_status`
+ * in src-tauri/src/commands.rs. */
 export const EXPERIMENTAL_FLAGS: ExperimentalFlagDef[] = [
-  {
-    id: "secondary-model",
-    envVar: "KIMI_CODE_EXPERIMENTAL_SECONDARY_MODEL",
-    defaultEnabled: true, // on by default since kimi-code 0.40.1
-  },
-  { id: "tool-select", envVar: "KIMI_CODE_EXPERIMENTAL_TOOL_SELECT" },
-  {
-    id: "persistence_minidb_readmodel",
-    envVar: "KIMI_CODE_EXPERIMENTAL_PERSISTENCE_MINIDB_READMODEL",
-    defaultEnabled: true,
-  },
-  { id: "tower", envVar: "KIMI_CODE_EXPERIMENTAL_TOWER" },
-  { id: "subagent_fork", envVar: "KIMI_CODE_EXPERIMENTAL_SUBAGENT_FORK" },
   {
     id: "wait_for",
     envVar: "KIMI_CODE_EXPERIMENTAL_WAIT_FOR",
     defaultEnabled: true,
   },
+  { id: "tool-select", envVar: "KIMI_CODE_EXPERIMENTAL_TOOL_SELECT" },
+  { id: "notify_user", envVar: "KIMI_CODE_EXPERIMENTAL_NOTIFY_USER" },
+  { id: "tower", envVar: "KIMI_CODE_EXPERIMENTAL_TOWER" },
+  { id: "subagent_fork", envVar: "KIMI_CODE_EXPERIMENTAL_SUBAGENT_FORK" },
   {
     id: "auto_session_title",
     envVar: "KIMI_CODE_EXPERIMENTAL_AUTO_SESSION_TITLE",
-  },
-  { id: "remote-control", envVar: "KIMI_CODE_EXPERIMENTAL_REMOTE_CONTROL" },
-  {
-    id: "search_worker",
-    envVar: "KIMI_CODE_EXPERIMENTAL_SEARCH_WORKER",
-    defaultEnabled: true,
   },
 ];
 

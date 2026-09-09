@@ -1978,7 +1978,7 @@ dependencies = [
 
 [[package]]
 name = "kimiswitch"
-version = "0.7.14"
+version = "0.7.15"
 dependencies = [
  "anyhow",
  "chrono",

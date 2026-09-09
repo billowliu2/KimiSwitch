@@ -43,21 +43,15 @@ const EFFORT_LABELS: Record<(typeof EFFORTS)[number], TranslationKey> = {
 };
 
 const FLAG_LABELS: Record<string, { name: TranslationKey; desc: TranslationKey }> = {
-  "secondary-model": { name: "flagSecondaryModel", desc: "flagSecondaryModelDesc" },
+  wait_for: { name: "flagWaitFor", desc: "flagWaitForDesc" },
   "tool-select": { name: "flagToolSelect", desc: "flagToolSelectDesc" },
-  persistence_minidb_readmodel: {
-    name: "flagMinidbReadmodel",
-    desc: "flagMinidbReadmodelDesc",
-  },
+  notify_user: { name: "flagNotifyUser", desc: "flagNotifyUserDesc" },
   tower: { name: "flagTower", desc: "flagTowerDesc" },
   subagent_fork: { name: "flagSubagentFork", desc: "flagSubagentForkDesc" },
-  wait_for: { name: "flagWaitFor", desc: "flagWaitForDesc" },
   auto_session_title: {
     name: "flagAutoSessionTitle",
     desc: "flagAutoSessionTitleDesc",
   },
-  "remote-control": { name: "flagRemoteControl", desc: "flagRemoteControlDesc" },
-  search_worker: { name: "flagSearchWorker", desc: "flagSearchWorkerDesc" },
 };
 
 /** Validation-error i18n key per engine rule, for the pre-write self-check. */
@@ -185,21 +179,6 @@ export function SubagentSettingsPage({
   // off — upgrading with force would create an invalid force+pool-table combo.
   const canUpgrade = !!pool && !isPoolView && pool.model !== undefined && !pool.force;
   const masterOn = isMasterEnvOn(env);
-  const secondaryFlag = EXPERIMENTAL_FLAGS[0]; // "secondary-model"
-  const otherFlags = EXPERIMENTAL_FLAGS.slice(1);
-
-  /** Effective state of the secondary-model flag. Mirrors the kimi-code
-   *  0.40.1 priority: single-flag env > explicit [experimental] value >
-   *  master env (force-on only) > upstream default. The master env no
-   *  longer locks the toggle — only the flag's own env var does. */
-  const secondaryEnabled = isFlagLockedByEnv(env, secondaryFlag)
-    ? forcedEnvValue(env, secondaryFlag)
-    : isExperimentalFlagSet(rawOther, secondaryFlag.id)
-      ? flags["secondary-model"] === true
-      : masterOn
-        ? true
-        : (secondaryFlag.defaultEnabled ?? false);
-  const secondaryLocked = isFlagLockedByEnv(env, secondaryFlag);
 
   const aliasList = Object.keys(models).sort();
 
@@ -573,41 +552,6 @@ export function SubagentSettingsPage({
           )}
 
           <div className="border-t border-border" />
-          <div className="flex items-center gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 text-sm text-content-primary">
-                {t(FLAG_LABELS[secondaryFlag.id].name)}
-                {!secondaryLocked &&
-                  !isExperimentalFlagSet(rawOther, secondaryFlag.id) &&
-                  secondaryFlag.defaultEnabled && (
-                    <span className="shrink-0 text-xs text-blue-600 dark:text-blue-400 border border-blue-500/30 rounded px-1">
-                      {t("flagDefaultOn")}
-                    </span>
-                  )}
-              </div>
-              <div className="text-xs text-content-muted">
-                {t(FLAG_LABELS[secondaryFlag.id].desc)}
-                <code className="ml-2">{secondaryFlag.envVar}</code>
-              </div>
-            </div>
-            {secondaryLocked && (
-              <span className="text-xs text-content-muted shrink-0">
-                🔒 {t("lockedByEnv")}
-              </span>
-            )}
-            <Toggle
-              checked={secondaryEnabled}
-              disabled={secondaryLocked}
-              ariaLabel={t(FLAG_LABELS[secondaryFlag.id].name)}
-              onChange={(checked) =>
-                onChange(
-                  setExperimentalFlag(rawOther, secondaryFlag.id, checked, {
-                    explicitFalse: masterOn || secondaryFlag.defaultEnabled === true,
-                  })
-                )
-              }
-            />
-          </div>
 
           {effectiveDefault !== undefined && (
             <div className="rounded-lg border border-border bg-input/40 px-3 py-2.5 space-y-2">
@@ -636,9 +580,9 @@ export function SubagentSettingsPage({
           <p className="text-xs text-content-muted">{t("secondaryModelPriorityHint")}</p>
         </Card>
 
-        {/* Other experimental features (not subagent-related) */}
-        <Card title={t("otherExperimentalFlags")}>
-          {otherFlags.map(renderFlagRow)}
+        {/* Experimental feature flags — one unified list */}
+        <Card title={t("experimentalFlags")}>
+          {EXPERIMENTAL_FLAGS.map(renderFlagRow)}
           <p className="text-xs text-content-muted">{t("experimentalFlagsHint")}</p>
         </Card>
       </div>
