@@ -25,7 +25,7 @@ export function ModelTotalsChart({ rows }: ModelTotalsChartProps) {
   const max = Math.max(...rows.map((m) => m.totalTokens || 0), 1);
 
   return (
-    <div className="flex h-full flex-col gap-1 overflow-y-auto">
+    <div className="flex max-h-[360px] flex-col gap-1 overflow-y-auto">
       {rows.map((m, i) => {
         const color = i < 10 ? modelColor(i) : "#6b7280";
         const name = m.isSecondary ? t("subagentModel") : m.modelDisplay || m.model;
