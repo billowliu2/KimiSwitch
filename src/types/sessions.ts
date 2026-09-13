@@ -39,6 +39,12 @@ export interface ActionResponse {
   deleted?: boolean | null;
 }
 
+export interface BulkArchiveResult {
+  archived: number;
+  skipped: number;
+  errors: string[];
+}
+
 export interface PreviewMessage {
   role: string;
   time: number | null;

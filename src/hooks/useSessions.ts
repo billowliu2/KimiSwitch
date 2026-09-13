@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type {
   ActionResponse,
+  BulkArchiveResult,
   PreviewResult,
   SessionStatusFilter,
   SessionsResult,
@@ -54,6 +55,17 @@ export function useSessions() {
     [refresh]
   );
 
+  const archiveBefore = useCallback(
+    async (cutoffMs: number) => {
+      const result = await invoke<BulkArchiveResult>("archive_sessions_before", {
+        cutoffMs,
+      });
+      await refresh();
+      return result;
+    },
+    [refresh]
+  );
+
   const deleteSession = useCallback(
     async (workspaceId: string, sessionId: string, sessionStatus?: string) => {
       await invoke<ActionResponse>("delete_session", {
@@ -100,6 +112,7 @@ export function useSessions() {
     refresh,
     archiveSession,
     unarchiveSession,
+    archiveBefore,
     deleteSession,
     deleteWorkspace,
     getPreview,

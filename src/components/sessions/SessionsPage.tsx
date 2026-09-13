@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSessions } from "../../hooks/useSessions";
 import { fmtInt, fmtTime } from "../../lib/dashboard-format";
 import { useTranslation } from "../../i18n";
-import type { SessionRow, WorkspaceRow } from "../../types/sessions";
+import type { BulkArchiveResult, SessionRow, WorkspaceRow } from "../../types/sessions";
 
 function fmtBytes(n: number): string {
   const v = Number(n) || 0;
@@ -21,6 +21,44 @@ function parseTime(value: string | number | null | undefined): number {
 
 function rowKey(row: SessionRow): string {
   return `${row.workspaceId}/${row.id}`;
+}
+
+type ArchiveAllMode = "month" | "half" | "week" | "custom";
+
+type ArchiveAllState = {
+  mode: ArchiveAllMode;
+  /** YYYY-MM-DD, used when mode is "custom". */
+  date: string;
+  busy: boolean;
+  result: BulkArchiveResult | null;
+  error: string | null;
+};
+
+function localDateInput(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+/** Today minus one month — the default value of the custom-date picker. */
+function defaultCustomDate(): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1);
+  return localDateInput(d);
+}
+
+/** Cutoff epoch ms for the selected option (custom dates start at local midnight). */
+function cutoffFor(state: ArchiveAllState): number {
+  const now = new Date();
+  if (state.mode === "month" || state.mode === "half" || state.mode === "week") {
+    const d = new Date(now);
+    if (state.mode === "month") d.setMonth(d.getMonth() - 1);
+    if (state.mode === "half") d.setDate(d.getDate() - 15);
+    if (state.mode === "week") d.setDate(d.getDate() - 7);
+    return d.getTime();
+  }
+  const [y, m, day] = state.date.split("-").map(Number);
+  return new Date(y || now.getFullYear(), (m || 1) - 1, day || 1, 0, 0, 0, 0).getTime();
 }
 
 type ConfirmState =
@@ -52,6 +90,7 @@ export function SessionsPage() {
     refresh,
     archiveSession,
     unarchiveSession,
+    archiveBefore,
     deleteSession,
     deleteWorkspace,
     getPreview,
@@ -62,6 +101,7 @@ export function SessionsPage() {
   const [confirm, setConfirm] = useState<ConfirmState>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
   const [preview, setPreview] = useState<PreviewState>(null);
+  const [archiveAll, setArchiveAll] = useState<ArchiveAllState | null>(null);
 
   const workspaces = data?.workspaces ?? [];
   const sessions = data?.sessions ?? [];
@@ -198,6 +238,30 @@ export function SessionsPage() {
     (a, w) => a + (w.activeCount || 0) + (w.archivedCount || 0),
     0
   );
+
+  useEffect(() => {
+    if (!archiveAll) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setArchiveAll((s) => (s && s.busy ? s : null));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [archiveAll]);
+
+  const runArchiveAll = async () => {
+    if (!archiveAll || archiveAll.busy) return;
+    const cutoffMs = cutoffFor(archiveAll);
+    setArchiveAll((s) => (s ? { ...s, busy: true, result: null, error: null } : s));
+    try {
+      const res = await archiveBefore(cutoffMs);
+      setArchiveAll((s) => (s ? { ...s, busy: false, result: res } : s));
+      setSelected(new Set());
+    } catch (e) {
+      setArchiveAll((s) =>
+        s ? { ...s, busy: false, error: e instanceof Error ? e.message : String(e) } : s
+      );
+    }
+  };
 
   return (
     <div className="flex h-full flex-col overflow-hidden p-4 space-y-3">
@@ -376,6 +440,23 @@ export function SessionsPage() {
                   </button>
                 </>
               )}
+              {status !== "archived" && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setArchiveAll({
+                      mode: "month",
+                      date: defaultCustomDate(),
+                      busy: false,
+                      result: null,
+                      error: null,
+                    })
+                  }
+                  className="px-2 py-1 text-xs rounded border border-border hover:bg-hover-2"
+                >
+                  {t("sessionsArchiveAll")}
+                </button>
+              )}
               <select
                 value={workspace}
                 onChange={(e) => setWorkspace(e.target.value)}
@@ -547,6 +628,112 @@ export function SessionsPage() {
       <div className="text-xs text-content-muted pb-2">
         {data?.home && <>{data.home}</>}
       </div>
+
+      {/* Bulk archive dialog */}
+      {archiveAll && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-xl border border-border bg-panel shadow-xl">
+            <div className="space-y-3 p-5">
+              <h3 className="text-base font-semibold text-content-primary">
+                {t("archiveAllTitle")}
+              </h3>
+              <p className="text-sm text-content-muted">{t("archiveAllDesc")}</p>
+              <div className="space-y-0.5">
+                {(
+                  [
+                    ["month", t("archiveOptionMonth")],
+                    ["half", t("archiveOptionHalfMonth")],
+                    ["week", t("archiveOptionWeek")],
+                    ["custom", t("archiveOptionCustom")],
+                  ] as const
+                ).map(([mode, label]) => (
+                  <label
+                    key={mode}
+                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-content-primary hover:bg-input"
+                  >
+                    <input
+                      type="radio"
+                      name="archiveAllMode"
+                      className="h-4 w-4 accent-blue-600"
+                      checked={archiveAll.mode === mode}
+                      disabled={archiveAll.busy}
+                      onChange={() =>
+                        setArchiveAll((s) =>
+                          s ? { ...s, mode, result: null, error: null } : s
+                        )
+                      }
+                    />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+              {archiveAll.mode === "custom" && (
+                <input
+                  type="date"
+                  value={archiveAll.date}
+                  disabled={archiveAll.busy}
+                  onChange={(e) =>
+                    setArchiveAll((s) => (s ? { ...s, date: e.target.value } : s))
+                  }
+                  className="bg-input border border-border rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              )}
+              <div className="rounded-md border border-border bg-input px-3 py-2.5 text-sm text-content-muted">
+                {t("archiveAllConfirm", {
+                  date: new Date(cutoffFor(archiveAll)).toLocaleDateString(
+                    locale === "zh" ? "zh-CN" : "en-US"
+                  ),
+                })}
+              </div>
+              {archiveAll.error && (
+                <div className="rounded-md border border-red-500/40 bg-red-900/20 px-3 py-2 text-sm text-red-300">
+                  {t("archiveAllFailed")}: {archiveAll.error}
+                </div>
+              )}
+              {archiveAll.result && archiveAll.result.archived === 0 && (
+                <div className="rounded-md border border-border bg-input px-3 py-2 text-sm text-content-muted">
+                  {t("archiveAllEmpty")}
+                </div>
+              )}
+              {archiveAll.result && archiveAll.result.archived > 0 && (
+                <div className="rounded-md border border-emerald-500/40 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-300">
+                  {t("archiveAllDone", {
+                    archived: archiveAll.result.archived,
+                    skipped: archiveAll.result.skipped,
+                  })}
+                </div>
+              )}
+              {archiveAll.result && archiveAll.result.errors.length > 0 && (
+                <div className="space-y-1 rounded-md border border-red-500/40 bg-red-900/20 px-3 py-2 text-xs text-red-300">
+                  {archiveAll.result.errors.slice(0, 3).map((err, i) => (
+                    <div key={i} className="break-all">
+                      {err}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-border bg-footer px-5 py-3">
+              <button
+                type="button"
+                disabled={archiveAll.busy}
+                onClick={() => setArchiveAll(null)}
+                className="px-3 py-1.5 text-sm rounded border border-border hover:bg-hover-2 disabled:opacity-50"
+              >
+                {archiveAll.result ? t("close") : t("cancel")}
+              </button>
+              <button
+                type="button"
+                disabled={archiveAll.busy}
+                onClick={runArchiveAll}
+                className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50"
+              >
+                {archiveAll.busy ? t("archiveAllRunning") : t("sessionsArchiveAll")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirm dialog */}
       {confirm && (

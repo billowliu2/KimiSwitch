@@ -10,6 +10,7 @@ use std::path::PathBuf;
 use anyhow::Context;
 use indexmap::IndexMap;
 use rusqlite::{params, Connection};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::models::{Agent, Config, Model, Provider, ProviderType};
@@ -23,6 +24,13 @@ pub fn kimi_switch_data_dir() -> PathBuf {
 }
 
 pub fn db_path() -> PathBuf {
+    // Tests (and power users) can point the store elsewhere; production always
+    // resolves to the default location under the home directory.
+    if let Some(p) = std::env::var_os("KIMI_SWITCH_DB_PATH") {
+        if !p.is_empty() {
+            return PathBuf::from(p);
+        }
+    }
     kimi_switch_data_dir().join("kimi-switch.db")
 }
 
@@ -31,6 +39,10 @@ pub fn db_path() -> PathBuf {
 /// configuration. Safe to call on every startup — it is a no-op once the new
 /// directory exists.
 fn migrate_legacy_data_dir() {
+    // A redirected store (tests) must never touch the real home directory.
+    if std::env::var_os("KIMI_SWITCH_DB_PATH").is_some() {
+        return;
+    }
     let new_dir = kimi_switch_data_dir();
     if new_dir.exists() {
         return;
@@ -102,6 +114,24 @@ pub fn init_db() -> DbResult<Connection> {
         "CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
+        )",
+        [],
+    )?;
+
+    // Usage snapshots taken when sessions are bulk-archived: keep the session's
+    // token/cost history queryable after its directory (and wire.jsonl) is
+    // deleted from disk.
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS archived_sessions (
+            session_id     TEXT PRIMARY KEY,
+            workspace_id   TEXT NOT NULL,
+            title          TEXT,
+            archived_at_ms INTEGER NOT NULL,
+            updated_at_ms  INTEGER,
+            created_at_ms  INTEGER,
+            total_tokens   INTEGER NOT NULL DEFAULT 0,
+            total_cost_usd REAL NOT NULL DEFAULT 0,
+            day_stats      TEXT NOT NULL DEFAULT '[]'
         )",
         [],
     )?;
@@ -328,6 +358,104 @@ pub fn delete_setting_pub(key: &str) -> DbResult<()> {
     let conn = init_db()?;
     conn.execute("DELETE FROM settings WHERE key = ?1", params![key])?;
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Archived-session usage snapshots
+// ---------------------------------------------------------------------------
+
+/// Per-model usage totals for one calendar day of an archived session.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DayModelStat {
+    /// Raw model key as written to wire.jsonl (`__secondary__` kept verbatim).
+    pub model: String,
+    pub requests: u64,
+    pub input_other: u64,
+    pub output: u64,
+    pub input_cache_read: u64,
+    pub input_cache_creation: u64,
+    pub cost_usd: f64,
+}
+
+/// One day's per-model usage, stored as JSON in `archived_sessions.day_stats`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DayStat {
+    /// Local calendar day, `YYYY-MM-DD`.
+    pub day: String,
+    /// Local midnight of `day`, epoch ms — used as the synthesized record time.
+    pub day_start_ms: u64,
+    pub models: Vec<DayModelStat>,
+}
+
+/// Usage snapshot of one session, taken at the moment it is archived.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchivedSessionSnapshot {
+    pub session_id: String,
+    pub workspace_id: String,
+    pub title: Option<String>,
+    pub archived_at_ms: u64,
+    pub updated_at_ms: Option<u64>,
+    pub created_at_ms: Option<u64>,
+    pub total_tokens: u64,
+    pub total_cost_usd: f64,
+    pub day_stats: Vec<DayStat>,
+}
+
+/// Insert or replace one archived-session snapshot (keyed by session id, which
+/// is a UUID and never reused).
+pub fn upsert_archived_session(row: &ArchivedSessionSnapshot) -> DbResult<()> {
+    let conn = init_db()?;
+    let day_stats = serde_json::to_string(&row.day_stats)?;
+    conn.execute(
+        "INSERT OR REPLACE INTO archived_sessions
+         (session_id, workspace_id, title, archived_at_ms, updated_at_ms, created_at_ms, total_tokens, total_cost_usd, day_stats)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        params![
+            row.session_id,
+            row.workspace_id,
+            row.title,
+            row.archived_at_ms as i64,
+            row.updated_at_ms.map(|v| v as i64),
+            row.created_at_ms.map(|v| v as i64),
+            row.total_tokens as i64,
+            row.total_cost_usd,
+            day_stats,
+        ],
+    )?;
+    Ok(())
+}
+
+/// Every stored archived-session snapshot. Unreadable `day_stats` JSON degrades
+/// to an empty breakdown instead of failing the whole list.
+pub fn list_archived_sessions() -> DbResult<Vec<ArchivedSessionSnapshot>> {
+    let conn = init_db()?;
+    let mut stmt = conn.prepare(
+        "SELECT session_id, workspace_id, title, archived_at_ms, updated_at_ms, created_at_ms,
+                total_tokens, total_cost_usd, day_stats
+         FROM archived_sessions",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        let day_stats_json: String = row.get(8)?;
+        Ok(ArchivedSessionSnapshot {
+            session_id: row.get(0)?,
+            workspace_id: row.get(1)?,
+            title: row.get(2)?,
+            archived_at_ms: row.get::<_, i64>(3)? as u64,
+            updated_at_ms: row.get::<_, Option<i64>>(4)?.map(|v| v as u64),
+            created_at_ms: row.get::<_, Option<i64>>(5)?.map(|v| v as u64),
+            total_tokens: row.get::<_, i64>(6)? as u64,
+            total_cost_usd: row.get(7)?,
+            day_stats: serde_json::from_str(&day_stats_json).unwrap_or_default(),
+        })
+    })?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
 }
 
 fn provider_type_for_str(s: &str) -> ProviderType {

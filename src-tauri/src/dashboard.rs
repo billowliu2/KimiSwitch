@@ -1,4 +1,5 @@
 use chrono::{DateTime, Datelike, Local, TimeZone};
+use crate::db::{ArchivedSessionSnapshot, DayModelStat, DayStat};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -275,6 +276,15 @@ pub struct ActionResponse {
     pub status: Option<String>,
     pub path: Option<String>,
     pub deleted: Option<bool>,
+}
+
+/// Outcome of the bulk "archive everything older than X" command.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct BulkArchiveResult {
+    pub archived: usize,
+    pub skipped: usize,
+    pub errors: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -853,67 +863,8 @@ fn scan_usage(home: &Path) -> (Vec<UsageRecord>, ScanMeta) {
             Ok(c) => c,
             Err(_) => continue,
         };
-        for line in content.lines() {
-            lines_seen += 1;
-            if !line.contains("\"usage.record\"") { continue; }
-            let obj: serde_json::Value = match serde_json::from_str(line) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
-            if obj.get("type").and_then(|v| v.as_str()) != Some("usage.record") { continue; }
-            let scope = obj.get("usageScope").and_then(|v| v.as_str()).unwrap_or("turn");
-            if scope != "turn" { continue; }
-
-            let model_raw = obj.get("model").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
-            // Kimi Code writes the internal marker `__secondary__` as the model
-            // key for usage records emitted by subagents bound to the
-            // configured secondary model. The record stays keyed on that
-            // stable marker so historical records keep their semantics if the
-            // secondary config changes later; cost billing follows the
-            // currently configured secondary model, and the record is flagged
-            // is_secondary so the UI shows it as its own "subagent model"
-            // entry.
-            let is_secondary = model_raw == "__secondary__";
-            let from_env = model_raw == "__kimi_env_model__";
-            let price_model = if is_secondary {
-                secondary_alias.clone().unwrap_or_else(|| model_raw.clone())
-            } else {
-                model_raw.clone()
-            };
-            let time = obj.get("time").and_then(|v| v.as_u64()).unwrap_or(0);
-            let usage = &obj["usage"];
-            let input_other = usage.get("inputOther").and_then(|v| v.as_u64()).unwrap_or(0);
-            let output = usage.get("output").and_then(|v| v.as_u64()).unwrap_or(0);
-            let cache_read = usage.get("inputCacheRead").and_then(|v| v.as_u64()).unwrap_or(0);
-            let cache_create = usage.get("inputCacheCreation").and_then(|v| v.as_u64()).unwrap_or(0);
-
-            // Resolve model display
-            let bare = model_raw.rsplit_once('/').map(|x| x.1).unwrap_or(&model_raw);
-            let (cost, est) = cost_for_usage(input_other, output, cache_read, cache_create, &price_model);
-            // Subagent records are inherently estimates: the `__secondary__`
-            // marker carries no model identity, so the cost is flagged as
-            // estimated even when the current secondary config resolves to a
-            // priced listing.
-            let est = est || is_secondary;
-            let (pid, _ch, _ip, _op, _) = match_price(&price_model);
-
-            records.push(UsageRecord {
-                time,
-                model: model_raw.clone(),
-                model_resolved: bare.to_string(),
-                model_display: model_raw.clone(),
-                provider: resolve_provider(&price_model, &alias2prov),
-                from_env,
-                is_secondary,
-                input_other,
-                output,
-                input_cache_read: cache_read,
-                input_cache_creation: cache_create,
-                cost_usd: cost,
-                cost_estimated: est,
-                price_id: pid,
-            });
-        }
+        lines_seen += content.lines().count();
+        records.extend(parse_wire_usage_records(&content, &secondary_alias, &alias2prov));
     }
 
     records.sort_by(|a, b| b.time.cmp(&a.time));
@@ -924,6 +875,180 @@ fn scan_usage(home: &Path) -> (Vec<UsageRecord>, ScanMeta) {
         sessions_root: root.to_string_lossy().to_string(),
         errors: errors.into_iter().take(20).collect(),
     })
+}
+
+/// Parse one `wire.jsonl` body into usage records. Extracted from
+/// `scan_usage` so a single session can be snapshotted without walking the
+/// whole sessions tree; the record filter chain is unchanged.
+fn parse_wire_usage_records(
+    content: &str,
+    secondary_alias: &Option<String>,
+    alias2prov: &HashMap<String, String>,
+) -> Vec<UsageRecord> {
+    let mut records = Vec::new();
+    for line in content.lines() {
+        if !line.contains("\"usage.record\"") { continue; }
+        let obj: serde_json::Value = match serde_json::from_str(line) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        if obj.get("type").and_then(|v| v.as_str()) != Some("usage.record") { continue; }
+        let scope = obj.get("usageScope").and_then(|v| v.as_str()).unwrap_or("turn");
+        if scope != "turn" { continue; }
+
+        let model_raw = obj.get("model").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
+        // Kimi Code writes the internal marker `__secondary__` as the model
+        // key for usage records emitted by subagents bound to the
+        // configured secondary model. The record stays keyed on that
+        // stable marker so historical records keep their semantics if the
+        // secondary config changes later; cost billing follows the
+        // currently configured secondary model, and the record is flagged
+        // is_secondary so the UI shows it as its own "subagent model"
+        // entry.
+        let is_secondary = model_raw == "__secondary__";
+        let from_env = model_raw == "__kimi_env_model__";
+        let price_model = if is_secondary {
+            secondary_alias.clone().unwrap_or_else(|| model_raw.clone())
+        } else {
+            model_raw.clone()
+        };
+        let time = obj.get("time").and_then(|v| v.as_u64()).unwrap_or(0);
+        let usage = &obj["usage"];
+        let input_other = usage.get("inputOther").and_then(|v| v.as_u64()).unwrap_or(0);
+        let output = usage.get("output").and_then(|v| v.as_u64()).unwrap_or(0);
+        let cache_read = usage.get("inputCacheRead").and_then(|v| v.as_u64()).unwrap_or(0);
+        let cache_create = usage.get("inputCacheCreation").and_then(|v| v.as_u64()).unwrap_or(0);
+
+        // Resolve model display
+        let bare = model_raw.rsplit_once('/').map(|x| x.1).unwrap_or(&model_raw);
+        let (cost, est) = cost_for_usage(input_other, output, cache_read, cache_create, &price_model);
+        // Subagent records are inherently estimates: the `__secondary__`
+        // marker carries no model identity, so the cost is flagged as
+        // estimated even when the current secondary config resolves to a
+        // priced listing.
+        let est = est || is_secondary;
+        let (pid, _ch, _ip, _op, _) = match_price(&price_model);
+
+        records.push(UsageRecord {
+            time,
+            model: model_raw.clone(),
+            model_resolved: bare.to_string(),
+            model_display: model_raw.clone(),
+            provider: resolve_provider(&price_model, &alias2prov),
+            from_env,
+            is_secondary,
+            input_other,
+            output,
+            input_cache_read: cache_read,
+            input_cache_creation: cache_create,
+            cost_usd: cost,
+            cost_estimated: est,
+            price_id: pid,
+        });
+    }
+    records
+}
+
+/// Aggregate raw usage records into the per-day, per-model snapshot stored
+/// for an archived session.
+fn snapshot_from_records(records: &[UsageRecord]) -> Vec<DayStat> {
+    let mut by_day: HashMap<String, (u64, HashMap<String, DayModelStat>)> = HashMap::new();
+    for r in records {
+        let entry = by_day
+            .entry(day_key(r.time))
+            .or_insert_with(|| (local_midnight_ms(r.time, 0), HashMap::new()));
+        let m = entry.1.entry(r.model.clone()).or_insert_with(|| DayModelStat {
+            model: r.model.clone(),
+            requests: 0,
+            input_other: 0,
+            output: 0,
+            input_cache_read: 0,
+            input_cache_creation: 0,
+            cost_usd: 0.0,
+        });
+        m.requests += 1;
+        m.input_other += r.input_other;
+        m.output += r.output;
+        m.input_cache_read += r.input_cache_read;
+        m.input_cache_creation += r.input_cache_creation;
+        m.cost_usd += r.cost_usd;
+    }
+    let mut days: Vec<DayStat> = by_day
+        .into_iter()
+        .map(|(day, (day_start_ms, models))| {
+            let mut models: Vec<DayModelStat> = models.into_values().collect();
+            models.sort_by(|a, b| a.model.cmp(&b.model));
+            DayStat { day, day_start_ms, models }
+        })
+        .collect();
+    days.sort_by(|a, b| a.day.cmp(&b.day));
+    days
+}
+
+/// Synthesize usage records from stored archive snapshots. Only snapshots
+/// whose session directory is gone are synthesized: sessions still on disk
+/// are covered by the live wire.jsonl scan, and emitting both would double
+/// count their usage.
+fn synthesize_snapshot_records(rows: &[ArchivedSessionSnapshot], home: &Path) -> Vec<UsageRecord> {
+    let root = sessions_root(home);
+    let legacy_root = root.join(".kcd-archive");
+    let alias2prov = build_alias_provider_map(home);
+    let secondary_alias = read_secondary_model_alias(home);
+    let mut out = Vec::new();
+    for row in rows {
+        if root.join(&row.workspace_id).join(&row.session_id).exists() { continue; }
+        if legacy_root.join(&row.workspace_id).join(&row.session_id).exists() { continue; }
+        for day in &row.day_stats {
+            for m in &day.models {
+                let is_secondary = m.model == "__secondary__";
+                let price_model = if is_secondary {
+                    secondary_alias.clone().unwrap_or_else(|| m.model.clone())
+                } else {
+                    m.model.clone()
+                };
+                let bare = m.model.rsplit_once('/').map(|x| x.1).unwrap_or(&m.model).to_string();
+                out.push(UsageRecord {
+                    time: day.day_start_ms,
+                    model: m.model.clone(),
+                    model_resolved: bare,
+                    model_display: m.model.clone(),
+                    provider: resolve_provider(&price_model, &alias2prov),
+                    from_env: m.model == "__kimi_env_model__",
+                    is_secondary,
+                    input_other: m.input_other,
+                    output: m.output,
+                    input_cache_read: m.input_cache_read,
+                    input_cache_creation: m.input_cache_creation,
+                    cost_usd: m.cost_usd,
+                    cost_estimated: true,
+                    price_id: String::new(),
+                });
+            }
+        }
+    }
+    out
+}
+
+/// Append the synthesized records for `rows` to a live scan result and
+/// restore the newest-first ordering `scan_usage` produces.
+fn merge_snapshot_records(
+    mut records: Vec<UsageRecord>,
+    rows: &[ArchivedSessionSnapshot],
+    home: &Path,
+) -> Vec<UsageRecord> {
+    // Nothing archived yet: keep the scan result untouched (and skip the
+    // config reads the synthesis would do).
+    if rows.is_empty() { return records; }
+    records.extend(synthesize_snapshot_records(rows, home));
+    records.sort_by(|a, b| b.time.cmp(&a.time));
+    records
+}
+
+/// Live scan records plus the stored usage of archived sessions whose files
+/// have been deleted, so dashboard stats survive session deletion.
+fn records_with_archive_merge(home: &Path, records: Vec<UsageRecord>) -> Vec<UsageRecord> {
+    let rows = crate::db::list_archived_sessions().unwrap_or_default();
+    merge_snapshot_records(records, &rows, home)
 }
 
 // ---------------------------------------------------------------------------
@@ -1330,6 +1455,147 @@ fn set_session_archived_meta(session_dir: &Path, archived: bool) -> Result<(), S
     fs::write(&tmp, out).map_err(|e| format!("write state.json: {e}"))?;
     fs::rename(&tmp, &sp).map_err(|e| format!("commit state.json: {e}"))?;
     Ok(())
+}
+
+/// Parse a `state.json` timestamp into epoch ms. kimi-code writes epoch-ms
+/// numbers, other builds write ISO-8601 strings — accept both, plus numeric
+/// strings.
+fn parse_state_time_ms(value: &serde_json::Value) -> Option<u64> {
+    match value {
+        serde_json::Value::Number(n) => n.as_u64().or_else(|| n.as_f64().map(|f| f.max(0.0) as u64)),
+        serde_json::Value::String(s) => parse_time_string_ms(s),
+        _ => None,
+    }
+}
+
+fn parse_time_string_ms(s: &str) -> Option<u64> {
+    let t = s.trim();
+    if t.is_empty() { return None; }
+    if let Ok(n) = t.parse::<u64>() {
+        // Numeric string: epoch ms when it is already millisecond-sized.
+        return Some(if n >= 1e12 as u64 { n } else { n * 1000 });
+    }
+    if let Ok(dt) = DateTime::parse_from_rfc3339(t) {
+        return Some(dt.timestamp_millis().max(0) as u64);
+    }
+    for fmt in [
+        "%Y-%m-%dT%H:%M:%S%.f",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d %H:%M:%S%.f",
+        "%Y-%m-%d %H:%M:%S",
+    ] {
+        if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(t, fmt) {
+            return Some(naive.and_utc().timestamp_millis().max(0) as u64);
+        }
+    }
+    None
+}
+
+/// Read a session's `state.json` as a JSON object (None when missing or
+/// unparseable).
+fn read_state_obj(session_dir: &Path) -> Option<serde_json::Value> {
+    let content = fs::read_to_string(session_dir.join("state.json")).ok()?;
+    let obj: serde_json::Value = serde_json::from_str(&content).ok()?;
+    if obj.is_object() { Some(obj) } else { None }
+}
+
+/// Session directory mtime in epoch ms — the fallback when `state.json` has
+/// no parseable `updatedAt`.
+fn dir_mtime_ms(dir: &Path) -> Option<u64> {
+    dir.metadata().ok().and_then(|m| m.modified().ok())
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as u64)
+}
+
+/// Usage records of one session: every `wire.jsonl` below its directory
+/// (agent subdirectories included), with the same blob/task filtering the
+/// full-tree scan applies.
+fn parse_session_wire_usage(
+    dir: &Path,
+    secondary_alias: &Option<String>,
+    alias2prov: &HashMap<String, String>,
+) -> Vec<UsageRecord> {
+    let mut records = Vec::new();
+    for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
+        if entry.file_name() != "wire.jsonl" || !entry.file_type().is_file() { continue; }
+        let p = entry.path();
+        if p.to_string_lossy().contains("blobs") || p.to_string_lossy().contains("tasks") { continue; }
+        let Ok(content) = fs::read_to_string(p) else { continue };
+        records.extend(parse_wire_usage_records(&content, secondary_alias, alias2prov));
+    }
+    records
+}
+
+/// Bulk-archive every active session whose last activity predates `cutoff_ms`
+/// (epoch ms) and store a usage snapshot per session in SQLite, so dashboard
+/// stats keep counting their history after the directories are deleted.
+/// Sessions already archived, in `.kcd-archive`, or without a readable
+/// `state.json` are left alone.
+fn archive_sessions_before_cmd(home: &Path, cutoff_ms: u64) -> BulkArchiveResult {
+    let root = sessions_root(home);
+    let alias2prov = build_alias_provider_map(home);
+    let secondary_alias = read_secondary_model_alias(home);
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
+    let mut result = BulkArchiveResult { archived: 0, skipped: 0, errors: Vec::new() };
+
+    for wid in list_workspace_dirs(home) {
+        for entry in safe_read_dir(&root.join(&wid)) {
+            if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) { continue; }
+            let sid = entry.file_name().to_string_lossy().to_string();
+            if !session_re().is_match(&sid) { continue; }
+            let dir = entry.path();
+            let Some(state) = read_state_obj(&dir) else {
+                result.skipped += 1;
+                continue;
+            };
+            if state.get("archived").and_then(|v| v.as_bool()).unwrap_or(false) { continue; }
+            let Some(updated_ms) = state
+                .get("updatedAt")
+                .and_then(parse_state_time_ms)
+                .or_else(|| dir_mtime_ms(&dir))
+            else {
+                result.skipped += 1;
+                continue;
+            };
+            if updated_ms >= cutoff_ms {
+                result.skipped += 1;
+                continue;
+            }
+
+            if let Err(e) = set_session_archived_meta(&dir, true) {
+                result.errors.push(format!("{wid}/{sid}: {e}"));
+                continue;
+            }
+            let day_stats = snapshot_from_records(&parse_session_wire_usage(
+                &dir, &secondary_alias, &alias2prov,
+            ));
+            let mut total_tokens = 0u64;
+            let mut total_cost_usd = 0.0f64;
+            for day in &day_stats {
+                for m in &day.models {
+                    total_tokens += m.input_other + m.output + m.input_cache_read + m.input_cache_creation;
+                    total_cost_usd += m.cost_usd;
+                }
+            }
+            let snapshot = ArchivedSessionSnapshot {
+                session_id: sid.clone(),
+                workspace_id: wid.clone(),
+                title: state.get("title").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                archived_at_ms: now_ms,
+                updated_at_ms: Some(updated_ms),
+                created_at_ms: state.get("createdAt").and_then(parse_state_time_ms),
+                total_tokens,
+                total_cost_usd,
+                day_stats,
+            };
+            result.archived += 1;
+            if let Err(e) = crate::db::upsert_archived_session(&snapshot) {
+                result.errors.push(format!("{wid}/{sid}: snapshot: {e}"));
+            }
+        }
+    }
+    result
 }
 
 fn humanize_workspace(id: &str) -> String {
@@ -1876,6 +2142,7 @@ pub fn get_summary(home_override: Option<String>, range: Option<String>, refresh
     let r = range.unwrap_or_else(|| "30d".into());
 
     let (records, meta) = scan_usage_cached(&home, refresh);
+    let records = records_with_archive_merge(&home, records);
     let t1 = std::time::Instant::now();
     let stats = aggregate(&records, &r, now_ms);
     let all_stats = aggregate(&records, "all", now_ms);
@@ -1983,6 +2250,7 @@ fn build_day_detail(date: &str, records: &[UsageRecord]) -> Option<DailyRow> {
 pub fn get_day_detail(home_override: Option<String>, date: String) -> Option<DailyRow> {
     let home = resolve_kimi_home(home_override);
     let (records, _) = scan_usage_cached(&home, false);
+    let records = records_with_archive_merge(&home, records);
     build_day_detail(&date, &records)
 }
 
@@ -1996,6 +2264,14 @@ pub fn list_sessions(home_override: Option<String>, status: Option<String>, work
 pub fn archive_session(home_override: Option<String>, workspace_id: String, session_id: String) -> Result<ActionResponse, String> {
     let home = resolve_kimi_home(home_override);
     archive_session_cmd(&home, &workspace_id, &session_id)
+}
+
+/// Bulk-archive every active session whose last activity predates `cutoff_ms`
+/// (epoch ms) across all workspaces, storing a usage snapshot per session.
+#[tauri::command]
+pub fn archive_sessions_before(home_override: Option<String>, cutoff_ms: u64) -> BulkArchiveResult {
+    let home = resolve_kimi_home(home_override);
+    archive_sessions_before_cmd(&home, cutoff_ms)
 }
 
 #[tauri::command]
@@ -2073,8 +2349,8 @@ mod pricing_tests {
         let (id, _, input, output, est) = match_price("CodingPlan.site/deepseek-v4-flash");
         assert!(!est, "resolved via models.dev, not estimated");
         assert_eq!(id, "deepseek/deepseek-v4-flash");
-        assert_eq!(input, 0.14);
-        assert_eq!(output, 0.28);
+        assert_eq!(input, 0.15);
+        assert_eq!(output, 0.6);
     }
 
     #[test]
@@ -2430,5 +2706,273 @@ mod range_and_model_totals_tests {
         // just assert the set is complete and totals add up.
         let total: u64 = stats.models_by_name.iter().map(|m| m.total_tokens).sum();
         assert_eq!(total, 3 * 200);
+    }
+}
+
+#[cfg(test)]
+mod archive_snapshot_tests {
+    use super::*;
+
+    const WID: &str = "wd_proj_a1b2c3d4e5f6";
+    const LIVE_SID: &str = "session_11111111-2222-3333-4444-555555555555";
+    const GONE_SID: &str = "session_99999999-8888-7777-6666-555555555555";
+
+    fn now_ms() -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64
+    }
+
+    fn rec(time: u64, model: &str, tokens: (u64, u64, u64, u64), cost: f64) -> UsageRecord {
+        UsageRecord {
+            time,
+            model: model.to_string(),
+            input_other: tokens.0,
+            output: tokens.1,
+            input_cache_read: tokens.2,
+            input_cache_creation: tokens.3,
+            cost_usd: cost,
+            cost_estimated: false,
+            price_id: String::new(),
+            model_resolved: model.rsplit_once('/').map(|x| x.1).unwrap_or(model).to_string(),
+            model_display: model.to_string(),
+            provider: None,
+            from_env: false,
+            is_secondary: false,
+        }
+    }
+
+    fn snapshot_row(
+        sid: &str,
+        day_start_ms: u64,
+        model: &str,
+        tokens: u64,
+    ) -> ArchivedSessionSnapshot {
+        ArchivedSessionSnapshot {
+            session_id: sid.to_string(),
+            workspace_id: WID.to_string(),
+            title: None,
+            archived_at_ms: 0,
+            updated_at_ms: None,
+            created_at_ms: None,
+            total_tokens: tokens,
+            total_cost_usd: 0.0,
+            day_stats: vec![DayStat {
+                day: day_key(day_start_ms),
+                day_start_ms,
+                models: vec![DayModelStat {
+                    model: model.to_string(),
+                    requests: 2,
+                    input_other: tokens,
+                    output: 0,
+                    input_cache_read: 0,
+                    input_cache_creation: 0,
+                    cost_usd: 1.5,
+                }],
+            }],
+        }
+    }
+
+    fn write_state(dir: &Path, updated_ms: u64, archived: bool) {
+        let state = serde_json::json!({
+            "id": dir.file_name().unwrap().to_string_lossy(),
+            "createdAt": updated_ms,
+            "updatedAt": updated_ms,
+            "archived": archived,
+            "title": "archived candidate",
+        });
+        fs::write(dir.join("state.json"), state.to_string()).unwrap();
+    }
+
+    fn read_state(dir: &Path) -> serde_json::Value {
+        serde_json::from_str(&fs::read_to_string(dir.join("state.json")).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn snapshot_groups_records_by_local_day_and_model() {
+        let now = now_ms();
+        let d1 = local_midnight_ms(now, 2);
+        let d2 = local_midnight_ms(now, 1);
+        let records = vec![
+            rec(d1 + 3_600_000, "openai/gpt-x", (100, 10, 5, 1), 0.5),
+            rec(d1 + 7_200_000, "openai/gpt-x", (200, 20, 0, 0), 0.25),
+            rec(d1 + 60_000, "moonshotai/kimi-k3", (1, 2, 3, 4), 0.01),
+            rec(d2 + 1_000, "openai/gpt-x", (7, 7, 7, 7), 0.07),
+        ];
+        let days = snapshot_from_records(&records);
+        assert_eq!(days.len(), 2, "one bucket per local day");
+
+        let first = &days[0];
+        assert_eq!(first.day, day_key(d1));
+        assert_eq!(first.day_start_ms, d1, "day bucket starts at local midnight");
+        assert_eq!(first.models.len(), 2);
+        let gpt = first.models.iter().find(|m| m.model == "openai/gpt-x").unwrap();
+        assert_eq!(gpt.requests, 2);
+        assert_eq!(gpt.input_other, 300);
+        assert_eq!(gpt.output, 30);
+        assert_eq!(gpt.input_cache_read, 5);
+        assert_eq!(gpt.input_cache_creation, 1);
+        assert_eq!(gpt.cost_usd, 0.75);
+        // Deterministic ordering: models sorted by raw model key.
+        assert_eq!(first.models[0].model, "moonshotai/kimi-k3");
+
+        assert_eq!(days[1].day, day_key(d2));
+        assert_eq!(days[1].day_start_ms, d2);
+        assert_eq!(days[1].models.len(), 1);
+        assert_eq!(days[1].models[0].input_other, 7);
+    }
+
+    #[test]
+    fn synthesize_only_covers_sessions_whose_files_are_gone() {
+        let td = tempfile::tempdir().unwrap();
+        let home = td.path().join("home");
+        fs::create_dir_all(home.join("sessions").join(WID).join(LIVE_SID)).unwrap();
+
+        let day_start = 1_700_000_000_000u64;
+        let rows = vec![
+            snapshot_row(LIVE_SID, day_start, "openai/gpt-x", 100),
+            snapshot_row(GONE_SID, day_start, "openai/gpt-x", 200),
+        ];
+        let out = synthesize_snapshot_records(&rows, &home);
+        assert_eq!(out.len(), 1, "live session dirs stay with the live scan");
+
+        let r = &out[0];
+        assert_eq!(r.time, day_start);
+        assert_eq!(r.model, "openai/gpt-x");
+        assert_eq!(r.model_resolved, "gpt-x");
+        assert_eq!(r.model_display, "openai/gpt-x");
+        assert_eq!(r.provider.as_deref(), Some("openai"));
+        assert_eq!(r.input_other, 200);
+        assert_eq!(r.cost_usd, 1.5);
+        assert!(r.cost_estimated, "snapshot costs are estimates");
+        assert_eq!(r.price_id, "");
+        assert!(!r.is_secondary);
+        assert!(!r.from_env);
+    }
+
+    #[test]
+    fn merge_appends_missing_sessions_newest_first_without_double_counting() {
+        let td = tempfile::tempdir().unwrap();
+        let home = td.path().join("home");
+        fs::create_dir_all(home.join("sessions").join(WID).join(LIVE_SID)).unwrap();
+
+        let now = now_ms();
+        let old_day = local_midnight_ms(now, 5);
+        let new_day = local_midnight_ms(now, 1);
+        let gone_old = "session_22222222-2222-3333-4444-555555555555";
+        let gone_new = "session_33333333-2222-3333-4444-555555555555";
+        let rows = vec![
+            snapshot_row(LIVE_SID, new_day, "openai/gpt-x", 999),
+            snapshot_row(gone_old, old_day, "openai/gpt-x", 10),
+            snapshot_row(gone_new, new_day, "openai/gpt-x", 20),
+        ];
+        let live = vec![rec(new_day + 5_000, "openai/gpt-x", (1, 1, 1, 1), 0.01)];
+        let merged = merge_snapshot_records(live, &rows, &home);
+
+        assert_eq!(merged.len(), 3, "live record plus the two missing sessions");
+        assert_eq!(merged[0].time, new_day + 5_000, "newest record first");
+        assert_eq!(merged[1].time, new_day);
+        assert_eq!(merged[2].time, old_day);
+        assert_eq!(merged[1].input_other, 20);
+        assert_eq!(merged[2].input_other, 10);
+        assert!(
+            merged.iter().all(|r| r.input_other != 999),
+            "a live session's stored snapshot must never be synthesized"
+        );
+    }
+
+    #[test]
+    fn state_times_parse_epoch_numbers_and_iso_strings() {
+        assert_eq!(
+            parse_state_time_ms(&serde_json::json!(1_700_000_000_000u64)),
+            Some(1_700_000_000_000)
+        );
+        assert_eq!(
+            parse_state_time_ms(&serde_json::json!("1700000000000")),
+            Some(1_700_000_000_000)
+        );
+        assert_eq!(
+            parse_state_time_ms(&serde_json::json!("2025-01-02T03:04:05.000Z")),
+            Some(1_735_787_045_000)
+        );
+        assert_eq!(
+            parse_state_time_ms(&serde_json::json!("2025-01-02T03:04:05")),
+            Some(1_735_787_045_000)
+        );
+        assert_eq!(
+            parse_state_time_ms(&serde_json::json!("2025-01-02 03:04:05")),
+            Some(1_735_787_045_000)
+        );
+        assert_eq!(parse_state_time_ms(&serde_json::json!(null)), None);
+        assert_eq!(parse_state_time_ms(&serde_json::json!("not-a-date")), None);
+    }
+
+    #[test]
+    fn bulk_archive_flags_old_sessions_and_snapshots_their_usage() {
+        let td = tempfile::tempdir().unwrap();
+        let home = td.path().join("home");
+        // Redirect the SQLite store so the test never touches the user's DB.
+        std::env::set_var("KIMI_SWITCH_DB_PATH", td.path().join("test.db"));
+
+        let ws = home.join("sessions").join(WID);
+        let now = now_ms();
+        let old_ms = now - 60 * 24 * 3600 * 1000;
+
+        let old_dir = ws.join(LIVE_SID);
+        fs::create_dir_all(&old_dir).unwrap();
+        write_state(&old_dir, old_ms, false);
+        let wire = serde_json::json!({
+            "type": "usage.record",
+            "usageScope": "turn",
+            "time": old_ms,
+            "model": "openai/gpt-x",
+            "usage": {
+                "inputOther": 100,
+                "output": 50,
+                "inputCacheRead": 10,
+                "inputCacheCreation": 5,
+            },
+        });
+        fs::write(old_dir.join("wire.jsonl"), format!("{wire}\n")).unwrap();
+
+        let new_sid = "session_44444444-2222-3333-4444-555555555555";
+        let new_dir = ws.join(new_sid);
+        fs::create_dir_all(&new_dir).unwrap();
+        write_state(&new_dir, now - 3_600_000, false);
+
+        let cutoff = now - 30 * 24 * 3600 * 1000;
+        let res = archive_sessions_before_cmd(&home, cutoff);
+        assert_eq!(res.archived, 1, "only the stale session is archived");
+        assert_eq!(res.skipped, 1, "the recent session is reported as skipped");
+        assert!(res.errors.is_empty(), "{:?}", res.errors);
+
+        // Metadata archive happened in place, the recent session is untouched.
+        assert_eq!(read_state(&old_dir)["archived"], true);
+        assert!(read_state(&old_dir)["archivedAt"].as_u64().unwrap() > 0);
+        assert_eq!(read_state(&new_dir)["archived"], false);
+
+        // Usage snapshot landed in SQLite with the session's totals.
+        let rows = crate::db::list_archived_sessions().unwrap();
+        let row = rows.iter().find(|r| r.session_id == LIVE_SID).expect("snapshot row");
+        assert_eq!(row.workspace_id, WID);
+        assert_eq!(row.title.as_deref(), Some("archived candidate"));
+        assert_eq!(row.updated_at_ms, Some(old_ms));
+        assert_eq!(row.total_tokens, 165);
+        assert!(row.total_cost_usd > 0.0);
+        assert_eq!(row.day_stats.len(), 1);
+        assert_eq!(row.day_stats[0].day, day_key(old_ms));
+        assert_eq!(row.day_stats[0].models[0].requests, 1);
+        assert_eq!(row.day_stats[0].models[0].input_other, 100);
+
+        // While the files are still there, the live scan owns the usage.
+        let merged = records_with_archive_merge(&home, vec![]);
+        assert!(merged.is_empty(), "no synthesized records while the dir exists");
+
+        // Once the archived directory is deleted, stats come from the snapshot.
+        fs::remove_dir_all(&old_dir).unwrap();
+        let merged = records_with_archive_merge(&home, vec![]);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(merged[0].input_other, 100);
+        assert_eq!(merged[0].output, 50);
+        assert_eq!(day_key(merged[0].time), day_key(old_ms));
     }
 }

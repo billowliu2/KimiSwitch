@@ -220,6 +220,18 @@ export const zhTranslations = {
   roleUser: "用户",
   roleAssistant: "助手",
   roleSystem: "系统",
+  sessionsArchiveAll: "一键归档",
+  archiveAllTitle: "一键归档会话",
+  archiveAllDesc: "将归档最后活跃时间早于所选日期的全部活跃会话；文件保留，统计不受影响。",
+  archiveOptionMonth: "1 个月前",
+  archiveOptionHalfMonth: "半个月前",
+  archiveOptionWeek: "1 星期前",
+  archiveOptionCustom: "指定日期",
+  archiveAllConfirm: "将归档最后活跃时间早于 {date} 的全部活跃会话。确认？",
+  archiveAllRunning: "正在归档…",
+  archiveAllDone: "已归档 {archived} 个会话，跳过 {skipped} 个",
+  archiveAllFailed: "归档失败",
+  archiveAllEmpty: "没有符合条件的会话",
 
   // Heatmap
   noData: "暂无数据",

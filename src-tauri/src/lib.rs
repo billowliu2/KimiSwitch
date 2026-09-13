@@ -121,6 +121,7 @@ pub fn run() {
             dashboard::get_day_detail,
             dashboard::list_sessions,
             dashboard::archive_session,
+            dashboard::archive_sessions_before,
             dashboard::unarchive_session,
             dashboard::delete_session,
             dashboard::delete_workspace,

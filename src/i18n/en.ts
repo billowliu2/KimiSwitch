@@ -225,6 +225,19 @@ export const enTranslations: Record<TranslationKey, string> = {
   roleUser: "User",
   roleAssistant: "Assistant",
   roleSystem: "System",
+  sessionsArchiveAll: "Archive old sessions",
+  archiveAllTitle: "Archive old sessions",
+  archiveAllDesc:
+    "Archives every active session whose last activity is older than the selected date. Files are kept and usage stats stay intact.",
+  archiveOptionMonth: "Older than 1 month",
+  archiveOptionHalfMonth: "Older than 15 days",
+  archiveOptionWeek: "Older than 1 week",
+  archiveOptionCustom: "Specific date",
+  archiveAllConfirm: "Archive every active session last active before {date}. Continue?",
+  archiveAllRunning: "Archiving…",
+  archiveAllDone: "Archived {archived} sessions, skipped {skipped}",
+  archiveAllFailed: "Archive failed",
+  archiveAllEmpty: "No sessions match",
 
   // Heatmap
   noData: "No data",
