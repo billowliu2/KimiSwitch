@@ -23,6 +23,7 @@ pub enum UsageKind {
     BalanceNovita,
     BalanceKimi,
     BalanceNewapi,
+    BalanceSub2Api,
     PlanKimiCoding,
     PlanZhipu,
     PlanMinimax,
@@ -40,6 +41,7 @@ impl UsageKind {
             UsageKind::BalanceNovita => "balance:novita",
             UsageKind::BalanceKimi => "balance:kimi",
             UsageKind::BalanceNewapi => "balance:newapi",
+            UsageKind::BalanceSub2Api => "balance:sub2api",
             UsageKind::PlanKimiCoding => "plan:kimi_coding",
             UsageKind::PlanZhipu => "plan:zhipu",
             UsageKind::PlanMinimax => "plan:minimax",
@@ -47,7 +49,7 @@ impl UsageKind {
         }
     }
 
-    pub const ALL: [UsageKind; 11] = [
+    pub const ALL: [UsageKind; 12] = [
         UsageKind::BalanceDeepseek,
         UsageKind::BalanceSiliconflow,
         UsageKind::BalanceOpenrouter,
@@ -55,6 +57,7 @@ impl UsageKind {
         UsageKind::BalanceNovita,
         UsageKind::BalanceKimi,
         UsageKind::BalanceNewapi,
+        UsageKind::BalanceSub2Api,
         UsageKind::PlanKimiCoding,
         UsageKind::PlanZhipu,
         UsageKind::PlanMinimax,
@@ -74,6 +77,7 @@ impl std::str::FromStr for UsageKind {
             "balance:novita" => UsageKind::BalanceNovita,
             "balance:kimi" => UsageKind::BalanceKimi,
             "balance:newapi" => UsageKind::BalanceNewapi,
+            "balance:sub2api" => UsageKind::BalanceSub2Api,
             "plan:kimi_coding" => UsageKind::PlanKimiCoding,
             "plan:zhipu" => UsageKind::PlanZhipu,
             "plan:minimax" => UsageKind::PlanMinimax,
@@ -97,10 +101,13 @@ pub fn detect_provider(base_url: &str) -> Vec<UsageKind> {
     if url.contains("openrouter.ai") {
         kinds.push(UsageKind::BalanceOpenrouter);
     }
-    // codingplan.site 检测为 NewAPI 实例（本工具仅支持 NewAPI 查询）；
-    // 家族匹配意味着 ai. 子域也自然命中该规则。
-    if url.contains("codingplan.site") {
+    // codingplan.site 家族：主域（含任意子域除 ai. 外）是 Sub2API 面板
+    // （/api/v1/settings/public 指纹命中，NewAPI 端点全 404）；
+    // ai.codingplan.site 才是 NewAPI 实例（/api/status、/api/user/self 可用）。
+    if url.contains("ai.codingplan.site") {
         kinds.push(UsageKind::BalanceNewapi);
+    } else if url.contains("codingplan.site") {
+        kinds.push(UsageKind::BalanceSub2Api);
     }
     if url.contains("api.stepfun.com") {
         kinds.push(UsageKind::BalanceStepfun);
@@ -185,6 +192,14 @@ pub async fn query_kind(
                 .filter(|s| !s.is_empty())
                 .unwrap_or(base_url);
             balance::query_newapi(url, token, uid, timeout).await
+        }
+        UsageKind::BalanceSub2Api => {
+            // sub2api 复用推理 API Key，无需额外凭据；base_url 同样允许面板覆盖。
+            let url = usage_config
+                .and_then(|c| c.base_url.as_deref())
+                .filter(|s| !s.is_empty())
+                .unwrap_or(base_url);
+            balance::query_sub2api(url, api_key, timeout).await
         }
         UsageKind::PlanKimiCoding => {
             coding_plan::query_kimi_coding(base_url, api_key, timeout).await
@@ -279,15 +294,15 @@ mod tests {
 
     #[test]
     fn detect_provider_codingplan_site_family() {
-        // codingplan.site 是 NewAPI 实例（本工具仅支持 NewAPI 查询）：
-        // 主域与 ai. 子域都命中家族规则，且只映射到 BalanceNewapi。
+        // codingplan.site 家族分家：主域是 Sub2API 面板（推理 key 直查 /v1/usage），
+        // ai. 子域才是 NewAPI 实例。
         assert_eq!(
             detect_provider("https://codingplan.site"),
-            vec![UsageKind::BalanceNewapi]
+            vec![UsageKind::BalanceSub2Api]
         );
         assert_eq!(
             detect_provider("https://codingplan.site/v1"),
-            vec![UsageKind::BalanceNewapi]
+            vec![UsageKind::BalanceSub2Api]
         );
         assert_eq!(
             detect_provider("https://ai.codingplan.site"),

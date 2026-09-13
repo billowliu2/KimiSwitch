@@ -690,19 +690,20 @@ pub async fn query_provider_usage(
 
     let base_url = resolve_base_url(provider);
 
-    // NewAPI template: query the gateway's own usage endpoints with its
-    // dedicated credentials, bypassing usage_kinds entirely.
+    // NewAPI / Sub2API template: query the gateway's own usage endpoints.
+    // NewAPI needs web-console credentials (accessToken + userId); Sub2API
+    // reuses the inference API key directly — both bypass usage_kinds.
     if let Some(cfg) = &provider.usage_config {
-        if cfg.template_type == UsageConfig::TEMPLATE_NEWAPI {
+        let template_kind = match cfg.template_type.as_str() {
+            UsageConfig::TEMPLATE_NEWAPI => Some(UsageKind::BalanceNewapi),
+            UsageConfig::TEMPLATE_SUB2API => Some(UsageKind::BalanceSub2Api),
+            _ => None,
+        };
+        if let Some(kind) = template_kind {
             // Err = transient (network) → propagate for retry, same semantics
             // as the kinds loop below. Config errors surface as Ok(failure).
-            let result = services::query_kind(
-                UsageKind::BalanceNewapi,
-                &base_url,
-                &api_key,
-                Some(cfg),
-            )
-            .await?;
+            let result =
+                services::query_kind(kind, &base_url, &api_key, Some(cfg)).await?;
             if result.success {
                 usage_cache()
                     .lock()

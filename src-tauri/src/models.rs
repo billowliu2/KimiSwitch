@@ -290,6 +290,7 @@ pub struct UsageConfig {
 impl UsageConfig {
     pub const TEMPLATE_AUTO: &'static str = "auto";
     pub const TEMPLATE_NEWAPI: &'static str = "newapi";
+    pub const TEMPLATE_SUB2API: &'static str = "sub2api";
 }
 
 impl std::fmt::Debug for Config {

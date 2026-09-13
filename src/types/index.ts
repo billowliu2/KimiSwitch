@@ -75,11 +75,12 @@ export interface Config {
 /**
  * Usage query configuration (mirrors the Rust `UsageConfig`, camelCase).
  * "auto" = query kinds from usageKinds/host detect; "newapi" = query a
- * NewAPI/OneAPI gateway with accessToken + userId.
+ * NewAPI/OneAPI gateway with accessToken + userId; "sub2api" = query a
+ * Sub2API (Wei-Shaw/sub2api) gateway, reusing the inference API key.
  */
 export interface UsageConfig {
   enabled: boolean;
-  templateType: "auto" | "newapi";
+  templateType: "auto" | "newapi" | "sub2api";
   baseUrl?: string;
   /** NewAPI web-console access token (NOT the sk- inference key). */
   accessToken?: string;

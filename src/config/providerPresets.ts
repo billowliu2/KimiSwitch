@@ -15,6 +15,7 @@ export type UsageKind =
   | "balance:novita"
   | "balance:kimi"
   | "balance:newapi"
+  | "balance:sub2api"
   | "plan:kimi_coding"
   | "plan:zhipu"
   | "plan:minimax"
@@ -32,6 +33,7 @@ export const SUPPORTED_USAGE_KINDS: ReadonlySet<string> = new Set<UsageKind>([
   "balance:novita",
   "balance:kimi",
   "balance:newapi",
+  "balance:sub2api",
   "plan:kimi_coding",
   "plan:zhipu",
   "plan:minimax",

@@ -521,6 +521,159 @@ fn parse_newapi(
     }])
 }
 
+// ── Sub2API (Wei-Shaw/sub2api) 中转站 ────────────────────────
+// GET {base_url}/v1/usage
+// 头：Authorization: Bearer <api_key>（就是推理用的 sk- key，无需额外凭据）
+// Response（三种 mode）：
+// - quota_limited：key 设了总额度/速率限制 → quota{limit,used,remaining} +
+//   rate_limits[{window: 5h|1d|7d, limit, used, remaining, reset_at}]
+// - unrestricted + subscription：订阅组 → planName + subscription 的
+//   daily/weekly/monthly usage/limit（USD）
+// - unrestricted + 钱包：planName="钱包余额" → balance / remaining（USD）
+//
+// 站点指纹（可选探测）：GET /api/v1/settings/public 返回 data.affiliate_enabled
+// 即为 sub2api 面板。注意 NewAPI 的 /api/user/self、/api/status 在 sub2api 上
+// 全部 404 —— 两套中转站协议不互通。
+
+/// 把供应商 base_url 归一成站点根（去掉结尾 `/` 与 `/v1`），网关路由挂在根路径。
+fn sub2api_site_root(base_url: &str) -> String {
+    let mut base = base_url.trim_end_matches('/');
+    if let Some(stripped) = base.strip_suffix("/v1") {
+        base = stripped;
+    }
+    base.to_string()
+}
+
+pub async fn query_sub2api(
+    base_url: &str,
+    api_key: &str,
+    timeout: Duration,
+) -> Result<UsageResult, String> {
+    let url = format!("{}/v1/usage", sub2api_site_root(base_url));
+    match get_json(&url, api_key, AuthStyle::Bearer, timeout).await? {
+        Fetched::Body(body) => Ok(parse_sub2api(&body)),
+        Fetched::Failed(err) => Ok(err),
+    }
+}
+
+/// 速率窗口名 → 本地化 tier 名（前端 planLabel 会翻译；five_hour /
+/// weekly_limit 已有映射，daily_limit 新增）。
+fn sub2api_window_tier(window: &str) -> &'static str {
+    match window {
+        "5h" => "five_hour",
+        "1d" => "daily_limit",
+        "7d" => "weekly_limit",
+        _ => "window",
+    }
+}
+
+fn parse_sub2api(body: &serde_json::Value) -> UsageResult {
+    let is_valid = body
+        .get("isValid")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let mode = body.get("mode").and_then(|v| v.as_str()).unwrap_or("");
+    if mode.is_empty() {
+        return UsageResult::failure(
+            "Missing 'mode' field in response (not a sub2api gateway?)".to_string(),
+        );
+    }
+
+    let mut out: Vec<UsageData> = Vec::new();
+
+    // key 总额度（quota_limited 模式才有）
+    if let Some(quota) = body.get("quota") {
+        if let Some(limit) = parse_f64_field(quota, "limit").filter(|&l| l > 0.0) {
+            let used = parse_f64_field(quota, "used").unwrap_or(0.0);
+            let remaining = parse_f64_field(quota, "remaining").unwrap_or(limit - used);
+            out.push(UsageData {
+                plan_name: Some("Sub2API".to_string()),
+                remaining: Some(remaining),
+                total: Some(limit),
+                used: Some(used),
+                unit: Some("USD".to_string()),
+                is_valid: Some(is_valid && remaining > 0.0),
+                ..Default::default()
+            });
+        }
+    }
+
+    // 速率窗口（5h / 1d / 7d；reset_at 为 RFC3339，窗口过期时缺省）
+    if let Some(rates) = body.get("rate_limits").and_then(|v| v.as_array()) {
+        for w in rates {
+            let window = w.get("window").and_then(|v| v.as_str()).unwrap_or("");
+            let Some(limit) = parse_f64_field(w, "limit").filter(|&l| l > 0.0) else {
+                continue;
+            };
+            let used = parse_f64_field(w, "used").unwrap_or(0.0);
+            let remaining = parse_f64_field(w, "remaining").unwrap_or(limit - used);
+            out.push(UsageData {
+                plan_name: Some(sub2api_window_tier(window).to_string()),
+                remaining: Some(remaining),
+                total: Some(limit),
+                used: Some(used),
+                unit: Some("USD".to_string()),
+                is_valid: Some(is_valid && remaining > 0.0),
+                resets_at: w
+                    .get("reset_at")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string),
+            });
+        }
+    }
+
+    // unrestricted 订阅组：daily/weekly/monthly 三窗口（usage_usd vs limit_usd）
+    if mode == "unrestricted" {
+        if let Some(sub) = body.get("subscription") {
+            for (prefix, tier) in [
+                ("daily", "daily_limit"),
+                ("weekly", "weekly_limit"),
+                ("monthly", "monthly_limit"),
+            ] {
+                let Some(usage) = parse_f64_field(sub, &format!("{prefix}_usage_usd")) else {
+                    continue;
+                };
+                let Some(limit) = parse_f64_field(sub, &format!("{prefix}_limit_usd"))
+                    .filter(|&l| l > 0.0)
+                else {
+                    continue;
+                };
+                let remaining = limit - usage;
+                out.push(UsageData {
+                    plan_name: Some(tier.to_string()),
+                    remaining: Some(remaining),
+                    total: Some(limit),
+                    used: Some(usage),
+                    unit: Some("USD".to_string()),
+                    is_valid: Some(is_valid && remaining > 0.0),
+                    resets_at: None,
+                });
+            }
+        }
+    }
+
+    // 钱包余额（unrestricted 非订阅）或以上全部缺失时的兜底
+    if out.is_empty() {
+        if let Some(balance) = parse_f64_field(body, "balance")
+            .or_else(|| parse_f64_field(body, "remaining"))
+        {
+            out.push(UsageData {
+                plan_name: Some("Sub2API".to_string()),
+                remaining: Some(balance),
+                unit: Some("USD".to_string()),
+                is_valid: Some(is_valid),
+                ..Default::default()
+            });
+        }
+    }
+
+    if out.is_empty() {
+        UsageResult::failure("No quota/rate-limit/balance fields in response".to_string())
+    } else {
+        UsageResult::ok(out)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -687,5 +840,106 @@ mod tests {
         let data = parse_newapi(&body, 500_000.0, "¥").unwrap();
         assert_eq!(data[0].remaining, Some(1.0));
         assert_eq!(data[0].used, Some(0.2));
+    }
+
+    #[test]
+    fn sub2api_site_root_strips_v1_and_slash() {
+        assert_eq!(sub2api_site_root("https://x.com"), "https://x.com");
+        assert_eq!(sub2api_site_root("https://x.com/"), "https://x.com");
+        assert_eq!(sub2api_site_root("https://x.com/v1"), "https://x.com");
+        assert_eq!(sub2api_site_root("https://x.com/v1/"), "https://x.com");
+    }
+
+    #[test]
+    fn sub2api_quota_limited_parses_quota_and_windows() {
+        let body = json!({
+            "mode": "quota_limited",
+            "isValid": true,
+            "quota": { "limit": 50.0, "used": 20.0, "remaining": 30.0, "unit": "USD" },
+            "remaining": 30.0,
+            "unit": "USD",
+            "rate_limits": [
+                { "window": "5h", "limit": 10.0, "used": 4.0, "remaining": 6.0,
+                  "window_start": "2026-09-13T00:00:00Z", "reset_at": "2026-09-13T05:00:00Z" },
+                { "window": "1d", "limit": 30.0, "used": 10.0, "remaining": 20.0,
+                  "window_start": "2026-09-13T00:00:00Z" }
+            ]
+        });
+        let result = parse_sub2api(&body);
+        assert!(result.success);
+        let data = result.data.unwrap();
+        assert_eq!(data.len(), 3);
+        assert_eq!(data[0].plan_name.as_deref(), Some("Sub2API"));
+        assert_eq!(data[0].remaining, Some(30.0));
+        assert_eq!(data[0].total, Some(50.0));
+        assert_eq!(data[0].used, Some(20.0));
+        assert_eq!(data[0].unit.as_deref(), Some("USD"));
+        assert_eq!(data[1].plan_name.as_deref(), Some("five_hour"));
+        assert_eq!(data[1].remaining, Some(6.0));
+        assert_eq!(data[1].resets_at.as_deref(), Some("2026-09-13T05:00:00Z"));
+        assert_eq!(data[2].plan_name.as_deref(), Some("daily_limit"));
+        assert_eq!(data[2].resets_at, None);
+    }
+
+    #[test]
+    fn sub2api_subscription_windows() {
+        let body = json!({
+            "mode": "unrestricted",
+            "isValid": true,
+            "planName": "claude-pro",
+            "unit": "USD",
+            "subscription": {
+                "daily_usage_usd": 1.0, "daily_limit_usd": 10.0,
+                "weekly_usage_usd": 8.0, "weekly_limit_usd": 30.0,
+                "monthly_usage_usd": 55.0, "monthly_limit_usd": 60.0
+            }
+        });
+        let result = parse_sub2api(&body);
+        assert!(result.success);
+        let data = result.data.unwrap();
+        assert_eq!(data.len(), 3);
+        assert_eq!(data[0].plan_name.as_deref(), Some("daily_limit"));
+        assert_eq!(data[0].remaining, Some(9.0));
+        assert_eq!(data[1].plan_name.as_deref(), Some("weekly_limit"));
+        assert_eq!(data[1].remaining, Some(22.0));
+        assert_eq!(data[2].plan_name.as_deref(), Some("monthly_limit"));
+        assert_eq!(data[2].remaining, Some(5.0));
+        assert_eq!(data[2].is_valid, Some(true));
+    }
+
+    #[test]
+    fn sub2api_wallet_balance() {
+        let body = json!({
+            "mode": "unrestricted",
+            "isValid": true,
+            "planName": "钱包余额",
+            "remaining": 12.5,
+            "unit": "USD",
+            "balance": 12.5
+        });
+        let data = parse_sub2api(&body).data.unwrap();
+        assert_eq!(data.len(), 1);
+        assert_eq!(data[0].plan_name.as_deref(), Some("Sub2API"));
+        assert_eq!(data[0].remaining, Some(12.5));
+        assert_eq!(data[0].unit.as_deref(), Some("USD"));
+    }
+
+    #[test]
+    fn sub2api_missing_mode_is_deterministic_failure() {
+        let body = json!({ "foo": 1 });
+        let result = parse_sub2api(&body);
+        assert!(!result.success);
+        assert!(result.error.unwrap().contains("Missing 'mode'"));
+    }
+
+    #[test]
+    fn sub2api_exhausted_window_is_invalid() {
+        let body = json!({
+            "mode": "quota_limited",
+            "isValid": true,
+            "quota": { "limit": 10.0, "used": 10.0, "remaining": 0.0, "unit": "USD" }
+        });
+        let data = parse_sub2api(&body).data.unwrap();
+        assert_eq!(data[0].is_valid, Some(false));
     }
 }

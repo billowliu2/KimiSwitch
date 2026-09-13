@@ -527,6 +527,18 @@ function ModelMapping({
     });
   };
 
+  const selectAllModels = () => {
+    if (!discovered) return;
+    setSelected(new Set(discovered.map((m) => m.id)));
+  };
+
+  const deselectAllModels = () => setSelected(new Set());
+
+  const invertSelection = () => {
+    if (!discovered) return;
+    setSelected((prev) => new Set(discovered.filter((m) => !prev.has(m.id)).map((m) => m.id)));
+  };
+
   const handleAddSelected = () => {
     if (!discovered || selected.size === 0) return;
     const existingIds = new Set(models.filter((m) => m.model).map((m) => m.model));
@@ -596,8 +608,33 @@ function ModelMapping({
 
       {discovered && (
         <div className="bg-panel border border-border rounded-xl p-4 space-y-3">
-          <div className="text-sm font-medium">
-            {t("discoveredModels", { count: discovered.length })}
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-medium">
+              {t("discoveredModels", { count: discovered.length })}
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={selectAllModels}
+                className="px-2 py-0.5 text-xs border border-border rounded hover:bg-hover-2 text-content-primary transition-colors"
+              >
+                {t("selectAll")}
+              </button>
+              <button
+                type="button"
+                onClick={deselectAllModels}
+                className="px-2 py-0.5 text-xs border border-border rounded hover:bg-hover-2 text-content-primary transition-colors"
+              >
+                {t("deselectAll")}
+              </button>
+              <button
+                type="button"
+                onClick={invertSelection}
+                className="px-2 py-0.5 text-xs border border-border rounded hover:bg-hover-2 text-content-primary transition-colors"
+              >
+                {t("invertSelection")}
+              </button>
+            </div>
           </div>
           <label className="flex items-center gap-2 text-sm text-content-primary cursor-pointer">
             <input

@@ -19,6 +19,8 @@ export function planLabel(name: string, t: TranslateFn): string {
   switch (name) {
     case "five_hour":
       return t("usageTier5h");
+    case "daily_limit":
+      return t("usageTierDaily");
     case "weekly_limit":
       return t("usageTierWeekly");
     case "monthly_limit":

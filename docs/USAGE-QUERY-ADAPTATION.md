@@ -253,6 +253,17 @@ KimiSwitch 现有 `usageKinds` 枚举是**每家中转站一个 Rust 函数**的
 
 ## 5. 新增能力实现清单（改动点）
 
+> 实施状态更新（2026-09-13）：**Sub2API 兼容已实现（`balance:sub2api`）**。
+> 实测澄清：`codingplan.site`（主域）**不是** NewAPI 而是 Wei-Shaw/sub2api 面板
+> （NewAPI 端点 `/api/status`、`/api/user/self` 全 404；`/api/v1/settings/public`
+> 返回 `data.affiliate_enabled` 指纹命中；`/v1/usage`、`/v1/sub2api/billing` 为
+> API-key 网关端点）。`ai.codingplan.site` 才是 NewAPI 实例。detect_provider
+> 已按此拆分家族规则。Sub2API 查询复用推理 sk- key（`GET {base}/v1/usage`，
+> Bearer），解析三种 mode：quota_limited（quota + 5h/1d/7d rate_limits）、
+> unrestricted 订阅组（daily/weekly/monthly usage/limit USD）、钱包余额。
+> UsageConfigModal 模板加 "sub2api"（无需凭据，可选 Base URL 覆盖）。
+> 验证：cargo test 124 通过（含 6 个 sub2api 解析用例）、tsc 零错误。
+
 > 实施状态（2026-07-31）：**P0 已实现，未验证、未提交**。
 > 展示方案已确认为 **A（供应商卡片底部 UsageFooter，零前端改动）**。
 > 改动文件：`src-tauri/src/services/balance.rs`（query_kimi/parse_kimi + 单测）、`src-tauri/src/services/mod.rs`（枚举/路由/detect + 单测）、`src/config/providerPresets.ts`（UsageKind/SUPPORTED_USAGE_KINDS + moonshot 预设挂 `balance:kimi`）。

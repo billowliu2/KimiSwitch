@@ -30,12 +30,13 @@ interface UsageConfigModalProps {
 }
 
 const TEMPLATES: ReadonlyArray<{
-  id: "auto" | "newapi";
+  id: "auto" | "newapi" | "sub2api";
   labelKey: TranslationKey;
   hintKey: TranslationKey;
 }> = [
   { id: "auto", labelKey: "usageTemplateAuto", hintKey: "usageAutoDetectHint" },
   { id: "newapi", labelKey: "usageTemplateNewapi", hintKey: "usageNewapiHint" },
+  { id: "sub2api", labelKey: "usageTemplateSub2api", hintKey: "usageSub2apiHint" },
 ];
 
 function defaultConfig(provider: Provider): UsageConfig {
@@ -225,7 +226,9 @@ export function UsageConfigModal({ open, agent, provider, onClose, onSave }: Usa
                     <p className="text-xs text-content-muted">
                       {cfg.templateType === "newapi"
                         ? t("usageNewapiHint")
-                        : t("usageAutoDetectHint")}
+                        : cfg.templateType === "sub2api"
+                          ? t("usageSub2apiHint")
+                          : t("usageAutoDetectHint")}
                     </p>
                   </>
                 )}
@@ -237,9 +240,9 @@ export function UsageConfigModal({ open, agent, provider, onClose, onSave }: Usa
                     <span className="text-blue-500">{"{{baseUrl}}"}</span>
                     <span className="text-content-muted">=</span>
                     <span className="text-content-primary break-all">
-                      {cfg.templateType === "newapi"
-                        ? cfg.baseUrl || provider.base_url || "-"
-                        : provider.base_url || "-"}
+                      {cfg.templateType === "auto"
+                        ? provider.base_url || "-"
+                        : cfg.baseUrl || provider.base_url || "-"}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-xs font-mono">
@@ -341,6 +344,21 @@ export function UsageConfigModal({ open, agent, provider, onClose, onSave }: Usa
                         onChange={(e) => setCfg({ ...cfg, userId: e.target.value || undefined })}
                       />
                       <p className="mt-1 text-xs text-content-muted">{t("usageUserIdHint")}</p>
+                    </div>
+                  </div>
+                )}
+                {/* sub2api: no extra credentials (reuses the inference key), optional gateway override */}
+                {!isManaged && cfg.templateType === "sub2api" && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm text-content-muted mb-1.5">{t("usageBaseUrl")}</label>
+                      <input
+                        type="text"
+                        className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        value={cfg.baseUrl ?? ""}
+                        placeholder={provider.base_url ?? "https://your-sub2api-site.com"}
+                        onChange={(e) => setCfg({ ...cfg, baseUrl: e.target.value || undefined })}
+                      />
                     </div>
                   </div>
                 )}
