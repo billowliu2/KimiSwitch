@@ -484,8 +484,6 @@ export const zhTranslations = {
   flagSubagentForkDesc: "Agent/AgentSwarm 工具可携带主代理会话快照启动子代理（fork 参数）",
   flagWaitFor: "WaitFor 工具",
   flagWaitForDesc: "代理可在当前回合内等待后台任务完成，而无需结束回合再被唤醒",
-  flagAutoSessionTitle: "自动会话标题",
-  flagAutoSessionTitleDesc: "通过托管 chat_title 工具自动生成会话标题",
   flagNotifyUser: "NotifyUser 工具",
   flagNotifyUserDesc: "实验性 Updates 面板：分页展示主代理与子代理的进度消息（默认关闭）",
   flagDefaultOn: "默认开启",

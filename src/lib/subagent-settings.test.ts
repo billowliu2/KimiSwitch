@@ -461,22 +461,23 @@ describe("validateSubagentPool", () => {
 // ---------------------------------------------------------------------------
 
 describe("experimental flag registry", () => {
-  it("mirrors the 0.42.0 v2 registry (6 flags)", () => {
+  it("mirrors the 0.43.0 v2 registry (5 flags)", () => {
     expect(EXPERIMENTAL_FLAGS.map((f) => f.id)).toEqual([
       "wait_for",
       "tool-select",
       "notify_user",
       "tower",
       "subagent_fork",
-      "auto_session_title",
     ]);
     // Removed upstream: file_history (0.41.0, turn-level file history is
-    // always on) plus secondary-model / persistence_minidb_readmodel /
-    // remote-control / search_worker (0.42.0 — promoted or moved to
-    // dedicated config, the minidb read-model now lives under [database]),
-    // so the adapter must not mirror them either.
+    // always on), auto_session_title (0.43.0, graduated — AI session titles
+    // are always on, #3749), plus secondary-model /
+    // persistence_minidb_readmodel / remote-control / search_worker
+    // (0.42.0 — promoted or moved to dedicated config, the minidb read-model
+    // now lives under [database]), so the adapter must not mirror them either.
     for (const id of [
       "file_history",
+      "auto_session_title",
       "secondary-model",
       "persistence_minidb_readmodel",
       "remote-control",

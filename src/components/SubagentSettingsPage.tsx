@@ -48,10 +48,6 @@ const FLAG_LABELS: Record<string, { name: TranslationKey; desc: TranslationKey }
   notify_user: { name: "flagNotifyUser", desc: "flagNotifyUserDesc" },
   tower: { name: "flagTower", desc: "flagTowerDesc" },
   subagent_fork: { name: "flagSubagentFork", desc: "flagSubagentForkDesc" },
-  auto_session_title: {
-    name: "flagAutoSessionTitle",
-    desc: "flagAutoSessionTitleDesc",
-  },
 };
 
 /** Validation-error i18n key per engine rule, for the pre-write self-check. */

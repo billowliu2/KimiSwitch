@@ -1349,9 +1349,10 @@ pub async fn kimi_oauth_poll(
 /// are probed too — the latter lets AgentSettingsPanel decide whether to
 /// dual-write the v1 engine's loop_control keys.
 ///
-/// As of Kimi Code 0.42.0 the upstream registry holds 6 experimental flags;
+/// As of Kimi Code 0.43.0 the upstream registry holds 5 experimental flags
+/// (`auto_session_title` graduated in 0.43.0 — titles are always on);
 /// `secondary-model`, `persistence_minidb_readmodel`, `remote-control` and
-/// `search_worker` have been promoted or removed upstream and are no longer
+/// `search_worker` were promoted or removed earlier and are no longer
 /// probed here.
 ///
 /// The flag id → env var mapping mirrors `EXPERIMENTAL_FLAGS` in
@@ -1361,12 +1362,11 @@ pub async fn kimi_oauth_poll(
 /// the raw values are returned and the truthy check happens on the frontend.
 #[tauri::command]
 pub fn get_experimental_env_status() -> HashMap<String, String> {
-    const VARS: [(&str, &str); 8] = [
+    const VARS: [(&str, &str); 7] = [
         ("tool-select", "KIMI_CODE_EXPERIMENTAL_TOOL_SELECT"),
         ("tower", "KIMI_CODE_EXPERIMENTAL_TOWER"),
         ("subagent_fork", "KIMI_CODE_EXPERIMENTAL_SUBAGENT_FORK"),
         ("wait_for", "KIMI_CODE_EXPERIMENTAL_WAIT_FOR"),
-        ("auto_session_title", "KIMI_CODE_EXPERIMENTAL_AUTO_SESSION_TITLE"),
         ("notify_user", "KIMI_CODE_EXPERIMENTAL_NOTIFY_USER"),
         // Non-flag probes consumed by the frontend:
         ("master", "KIMI_CODE_EXPERIMENTAL_FLAG"),

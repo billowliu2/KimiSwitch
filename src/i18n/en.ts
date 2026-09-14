@@ -490,8 +490,6 @@ export const enTranslations: Record<TranslationKey, string> = {
   flagSubagentForkDesc: "Agent/AgentSwarm tools can start a subagent with a snapshot of the calling agent's history (fork parameter)",
   flagWaitFor: "WaitFor Tool",
   flagWaitForDesc: "The agent can wait for background tasks to finish within the current turn",
-  flagAutoSessionTitle: "Auto Session Title",
-  flagAutoSessionTitleDesc: "Generate session titles automatically via the managed chat_title tool",
   flagNotifyUser: "NotifyUser tool",
   flagNotifyUserDesc: "Experimental Updates panel: paginated progress messages from the main agent and subagents (off by default)",
   flagDefaultOn: "On by default",
