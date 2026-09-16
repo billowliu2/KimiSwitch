@@ -449,6 +449,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   usageTierDaily: "Daily",
   usageTierWeekly: "Weekly",
   usageTierMonthly: "Monthly",
+  usageTierMonthCode: "Monthly (code)",
   usageErrNoKey: "No API key configured",
   usageErrDisabled: "Usage query is disabled in the config panel",
   usageErrLoginExpired: "Kimi Code login expired and auto-refresh failed; run `kimi login` again",

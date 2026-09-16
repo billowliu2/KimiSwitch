@@ -443,6 +443,7 @@ export const zhTranslations = {
   usageTierDaily: "每日",
   usageTierWeekly: "7天",
   usageTierMonthly: "30天",
+  usageTierMonthCode: "30天（代码）",
   usageErrNoKey: "未配置 API Key",
   usageErrDisabled: "用量查询已在配置面板中停用",
   usageErrLoginExpired: "Kimi Code 登录已过期且自动续期失败，请重新运行 `kimi login`",

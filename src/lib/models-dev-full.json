@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-09-13",
+  "last_updated": "2026-09-14",
   "providers": {
     "subconscious": {
       "id": "subconscious",
@@ -16471,6 +16471,20 @@
           "image": true
         },
         {
+          "id": "alibaba/deepseek-v4.1-flash",
+          "name": "DeepSeek V4.1 Flash (Alibaba Cloud)",
+          "cost": {
+            "input": 0.3,
+            "output": 1.2,
+            "cache_read": 0.03
+          },
+          "context": 1000000,
+          "output_limit": 393216,
+          "reasoning": true,
+          "tool_call": true,
+          "image": true
+        },
+        {
           "id": "alibaba/qwen-coder-plus",
           "name": "Qwen Coder Plus (Alibaba Cloud)",
           "cost": {
@@ -16730,7 +16744,7 @@
           "id": "scx-ai-gp/glm-5.2",
           "name": "GLM-5.2 (SCX.ai)",
           "cost": {
-            "input": 0.8,
+            "input": 0.88,
             "output": 2.55,
             "cache_read": 0.16
           },
@@ -18920,6 +18934,17 @@
           "output_limit": 32768,
           "reasoning": true,
           "tool_call": true
+        },
+        {
+          "id": "consensusprotocol/deepseek-v4.1-flash",
+          "name": "DeepSeek V4.1 Flash (Consensus Protocol)",
+          "cost": {
+            "input": 0.2,
+            "output": 0.6,
+            "cache_read": 0.005
+          },
+          "context": 1048576,
+          "output_limit": 384000
         },
         {
           "id": "consensusprotocol/glm-5.3-flash",
@@ -38111,9 +38136,9 @@
           "id": "gemma-4-26b-a4b-it",
           "name": "Gemma 4 26B A4B IT",
           "cost": {
-            "input": 0.102,
-            "output": 0.356,
-            "cache_read": 0.051
+            "input": 0.1,
+            "output": 0.374,
+            "cache_read": 0.05
           },
           "context": 256000,
           "output_limit": 25600,
@@ -38129,7 +38154,7 @@
             "output": 4.311648,
             "cache_read": 0.047907
           },
-          "context": 1048576,
+          "context": 1000000,
           "output_limit": 262144,
           "reasoning": true,
           "tool_call": true,
@@ -38195,9 +38220,9 @@
           "id": "minimax-m2.7",
           "name": "MiniMax-M2.7",
           "cost": {
-            "input": 0.396,
-            "output": 1.464,
-            "cache_read": 0.198
+            "input": 0.462,
+            "output": 1.728,
+            "cache_read": 0.231
           },
           "context": 262100,
           "output_limit": 6553,
@@ -38265,7 +38290,7 @@
           "cost": {
             "input": 0.2,
             "output": 0.4,
-            "cache_read": 0.04
+            "cache_write": 0.04
           },
           "context": 1000000,
           "output_limit": 384000,
@@ -38281,7 +38306,7 @@
             "output": 4.3552,
             "cache_read": 0.206872
           },
-          "context": 262000,
+          "context": 256000,
           "output_limit": 16000,
           "reasoning": true,
           "tool_call": true,
@@ -38305,12 +38330,12 @@
           "id": "deepseek-v4.1-flash",
           "name": "DeepSeek V4.1 Flash",
           "cost": {
-            "input": 0.3,
-            "output": 1.2,
-            "cache_read": 0.03
+            "input": 0.32664,
+            "output": 1.30656,
+            "cache_read": 0.032664
           },
-          "context": 1048576,
-          "output_limit": 26214,
+          "context": 1000000,
+          "output_limit": 13107,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -38425,9 +38450,9 @@
           "id": "glm-5",
           "name": "GLM-5",
           "cost": {
-            "input": 0.86,
-            "output": 2.752,
-            "cache_read": 0.43
+            "input": 0.94,
+            "output": 3.008,
+            "cache_read": 0.47
           },
           "context": 202752,
           "output_limit": 20275,
@@ -38452,9 +38477,9 @@
           "id": "kimi-k2.5",
           "name": "Kimi K2.5",
           "cost": {
-            "input": 0.5584,
-            "output": 2.935,
-            "cache_read": 0.2792
+            "input": 0.5344,
+            "output": 2.815,
+            "cache_read": 0.2672
           },
           "context": 262144,
           "output_limit": 26214,
@@ -38467,7 +38492,7 @@
           "name": "GLM-5.1",
           "cost": {
             "input": 1.318,
-            "output": 4.308,
+            "output": 4.268,
             "cache_read": 0.659
           },
           "context": 202750,
@@ -38496,7 +38521,7 @@
           "cost": {
             "input": 2.4,
             "output": 4.8,
-            "cache_read": 0.2
+            "cache_write": 0.2
           },
           "context": 1000000,
           "output_limit": 384000,
@@ -38508,9 +38533,9 @@
           "id": "gpt-oss-120b",
           "name": "GPT OSS 120B",
           "cost": {
-            "input": 0.168,
-            "output": 0.66,
-            "cache_read": 0.084
+            "input": 0.178,
+            "output": 0.68,
+            "cache_read": 0.089
           },
           "context": 128072,
           "output_limit": 13107,
@@ -65694,6 +65719,21 @@
           "structured_output": true
         },
         {
+          "id": "Qwen/Qwen3.8-Flash",
+          "name": "Qwen3.8 Flash",
+          "cost": {
+            "input": 0.113,
+            "output": 0.382,
+            "cache_read": 0.0141
+          },
+          "context": 1000000,
+          "output_limit": 131072,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true,
+          "video": true
+        },
+        {
           "id": "Qwen/Qwen3-VL-235B-A22B-Instruct",
           "name": "Qwen3 VL 235B A22B Instruct",
           "cost": {
@@ -66211,8 +66251,8 @@
             "input": 0.2275,
             "output": 0.91
           },
-          "context": 131072,
-          "output_limit": 8192,
+          "context": 40960,
+          "output_limit": 16384,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -66976,12 +67016,12 @@
           "id": "~deepseek/deepseek-v4-flash-latest",
           "name": "DeepSeek: DeepSeek V4 Flash Latest",
           "cost": {
-            "input": 0.0352,
-            "output": 0.1056,
-            "cache_read": 0.00112
+            "input": 0.04,
+            "output": 0.1,
+            "cache_read": 0.01
           },
           "context": 1048576,
-          "output_limit": 131072,
+          "output_limit": 393216,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -67591,7 +67631,7 @@
             "output": 0.45
           },
           "context": 262144,
-          "output_limit": 16384,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -67641,8 +67681,8 @@
             "output": 2.2,
             "cache_read": 0.1
           },
-          "context": 256000,
-          "output_limit": 32768,
+          "context": 202800,
+          "output_limit": 182520,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -68842,7 +68882,8 @@
           "name": "MoonshotAI: Kimi Latest",
           "cost": {
             "input": 2.1,
-            "output": 10.95
+            "output": 10.95,
+            "cache_read": 0.23
           },
           "context": 1048576,
           "output_limit": 943718,
@@ -70605,12 +70646,12 @@
           "id": "~z-ai/glm-latest",
           "name": "Z.ai: GLM Latest",
           "cost": {
-            "input": 0.936,
-            "output": 3.168,
-            "cache_read": 0.1872
+            "input": 0.92,
+            "output": 3.1372,
+            "cache_read": 0.184
           },
-          "context": 262144,
-          "output_limit": 235929,
+          "context": 1048576,
+          "output_limit": 943718,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -70718,7 +70759,8 @@
           "name": "Inference.net: Schematron V2 Small",
           "cost": {
             "input": 0.05,
-            "output": 0.23
+            "output": 0.23,
+            "cache_read": 0.05
           },
           "context": 128000,
           "output_limit": 4096,
@@ -70729,7 +70771,8 @@
           "name": "Inference.net: Schematron V2 Turbo",
           "cost": {
             "input": 0.03,
-            "output": 0.15
+            "output": 0.15,
+            "cache_read": 0.03
           },
           "context": 128000,
           "output_limit": 8192,
@@ -70997,8 +71040,8 @@
             "output": 4.4,
             "cache_read": 0.26
           },
-          "context": 202752,
-          "output_limit": 182476,
+          "context": 1048576,
+          "output_limit": 131072,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -71095,8 +71138,8 @@
             "output": 4.4,
             "cache_read": 0.26
           },
-          "context": 1048576,
-          "output_limit": 131072,
+          "context": 1048575,
+          "output_limit": 943717,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -81488,11 +81531,11 @@
           "id": "qwen/qwen3-14b",
           "name": "Qwen3 14B",
           "cost": {
-            "input": 0.2275,
-            "output": 0.91
+            "input": 0.12,
+            "output": 0.24
           },
           "context": 131072,
-          "output_limit": 8192,
+          "output_limit": 16384,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -82261,12 +82304,12 @@
           "id": "~deepseek/deepseek-v4-flash-latest",
           "name": "DeepSeek V4 Flash Latest",
           "cost": {
-            "input": 0.0352,
-            "output": 0.1056,
-            "cache_read": 0.00112
+            "input": 0.04,
+            "output": 0.1,
+            "cache_read": 0.01
           },
           "context": 1310720,
-          "output_limit": 131072,
+          "output_limit": 393216,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -82859,11 +82902,11 @@
           "id": "nvidia/nemotron-3-super-120b-a12b",
           "name": "Nemotron 3 Super 120B A12B",
           "cost": {
-            "input": 0.085,
-            "output": 0.4
+            "input": 0.08,
+            "output": 0.45
           },
           "context": 262144,
-          "output_limit": 16384,
+          "output_limit": 235929,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -82909,12 +82952,12 @@
           "id": "nvidia/nemotron-3-ultra-550b-a55b",
           "name": "Nemotron 3 Ultra 550B A55B",
           "cost": {
-            "input": 0.625,
-            "output": 3.125,
-            "cache_read": 0.1875
+            "input": 0.6,
+            "output": 2.4,
+            "cache_read": 0.12
           },
           "context": 262144,
-          "output_limit": 32768,
+          "output_limit": 182520,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -84157,7 +84200,8 @@
           "name": "Kimi Latest",
           "cost": {
             "input": 2.1,
-            "output": 10.95
+            "output": 10.95,
+            "cache_read": 0.23
           },
           "context": 1048576,
           "output_limit": 943718,
@@ -84224,9 +84268,9 @@
           "id": "deepseek/deepseek-v4-pro-0813",
           "name": "DeepSeek V4 Pro 0813",
           "cost": {
-            "input": 0.57948,
-            "output": 1.73844,
-            "cache_read": 0.019316
+            "input": 0.9834,
+            "output": 2.9502,
+            "cache_read": 0.03278
           },
           "context": 1048576,
           "output_limit": 384000,
@@ -84238,9 +84282,9 @@
           "id": "deepseek/deepseek-v4-flash-0731",
           "name": "DeepSeek V4 Flash 0731",
           "cost": {
-            "input": 0.04,
-            "output": 0.08,
-            "cache_read": 0.008
+            "input": 0.06,
+            "output": 0.12,
+            "cache_read": 0.012
           },
           "context": 1310720,
           "output_limit": 943718,
@@ -84252,9 +84296,9 @@
           "id": "deepseek/deepseek-v4-flash",
           "name": "DeepSeek V4 Flash",
           "cost": {
-            "input": 0.04788,
-            "output": 0.09576,
-            "cache_read": 0.009576
+            "input": 0.08554,
+            "output": 0.17108,
+            "cache_read": 0.017108
           },
           "context": 1048576,
           "output_limit": 384000,
@@ -85829,12 +85873,12 @@
           "id": "~z-ai/glm-latest",
           "name": "GLM Latest",
           "cost": {
-            "input": 0.936,
-            "output": 3.168,
-            "cache_read": 0.1872
+            "input": 0.92,
+            "output": 3.1372,
+            "cache_read": 0.184
           },
           "context": 1310720,
-          "output_limit": 235929,
+          "output_limit": 943718,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -85942,7 +85986,8 @@
           "name": "Schematron V2 Small",
           "cost": {
             "input": 0.05,
-            "output": 0.23
+            "output": 0.23,
+            "cache_read": 0.05
           },
           "context": 128000,
           "output_limit": 4096,
@@ -85953,7 +85998,8 @@
           "name": "Schematron V2 Turbo",
           "cost": {
             "input": 0.03,
-            "output": 0.15
+            "output": 0.15,
+            "cache_read": 0.03
           },
           "context": 128000,
           "output_limit": 8192,
@@ -86062,9 +86108,9 @@
           "id": "tencent/hy3",
           "name": "Hy3",
           "cost": {
-            "input": 0.0825,
-            "output": 0.33,
-            "cache_read": 0.020625
+            "input": 0.132,
+            "output": 0.528,
+            "cache_read": 0.033
           },
           "context": 262144,
           "input_limit": 192000,
@@ -86217,12 +86263,12 @@
           "id": "z-ai/glm-5.2",
           "name": "GLM-5.2",
           "cost": {
-            "input": 0.6,
-            "output": 2,
-            "cache_read": 0.15
+            "input": 0.6832,
+            "output": 2.1472,
+            "cache_read": 0.12688
           },
           "context": 1048576,
-          "output_limit": 182476,
+          "output_limit": 131072,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -86231,9 +86277,9 @@
           "id": "z-ai/glm-5.3-flash",
           "name": "GLM-5.3-Flash",
           "cost": {
-            "input": 0.075,
-            "output": 0.25,
-            "cache_read": 0.015
+            "input": 0.15,
+            "output": 0.5,
+            "cache_read": 0.03
           },
           "context": 1310720,
           "output_limit": 131072,
@@ -86315,12 +86361,12 @@
           "id": "z-ai/glm-5.3",
           "name": "GLM-5.3",
           "cost": {
-            "input": 1.092,
-            "output": 3.432,
-            "cache_read": 0.2028
+            "input": 1.4,
+            "output": 4.4,
+            "cache_read": 0.26
           },
           "context": 1310720,
-          "output_limit": 131072,
+          "output_limit": 943717,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
@@ -102924,8 +102970,9 @@
           "id": "qwen/deepseek-v4-pro-0813",
           "name": "DeepSeek V4 Pro 0813 (Alibaba)",
           "cost": {
-            "input": 0.5808,
-            "output": 1.7424
+            "input": 0.66,
+            "output": 1.98,
+            "cache_read": 0.066
           },
           "context": 1000000,
           "output_limit": 384000,
@@ -102937,8 +102984,9 @@
           "id": "qwen/deepseek-v4-flash-0731",
           "name": "DeepSeek V4 Flash 0731 (Alibaba)",
           "cost": {
-            "input": 0.176,
-            "output": 0.528
+            "input": 0.22,
+            "output": 0.66,
+            "cache_read": 0.022
           },
           "context": 1000000,
           "output_limit": 384000,
@@ -103079,6 +103127,21 @@
           "context": 131072,
           "output_limit": 8192,
           "reasoning": true
+        },
+        {
+          "id": "qwen/deepseek-v4.1-flash",
+          "name": "DeepSeek V4.1 Flash (Alibaba)",
+          "cost": {
+            "input": 0.15,
+            "output": 0.6,
+            "cache_read": 0.015
+          },
+          "context": 1000000,
+          "output_limit": 384000,
+          "reasoning": true,
+          "tool_call": true,
+          "structured_output": true,
+          "image": true
         },
         {
           "id": "qwen/qwen3-coder-next",
@@ -104142,6 +104205,20 @@
           "output_limit": 384000,
           "reasoning": true,
           "tool_call": true
+        },
+        {
+          "id": "tensorx/deepseek/deepseek-v4.1-flash",
+          "name": "DeepSeek V4.1 Flash (TensorX)",
+          "cost": {
+            "input": 0.5,
+            "output": 1.5,
+            "cache_read": 0.125
+          },
+          "context": 1048576,
+          "output_limit": 384000,
+          "reasoning": true,
+          "tool_call": true,
+          "image": true
         },
         {
           "id": "tensorx/moonshotai/kimi-k2.5",

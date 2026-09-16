@@ -16,11 +16,13 @@ use super::usage_types::{UsageData, UsageResult};
 use std::time::Duration;
 
 // 套餐类 tier id 的唯一来源：所有套餐供应商（Kimi/智谱/MiniMax/OpenCode Go 及
-// 未来新增）都只用这三个 id。前端 src/lib/usage-display.ts 的 planLabel() 依赖
+// 未来新增）都只用这四个 id。前端 src/lib/usage-display.ts 的 planLabel() 依赖
 // 此约定做本地化映射——新增 tier id 时必须同步加映射。
 const TIER_FIVE_HOUR: &str = "five_hour";
 const TIER_WEEKLY_LIMIT: &str = "weekly_limit";
 const TIER_MONTHLY_LIMIT: &str = "monthly_limit";
+/// Kimi quota 模型的月度代码窗口（kimi-code #3787 后 `limit_month_code`）。
+const TIER_MONTH_CODE: &str = "month_code";
 
 /// 套餐条目的统一构造：按百分比表示用量。
 fn percent_tier(name: &str, used_percent: f64, resets_at: Option<String>) -> UsageData {
@@ -70,8 +72,12 @@ fn parse_f64(value: &serde_json::Value) -> Option<f64> {
 // GET {base_url}/usages
 //   默认 https://api.kimi.com/coding/v1/usages
 //   global: https://api.kimi.ai/coding/v1/usages
-// Response: { limits: [{ detail: { limit, remaining, resetTime } }],
-//             usage: { limit, remaining, resetTime } }
+// Response（kimi-code #3787 / 0.43.1 起服务端切换为 quota 模型）:
+//   { usages: { limit_5h, limit_7d, limit_month_total, limit_month_code:
+//               { used_ratio: 0-1, reset_time?: ISO 8601 } },
+//     boosterWallet, goods_version }
+// 旧结构（兼容保留）: { limits: [{ detail: { limit, remaining, resetTime } }],
+//                     usage: { limit, remaining, resetTime } }
 
 /// 由 base_url 拼接 usages 查询 URL；base_url 为空/空白时回退大陆默认。
 /// 纯函数，便于单测。
@@ -95,8 +101,9 @@ pub async fn query_kimi_coding(
         Fetched::Body(body) => {
             let tiers = parse_kimi_coding(&body);
             if tiers.is_empty() {
-                // 响应里没有可解析的套餐档位（limits/usage 缺失或字段变了）。
-                // 把原始响应（仅用量数字，无密钥）透出，方便对照接口结构修复。
+                // 响应里没有可解析的套餐档位（quota/usages 与旧 limits/usage
+                // 均缺失或字段变了）。把原始响应（仅用量数字，无密钥）透出，
+                // 方便对照接口结构修复。
                 let preview = serde_json::to_string(&body)
                     .unwrap_or_else(|_| "<unserializable body>".into());
                 let trimmed: String = preview.chars().take(400).collect();
@@ -111,6 +118,11 @@ pub async fn query_kimi_coding(
 }
 
 fn parse_kimi_coding(body: &serde_json::Value) -> Vec<UsageData> {
+    // 新 quota 模型（kimi-code #3787 / 0.43.1 起服务端下发）：优先解析。
+    if let Some(tiers) = parse_kimi_quota(body) {
+        return tiers;
+    }
+
     let mut tiers = Vec::new();
 
     // 5 小时窗口限额（优先显示）
@@ -128,6 +140,30 @@ fn parse_kimi_coding(body: &serde_json::Value) -> Vec<UsageData> {
     }
 
     tiers
+}
+
+/// 解析 quota 模型的 `usages` 窗口映射（`limit_5h` / `limit_7d` /
+/// `limit_month_total` / `limit_month_code`）。全部窗口缺失或无可解析
+/// 条目时返回 None，让调用方回退旧结构。
+fn parse_kimi_quota(body: &serde_json::Value) -> Option<Vec<UsageData>> {
+    let usages = body.get("usages")?;
+    let mut tiers = Vec::new();
+    for (key, tier) in [
+        ("limit_5h", TIER_FIVE_HOUR),
+        ("limit_7d", TIER_WEEKLY_LIMIT),
+        ("limit_month_total", TIER_MONTHLY_LIMIT),
+        ("limit_month_code", TIER_MONTH_CODE),
+    ] {
+        let Some(entry) = usages.get(key) else { continue };
+        let Some(ratio) = entry.get("used_ratio").and_then(parse_f64) else {
+            continue;
+        };
+        // used_ratio 规范为 0-1 比率；>1 时视为已是百分数，原样使用。
+        let used_percent = if ratio <= 1.0 { ratio * 100.0 } else { ratio };
+        let resets_at = entry.get("reset_time").and_then(extract_reset_time);
+        tiers.push(percent_tier(tier, used_percent, resets_at));
+    }
+    if tiers.is_empty() { None } else { Some(tiers) }
 }
 
 fn kimi_limit_tier(name: &str, detail: &serde_json::Value) -> UsageData {
@@ -457,6 +493,64 @@ mod tests {
             tiers[1].resets_at.as_deref(),
             Some("2026-08-01T00:00:00Z")
         );
+    }
+
+    #[test]
+    fn kimi_coding_quota_model_four_windows() {
+        // kimi-code #3787 / 0.43.1 起服务端下发的 quota 模型：used_ratio 为
+        // 0-1 比率，reset_time 为 ISO 8601 字符串。
+        let body = json!({
+            "goods_version": 3,
+            "usages": {
+                "limit_5h": { "used_ratio": 0.6, "reset_time": "2026-09-15T17:00:00Z" },
+                "limit_7d": { "used_ratio": 0.25 },
+                "limit_month_total": { "used_ratio": 0.1, "reset_time": "2026-10-01T00:00:00Z" },
+                "limit_month_code": { "used_ratio": 0.88 }
+            },
+            "boosterWallet": { "balance": 0 }
+        });
+        let tiers = parse_kimi_coding(&body);
+        assert_eq!(tiers.len(), 4);
+        assert_eq!(tiers[0].plan_name.as_deref(), Some("five_hour"));
+        assert_eq!(tiers[0].used, Some(60.0));
+        assert_eq!(tiers[0].remaining, Some(40.0));
+        assert_eq!(tiers[0].total, Some(100.0));
+        assert_eq!(
+            tiers[0].resets_at.as_deref(),
+            Some("2026-09-15T17:00:00Z")
+        );
+        assert_eq!(tiers[1].plan_name.as_deref(), Some("weekly_limit"));
+        assert_eq!(tiers[1].used, Some(25.0));
+        assert!(tiers[1].resets_at.is_none());
+        assert_eq!(tiers[2].plan_name.as_deref(), Some("monthly_limit"));
+        assert_eq!(tiers[2].used, Some(10.0));
+        assert_eq!(tiers[3].plan_name.as_deref(), Some("month_code"));
+        assert_eq!(tiers[3].used, Some(88.0));
+        assert_eq!(tiers[3].remaining, Some(12.0));
+    }
+
+    #[test]
+    fn kimi_coding_quota_ratio_above_one_is_percent() {
+        // 防御：>1 的 used_ratio 视为已是百分数，不再乘 100。
+        let body = json!({
+            "usages": { "limit_5h": { "used_ratio": 42.0 } }
+        });
+        let tiers = parse_kimi_coding(&body);
+        assert_eq!(tiers.len(), 1);
+        assert_eq!(tiers[0].used, Some(42.0));
+    }
+
+    #[test]
+    fn kimi_coding_quota_missing_windows_falls_back_to_legacy() {
+        // usages 存在但没有任何可解析条目 → 回退旧结构解析。
+        let body = json!({
+            "usages": { "limit_5h": {} },
+            "usage": { "limit": 1000, "remaining": 900, "resetTime": "2026-08-01T00:00:00Z" }
+        });
+        let tiers = parse_kimi_coding(&body);
+        assert_eq!(tiers.len(), 1);
+        assert_eq!(tiers[0].plan_name.as_deref(), Some("weekly_limit"));
+        assert_eq!(tiers[0].used, Some(10.0));
     }
 
     #[test]

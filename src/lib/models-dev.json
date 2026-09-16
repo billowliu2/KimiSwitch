@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-09-13",
+  "last_updated": "2026-09-14",
   "subconscious/subconscious/glm-5.2": {
     "name": "GLM-5.2",
     "context": 1000000,
@@ -13257,6 +13257,18 @@
       "cache_write": 0.25
     }
   },
+  "llmgateway-providers/alibaba/deepseek-v4.1-flash": {
+    "name": "DeepSeek V4.1 Flash (Alibaba Cloud)",
+    "context": 1000000,
+    "reasoning": true,
+    "tool_call": true,
+    "image": true,
+    "cost": {
+      "input": 0.3,
+      "output": 1.2,
+      "cache_read": 0.03
+    }
+  },
   "llmgateway-providers/alibaba/qwen-coder-plus": {
     "name": "Qwen Coder Plus (Alibaba Cloud)",
     "context": 131072,
@@ -13482,7 +13494,7 @@
     "reasoning": true,
     "tool_call": true,
     "cost": {
-      "input": 0.8,
+      "input": 0.88,
       "output": 2.55,
       "cache_read": 0.16
     }
@@ -15351,6 +15363,15 @@
       "input": 0.04,
       "output": 0.19,
       "cache_read": 0.01
+    }
+  },
+  "llmgateway-providers/consensusprotocol/deepseek-v4.1-flash": {
+    "name": "DeepSeek V4.1 Flash (Consensus Protocol)",
+    "context": 1048576,
+    "cost": {
+      "input": 0.2,
+      "output": 0.6,
+      "cache_read": 0.005
     }
   },
   "llmgateway-providers/consensusprotocol/glm-5.3-flash": {
@@ -31345,14 +31366,14 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.102,
-      "output": 0.356,
-      "cache_read": 0.051
+      "input": 0.1,
+      "output": 0.374,
+      "cache_read": 0.05
     }
   },
   "hyper/deepseek-v4-pro-0813": {
     "name": "DeepSeek V4 Pro 0813",
-    "context": 1048576,
+    "context": 1000000,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
@@ -31416,9 +31437,9 @@
     "reasoning": true,
     "tool_call": true,
     "cost": {
-      "input": 0.396,
-      "output": 1.464,
-      "cache_read": 0.198
+      "input": 0.462,
+      "output": 1.728,
+      "cache_read": 0.231
     }
   },
   "hyper/kimi-k2.6": {
@@ -31477,12 +31498,12 @@
     "cost": {
       "input": 0.2,
       "output": 0.4,
-      "cache_read": 0.04
+      "cache_write": 0.04
     }
   },
   "hyper/kimi-k2.7-code": {
     "name": "Kimi K2.7 Code",
-    "context": 262000,
+    "context": 256000,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
@@ -31506,15 +31527,15 @@
   },
   "hyper/deepseek-v4.1-flash": {
     "name": "DeepSeek V4.1 Flash",
-    "context": 1048576,
+    "context": 1000000,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
     "image": true,
     "cost": {
-      "input": 0.3,
-      "output": 1.2,
-      "cache_read": 0.03
+      "input": 0.32664,
+      "output": 1.30656,
+      "cache_read": 0.032664
     }
   },
   "hyper/qwen3.7-flash": {
@@ -31613,9 +31634,9 @@
     "reasoning": true,
     "tool_call": true,
     "cost": {
-      "input": 0.86,
-      "output": 2.752,
-      "cache_read": 0.43
+      "input": 0.94,
+      "output": 3.008,
+      "cache_read": 0.47
     }
   },
   "hyper/qwen3.8-max": {
@@ -31637,9 +31658,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.5584,
-      "output": 2.935,
-      "cache_read": 0.2792
+      "input": 0.5344,
+      "output": 2.815,
+      "cache_read": 0.2672
     }
   },
   "hyper/glm-5.1": {
@@ -31650,7 +31671,7 @@
     "structured_output": true,
     "cost": {
       "input": 1.318,
-      "output": 4.308,
+      "output": 4.268,
       "cache_read": 0.659
     }
   },
@@ -31675,7 +31696,7 @@
     "cost": {
       "input": 2.4,
       "output": 4.8,
-      "cache_read": 0.2
+      "cache_write": 0.2
     }
   },
   "hyper/gpt-oss-120b": {
@@ -31685,9 +31706,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.168,
-      "output": 0.66,
-      "cache_read": 0.084
+      "input": 0.178,
+      "output": 0.68,
+      "cache_read": 0.089
     }
   },
   "hyper/glm-5.3": {
@@ -54422,6 +54443,19 @@
       "output": 0.55
     }
   },
+  "deepinfra/Qwen/Qwen3.8-Flash": {
+    "name": "Qwen3.8 Flash",
+    "context": 1000000,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "video": true,
+    "cost": {
+      "input": 0.113,
+      "output": 0.382,
+      "cache_read": 0.0141
+    }
+  },
   "deepinfra/Qwen/Qwen3-VL-235B-A22B-Instruct": {
     "name": "Qwen3 VL 235B A22B Instruct",
     "context": 262144,
@@ -54852,7 +54886,7 @@
   },
   "kilo/qwen/qwen3-14b": {
     "name": "Qwen: Qwen3 14B",
-    "context": 131072,
+    "context": 40960,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
@@ -55512,9 +55546,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.0352,
-      "output": 0.1056,
-      "cache_read": 0.00112
+      "input": 0.04,
+      "output": 0.1,
+      "cache_read": 0.01
     }
   },
   "kilo/dots-studio/dots-3-note-preview:free": {
@@ -56067,7 +56101,7 @@
   },
   "kilo/nvidia/nemotron-3-ultra-550b-a55b": {
     "name": "Nemotron 3 Ultra 550B A55B",
-    "context": 256000,
+    "context": 202800,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
@@ -57115,7 +57149,8 @@
     "video": true,
     "cost": {
       "input": 2.1,
-      "output": 10.95
+      "output": 10.95,
+      "cache_read": 0.23
     }
   },
   "kilo/ibm-granite/granite-4.2-8b": {
@@ -58592,14 +58627,14 @@
   },
   "kilo/~z-ai/glm-latest": {
     "name": "Z.ai: GLM Latest",
-    "context": 262144,
+    "context": 1048576,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.936,
-      "output": 3.168,
-      "cache_read": 0.1872
+      "input": 0.92,
+      "output": 3.1372,
+      "cache_read": 0.184
     }
   },
   "kilo/moonshotai/kimi-k2-0905": {
@@ -58692,7 +58727,8 @@
     "structured_output": true,
     "cost": {
       "input": 0.05,
-      "output": 0.23
+      "output": 0.23,
+      "cache_read": 0.05
     }
   },
   "kilo/inference-net/schematron-v2-turbo": {
@@ -58701,7 +58737,8 @@
     "structured_output": true,
     "cost": {
       "input": 0.03,
-      "output": 0.15
+      "output": 0.15,
+      "cache_read": 0.03
     }
   },
   "kilo/cohere/north-mini-code:free": {
@@ -58919,7 +58956,7 @@
   },
   "kilo/z-ai/glm-5.2": {
     "name": "GLM-5.2",
-    "context": 202752,
+    "context": 1048576,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
@@ -59003,7 +59040,7 @@
   },
   "kilo/z-ai/glm-5.3": {
     "name": "GLM-5.3",
-    "context": 1048576,
+    "context": 1048575,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
@@ -67739,8 +67776,8 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.2275,
-      "output": 0.91
+      "input": 0.12,
+      "output": 0.24
     }
   },
   "openrouter/qwen/qwen3.6-plus": {
@@ -68399,9 +68436,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.0352,
-      "output": 0.1056,
-      "cache_read": 0.00112
+      "input": 0.04,
+      "output": 0.1,
+      "cache_read": 0.01
     }
   },
   "openrouter/dots-studio/dots-3-note-preview:free": {
@@ -68906,8 +68943,8 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.085,
-      "output": 0.4
+      "input": 0.08,
+      "output": 0.45
     }
   },
   "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free": {
@@ -68948,9 +68985,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.625,
-      "output": 3.125,
-      "cache_read": 0.1875
+      "input": 0.6,
+      "output": 2.4,
+      "cache_read": 0.12
     }
   },
   "openrouter/nvidia/nemotron-3-nano-30b-a3b": {
@@ -70028,7 +70065,8 @@
     "video": true,
     "cost": {
       "input": 2.1,
-      "output": 10.95
+      "output": 10.95,
+      "cache_read": 0.23
     }
   },
   "openrouter/ibm-granite/granite-4.2-8b": {
@@ -70083,9 +70121,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.57948,
-      "output": 1.73844,
-      "cache_read": 0.019316
+      "input": 0.9834,
+      "output": 2.9502,
+      "cache_read": 0.03278
     }
   },
   "openrouter/deepseek/deepseek-v4-flash-0731": {
@@ -70095,9 +70133,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.04,
-      "output": 0.08,
-      "cache_read": 0.008
+      "input": 0.06,
+      "output": 0.12,
+      "cache_read": 0.012
     }
   },
   "openrouter/deepseek/deepseek-v4-flash": {
@@ -70107,9 +70145,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.04788,
-      "output": 0.09576,
-      "cache_read": 0.009576
+      "input": 0.08554,
+      "output": 0.17108,
+      "cache_read": 0.017108
     }
   },
   "openrouter/deepseek/deepseek-v4.1-flash": {
@@ -71428,9 +71466,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.936,
-      "output": 3.168,
-      "cache_read": 0.1872
+      "input": 0.92,
+      "output": 3.1372,
+      "cache_read": 0.184
     }
   },
   "openrouter/moonshotai/kimi-k2-0905": {
@@ -71523,7 +71561,8 @@
     "structured_output": true,
     "cost": {
       "input": 0.05,
-      "output": 0.23
+      "output": 0.23,
+      "cache_read": 0.05
     }
   },
   "openrouter/inference-net/schematron-v2-turbo": {
@@ -71532,7 +71571,8 @@
     "structured_output": true,
     "cost": {
       "input": 0.03,
-      "output": 0.15
+      "output": 0.15,
+      "cache_read": 0.03
     }
   },
   "openrouter/cohere/north-mini-code:free": {
@@ -71625,9 +71665,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.0825,
-      "output": 0.33,
-      "cache_read": 0.020625
+      "input": 0.132,
+      "output": 0.528,
+      "cache_read": 0.033
     }
   },
   "openrouter/tencent/hy4-preview": {
@@ -71755,9 +71795,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.6,
-      "output": 2,
-      "cache_read": 0.15
+      "input": 0.6832,
+      "output": 2.1472,
+      "cache_read": 0.12688
     }
   },
   "openrouter/z-ai/glm-5.3-flash": {
@@ -71769,9 +71809,9 @@
     "image": true,
     "video": true,
     "cost": {
-      "input": 0.075,
-      "output": 0.25,
-      "cache_read": 0.015
+      "input": 0.15,
+      "output": 0.5,
+      "cache_read": 0.03
     }
   },
   "openrouter/z-ai/glm-4.5": {
@@ -71839,9 +71879,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 1.092,
-      "output": 3.432,
-      "cache_read": 0.2028
+      "input": 1.4,
+      "output": 4.4,
+      "cache_read": 0.26
     }
   },
   "openrouter/z-ai/glm-5v-turbo": {
@@ -85559,8 +85599,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.5808,
-      "output": 1.7424
+      "input": 0.66,
+      "output": 1.98,
+      "cache_read": 0.066
     }
   },
   "edenai/qwen/deepseek-v4-flash-0731": {
@@ -85570,8 +85611,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.176,
-      "output": 0.528
+      "input": 0.22,
+      "output": 0.66,
+      "cache_read": 0.022
     }
   },
   "edenai/qwen/qwen3-coder-plus": {
@@ -85686,6 +85728,19 @@
     "cost": {
       "input": 0.8,
       "output": 2.4
+    }
+  },
+  "edenai/qwen/deepseek-v4.1-flash": {
+    "name": "DeepSeek V4.1 Flash (Alibaba)",
+    "context": 1000000,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "cost": {
+      "input": 0.15,
+      "output": 0.6,
+      "cache_read": 0.015
     }
   },
   "edenai/qwen/qwen3-coder-next": {
@@ -86601,6 +86656,18 @@
       "input": 0.25,
       "output": 0.3,
       "cache_read": 0.0625
+    }
+  },
+  "edenai/tensorx/deepseek/deepseek-v4.1-flash": {
+    "name": "DeepSeek V4.1 Flash (TensorX)",
+    "context": 1048576,
+    "reasoning": true,
+    "tool_call": true,
+    "image": true,
+    "cost": {
+      "input": 0.5,
+      "output": 1.5,
+      "cache_read": 0.125
     }
   },
   "edenai/tensorx/moonshotai/kimi-k2.5": {
