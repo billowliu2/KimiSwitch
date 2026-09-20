@@ -73,7 +73,8 @@ jobs:
         id: notes
         shell: bash
         run: |
-          FILE="release-notes-${{ github.ref_name }}.md"
+          FILE="docs/release-notes/${{ github.ref_name }}.md"
+          [ -f "$FILE" ] || FILE="release-notes-${{ github.ref_name }}.md"
           {
             echo 'body<<RELEASE_BODY_EOF'
             if [ -f "$FILE" ]; then

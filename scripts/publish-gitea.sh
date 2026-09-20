@@ -3,7 +3,8 @@
 # (git.codingplan.site/admin/KimiCodeSwitch).
 #
 # Usage: publish-gitea.sh <tag> <asset> [asset...]
-#   tag    : e.g. v0.7.15; notes read from release-notes-<tag>.md
+#   tag    : e.g. v0.7.15; notes read from docs/release-notes/<tag>.md
+#            (legacy root release-notes-<tag>.md as fallback)
 #   assets : files to attach (MSI, install-macos.sh, ...)
 #
 # Auth: reuses the stored git credential for git.codingplan.site
@@ -15,7 +16,8 @@ REPO="admin/KimiCodeSwitch"
 TAG="${1:?usage: publish-gitea.sh <tag> <asset> [asset...]}"
 shift
 
-NOTES_FILE="release-notes-${TAG}.md"
+NOTES_FILE="docs/release-notes/${TAG}.md"
+[ -f "$NOTES_FILE" ] || NOTES_FILE="release-notes-${TAG}.md"
 json_escape() {
   python - "$1" <<'PYEOF'
 import json, sys
