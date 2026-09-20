@@ -6,6 +6,13 @@ type TranslateFn = (
 ) => string;
 
 /**
+ * Kimi quota 的加力钱包行 id（src-tauri/src/services/coding_plan.rs 的
+ * PLAN_BOOSTER_WALLET）。它是金额行而非配额百分比行，planLabel() 与
+ * UsageFooter 的金额行判定共用此常量，避免字面量散落。
+ */
+export const BOOSTER_WALLET_PLAN = "booster_wallet";
+
+/**
  * Map a raw Rust plan/tier name to a localized label. Unknown names (proper
  * nouns like "OpenRouter", "NewAPI", currency codes) pass through unchanged.
  *
@@ -28,6 +35,8 @@ export function planLabel(name: string, t: TranslateFn): string {
       return t("usageTierMonthly");
     case "month_code":
       return t("usageTierMonthCode");
+    case BOOSTER_WALLET_PLAN:
+      return t("usageTierBoosterWallet");
     default:
       return name;
   }

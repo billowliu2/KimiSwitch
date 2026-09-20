@@ -10,6 +10,7 @@
 
 pub mod balance;
 pub mod coding_plan;
+pub mod probe;
 pub mod usage_types;
 
 pub use usage_types::{UsageData, UsageResult};
@@ -336,6 +337,7 @@ mod tests {
             user_id: uid.map(str::to_string),
             auto_query_interval_minutes: None,
             timeout_seconds: None,
+            threshold: None,
         };
         // 缺 config / 缺任一项 / 空字符串 → None（确定性配置错误）
         assert_eq!(newapi_creds(None), None);

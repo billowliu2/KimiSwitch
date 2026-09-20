@@ -59,6 +59,7 @@ describe("planLabel", () => {
     expect(planLabel("five_hour", t)).toBe("usageTier5h");
     expect(planLabel("weekly_limit", t)).toBe("usageTierWeekly");
     expect(planLabel("monthly_limit", t)).toBe("usageTierMonthly");
+    expect(planLabel("booster_wallet", t)).toBe("usageTierBoosterWallet");
     expect(planLabel("NewAPI", t)).toBe("NewAPI");
     expect(planLabel("¥", t)).toBe("¥");
   });

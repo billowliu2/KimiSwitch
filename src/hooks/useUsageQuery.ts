@@ -56,6 +56,23 @@ export interface UsageQueryState {
   updatedAt: number | null;
   refresh: (force: boolean) => void;
   supported: boolean;
+  /** 生效的预警阈值（0/缺失已归一为 undefined）；footer 用它判定单行高亮。 */
+  threshold?: number;
+  /** 查询成功且任一百分比行 used ≥ threshold。失败/加载中恒为 false， */
+  /** 所以失败时保留的上次数据不会被误高亮。 */
+  alert: boolean;
+}
+
+/**
+ * 单行是否触发预警。只判定百分比行（unit === "%"）：余额/钱包等金额行的
+ * used 是钱数，与百分比阈值不可比。threshold 缺失或 ≤0（关闭）时恒为 false。
+ */
+export function isAlertTier(
+  d: UsageData,
+  threshold?: number | null
+): boolean {
+  if (threshold == null || threshold <= 0) return false;
+  return d.unit === "%" && d.used != null && d.used >= threshold;
 }
 
 export function useUsageQuery(
@@ -63,7 +80,8 @@ export function useUsageQuery(
   providerName: string,
   usageKinds?: string[],
   autoIntervalMinutes?: number,
-  disabled?: boolean
+  disabled?: boolean,
+  threshold?: number
 ): UsageQueryState {
   const supported = (usageKinds?.length ?? 0) > 0;
   // Cache key includes the agent so a Kimi Code provider and a Pi provider
@@ -175,6 +193,15 @@ export function useUsageQuery(
     return () => clearInterval(id);
   }, [supported, autoIntervalMinutes, runQuery, disabled]);
 
+  // 阈值 0/负数/非有限值一律视为关闭（与配置面板「0 或空 = 关闭」一致）。
+  // 每次查询结果写入 data 后此处重新求值，因此刷新后预警自动出现/消除。
+  const alertThreshold =
+    typeof threshold === "number" && Number.isFinite(threshold) && threshold > 0
+      ? threshold
+      : undefined;
+  const alert =
+    status === "success" && data.some((d) => isAlertTier(d, alertThreshold));
+
   return {
     status,
     data,
@@ -182,5 +209,7 @@ export function useUsageQuery(
     updatedAt,
     refresh: runQuery,
     supported,
+    threshold: alertThreshold,
+    alert,
   };
 }

@@ -134,9 +134,103 @@ describe("loop_control — v1/v2 key handling", () => {
 });
 
 // ---------------------------------------------------------------------------
-// [permission] dangerous_command_guard (kimi-code 0.40.1) — absent key means
-// upstream default ON; an explicit false must survive even with no rules
+// loop_control.compaction_max_attempts (kimi-code 0.43.0) — read via the loop
+// spread, written only when set, and 0/empty removes the key (upstream
+// default 5 applies)
 // ---------------------------------------------------------------------------
+
+describe("loop_control.compaction_max_attempts", () => {
+  it("reads an existing value through the loop spread", () => {
+    expect(
+      getAgentSettings({ loop_control: { compaction_max_attempts: 7 } })
+        .loop_control?.compaction_max_attempts
+    ).toBe(7);
+  });
+
+  it("reads as undefined when the key is absent (UI falls back to 5)", () => {
+    expect(
+      getAgentSettings({ loop_control: {} }).loop_control?.compaction_max_attempts
+    ).toBeUndefined();
+  });
+
+  it("writes the value when the patch sets it", () => {
+    const next = setAgentSettings({}, {
+      loop_control: { compaction_max_attempts: 8 },
+    });
+    expect(loopOf(next).compaction_max_attempts).toBe(8);
+  });
+
+  it("drops the key for 0 and for a cleared (undefined) field", () => {
+    const raw = { loop_control: { compaction_max_attempts: 6 } };
+    expect(loopOf(setAgentSettings(raw, {
+      loop_control: { compaction_max_attempts: 0 },
+    }))).not.toHaveProperty("compaction_max_attempts");
+    expect(loopOf(setAgentSettings(raw, {
+      loop_control: { compaction_max_attempts: undefined },
+    }))).not.toHaveProperty("compaction_max_attempts");
+  });
+
+  it("does not materialize the upstream default on an unrelated save", () => {
+    // An absent key must stay absent — a plain save must not pin `5`.
+    const next = setAgentSettings({ thinking: { effort: "high" } }, {});
+    expect(loopOf(next)).not.toHaveProperty("compaction_max_attempts");
+    // An existing value survives a save that does not touch it.
+    const kept = setAgentSettings(
+      { loop_control: { compaction_max_attempts: 4 } },
+      { thinking: { effort: "low" } }
+    );
+    expect(loopOf(kept).compaction_max_attempts).toBe(4);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// [watch] enabled (kimi-code 2.0.1+) — top-level section, off by default since
+// 2.0.2; mirrors the [background] handling
+// ---------------------------------------------------------------------------
+
+function watchOf(raw: unknown): Record<string, unknown> {
+  const w = (raw as { watch?: unknown })?.watch;
+  return w && typeof w === "object" && !Array.isArray(w)
+    ? (w as Record<string, unknown>)
+    : {};
+}
+
+describe("[watch] enabled", () => {
+  it("reads as false when the section or key is absent (2.0.2 default)", () => {
+    expect(getAgentSettings({}).watch?.enabled).toBe(false);
+    expect(getAgentSettings({ watch: {} }).watch?.enabled).toBe(false);
+  });
+
+  it("reads an explicit value", () => {
+    expect(getAgentSettings({ watch: { enabled: true } }).watch?.enabled).toBe(true);
+    expect(getAgentSettings({ watch: { enabled: false } }).watch?.enabled).toBe(false);
+  });
+
+  it("writes the top-level [watch] section", () => {
+    const next = setAgentSettings({}, { watch: { enabled: true } }) as {
+      watch?: Record<string, unknown>;
+    };
+    expect(next.watch).toEqual({ enabled: true });
+  });
+
+  it("keeps the section on saves that do not touch it", () => {
+    const next = setAgentSettings(
+      { watch: { enabled: true } },
+      { thinking: { effort: "high" } }
+    ) as { watch?: Record<string, unknown> };
+    expect(next.watch).toEqual({ enabled: true });
+  });
+
+  it("does not disturb the other managed sections", () => {
+    const next = setAgentSettings(
+      { background: { max_running_tasks: 2 } },
+      { watch: { enabled: true } }
+    ) as { background?: Record<string, unknown> };
+    expect(next.background?.max_running_tasks).toBe(2);
+    expect(watchOf(next).enabled).toBe(true);
+  });
+});
+
 
 describe("permission.dangerous_command_guard", () => {
   it("reads as undefined when the key is absent (default on)", () => {

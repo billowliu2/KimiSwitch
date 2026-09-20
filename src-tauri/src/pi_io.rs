@@ -332,6 +332,9 @@ pub fn pi_file_to_config(file: &PiModelsFile) -> Config {
             provider_type,
             base_url: pi_provider.base_url.clone().filter(|s| !s.is_empty()),
             api_key: pi_provider.api_key.clone().filter(|s| !s.is_empty()),
+            // Pi's provider file has no env-var credential reference; the
+            // field stays empty so a Kimi-Code-only setting never leaks here.
+            api_key_env: None,
             env: IndexMap::new(),
             note: None,
             official_url: None,

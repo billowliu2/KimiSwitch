@@ -5,11 +5,19 @@ import { listen } from "@tauri-apps/api/event";
 import { useTranslation, type Language } from "../i18n";
 import { useTheme, type Theme } from "../hooks/useTheme";
 import type { UpdateInfo } from "../hooks/useUpdateCheck";
+import {
+  useKimiCodeVersion,
+  isNewerVersion,
+  type KimiCodeStatus,
+} from "../hooks/useKimiCodeVersion";
 
 function formatVersion(version: string): string {
   const v = version.trim();
   return v.startsWith("v") || v.startsWith("V") ? v : `v${v}`;
 }
+
+/** 上游 kimi-code releases 页面。 */
+const KIMI_CODE_RELEASES_URL = "https://github.com/MoonshotAI/kimi-code/releases";
 
 interface SettingsModalProps {
   open: boolean;
@@ -30,6 +38,11 @@ export function SettingsModal({
 }: SettingsModalProps) {
   const { t, lang, setLang } = useTranslation();
   const { theme, setTheme } = useTheme();
+  const {
+    info: kimiCodeInfo,
+    checking: kimiCodeChecking,
+    checkNow: checkKimiCode,
+  } = useKimiCodeVersion();
   const [appVersion, setAppVersion] = useState("");
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [downloadedPath, setDownloadedPath] = useState<string | null>(null);
@@ -157,6 +170,47 @@ export function SettingsModal({
     const d = new Date(ts);
     return d.toLocaleString(lang === "zh" ? "zh-CN" : "en-US");
   };
+
+  // 状态徽标：绿=已适配 / 黄=建议升级 KimiSwitch / 橙=部分兼容 / 灰=未知或未安装
+  const kimiCodeBadge = (status: KimiCodeStatus) => {
+    switch (status) {
+      case "current":
+        return {
+          label: t("kimiCodeStatusCurrent"),
+          className:
+            "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-green-300 dark:border-green-500/30",
+        };
+      case "outdated":
+        return {
+          label: t("kimiCodeStatusOutdated"),
+          className:
+            "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-300 dark:border-yellow-500/30",
+        };
+      case "partial":
+        return {
+          label: t("kimiCodeStatusPartial"),
+          className:
+            "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-500/30",
+        };
+      case "unknown":
+        return {
+          label: t("kimiCodeStatusUnknown"),
+          className: "bg-hover-2 text-content-muted border-border",
+        };
+      default:
+        return {
+          label: t("kimiCodeStatusNotInstalled"),
+          className: "bg-hover-2 text-content-muted border-border",
+        };
+    }
+  };
+
+  const kimiCodeUpdateAvailable =
+    !!kimiCodeInfo?.installed &&
+    !!kimiCodeInfo?.latest &&
+    isNewerVersion(kimiCodeInfo.latest, kimiCodeInfo.installed);
+
+  const kimiCodeBadgeInfo = kimiCodeInfo ? kimiCodeBadge(kimiCodeInfo.status) : null;
 
   return createPortal(
     <div
@@ -359,6 +413,72 @@ export function SettingsModal({
                   ✓ {t("upToDate")}
                 </div>
               )}
+            </div>
+          </section>
+
+          {/* Kimi Code CLI version & compatibility */}
+          <section>
+            <h3 className="mb-3 text-[11px] uppercase tracking-wider text-content-muted">
+              {t("kimiCodeSection")}
+            </h3>
+            <div className="space-y-2 rounded-lg border border-border bg-input p-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-content-muted">{t("kimiCodeInstalled")}</span>
+                <span className="font-medium text-content-primary tabular-nums">
+                  {kimiCodeInfo?.installed ? formatVersion(kimiCodeInfo.installed) : "—"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-content-muted">{t("kimiCodeLatest")}</span>
+                <span className="font-medium text-content-primary tabular-nums">
+                  {kimiCodeInfo?.latest ? formatVersion(kimiCodeInfo.latest) : "—"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-content-muted">{t("kimiCodeStatusLabel")}</span>
+                {kimiCodeBadgeInfo ? (
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full border ${kimiCodeBadgeInfo.className}`}
+                  >
+                    {kimiCodeBadgeInfo.label}
+                  </span>
+                ) : (
+                  <span className="text-xs text-content-muted">—</span>
+                )}
+              </div>
+              <div className="pt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={checkKimiCode}
+                  disabled={kimiCodeChecking}
+                  className="px-3 py-1.5 text-sm rounded border border-border hover:bg-hover-2 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={kimiCodeChecking ? "animate-spin" : ""}
+                  >
+                    <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                    <polyline points="21 3 21 9 15 9" />
+                  </svg>
+                  {kimiCodeChecking ? t("checking") : t("kimiCodeCheck")}
+                </button>
+                {kimiCodeUpdateAvailable && (
+                  <button
+                    type="button"
+                    onClick={() => openExternal(KIMI_CODE_RELEASES_URL)}
+                    className="px-3 py-1.5 text-sm rounded border border-border hover:bg-hover-2 transition-colors"
+                  >
+                    {t("kimiCodeOpenReleases")}
+                  </button>
+                )}
+              </div>
             </div>
           </section>
 

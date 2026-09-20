@@ -11,6 +11,7 @@ import { AgentSettingsPanel } from "./AgentSettingsPanel";
 import { KimiOAuthDialog } from "./KimiOAuthDialog";
 import { ProviderIcon } from "./ProviderIcon";
 import { IconPicker } from "./IconPicker";
+import { Segmented } from "./ui/controls";
 import type { Agent, DiscoveredModel, Model, Provider, ProviderType } from "../types";
 
 const KNOWN_CAPABILITIES = [
@@ -127,6 +128,19 @@ export function ProviderEdit({
   // Preset this provider was created from (if any) — provides the
   // "Get API Key" / referral links shown under the key input.
   const preset = findPresetForProvider(provider);
+  /**
+   * Credential source. `api_key_env` (kimi-code 2.0.0+) names an environment
+   * variable instead of storing the key in config.toml; the two are mutually
+   * exclusive upstream, so the UI is a mode switch and each mode clears the
+   * other field. Derived from the provider itself (no local state) so the
+   * switch follows provider switches and reloads; an empty-but-present value
+   * ("env mode picked, name not typed yet") still reads as env mode.
+   * Only Kimi Code understands `api_key_env` — Pi's provider file has no
+   * equivalent, so the switch and the env input are both gated on the agent
+   * (a Pi provider that somehow carries the key keeps its plain key input).
+   */
+  const apiKeyEnvSupported = agent === "kimi_code";
+  const apiKeyEnvMode = apiKeyEnvSupported && provider.api_key_env != null;
 
   useEffect(() => {
     const def = defaultBaseUrl(agent, provider.provider_type);
@@ -322,27 +336,73 @@ export function ProviderEdit({
 
                 {!provider.managed && (
                   <div>
+                    {apiKeyEnvSupported && (
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="text-sm text-content-muted">
+                          {t("apiKeySource")}
+                        </span>
+                        <Segmented
+                          options={[
+                            { key: "direct", label: t("apiKeySourceDirect") },
+                            { key: "env", label: t("apiKeySourceEnv") },
+                          ]}
+                          value={apiKeyEnvMode ? "env" : "direct"}
+                          onChange={(mode) => {
+                            // Mutual exclusion: picking a source clears the
+                            // other one so export never writes both keys.
+                            if (mode === "env") {
+                              onChange({
+                                ...provider,
+                                api_key: null,
+                                api_key_env: provider.api_key_env ?? "",
+                              });
+                            } else {
+                              onChange({ ...provider, api_key_env: null });
+                            }
+                          }}
+                        />
+                      </div>
+                    )}
                     <label htmlFor={apiKeyId} className="block text-sm text-content-muted mb-1.5">
-                      {t("apiKey")} <span className="text-red-500">*</span>
+                      {apiKeyEnvMode ? t("apiKeyEnvName") : t("apiKey")}{" "}
+                      <span className="text-red-500">*</span>
                     </label>
-                    <div className="relative">
+                    {apiKeyEnvMode ? (
                       <input
                         id={apiKeyId}
-                        type={showApiKey ? "text" : "password"}
-                        className="w-full bg-input border border-border rounded-lg px-3 py-2 pr-10 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                        value={provider.api_key || ""}
+                        type="text"
+                        className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        value={provider.api_key_env ?? ""}
+                        placeholder="KIMI_API_KEY"
                         onChange={(e) =>
-                          onChange({ ...provider, api_key: e.target.value || null })
+                          onChange({ ...provider, api_key_env: e.target.value })
                         }
                       />
-                      <button
-                        type="button"
-                        onClick={() => setShowApiKey((v) => !v)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-primary text-xs px-1"
-                      >
-                        {showApiKey ? t("hide") : t("show")}
-                      </button>
-                    </div>
+                    ) : (
+                      <div className="relative">
+                        <input
+                          id={apiKeyId}
+                          type={showApiKey ? "text" : "password"}
+                          className="w-full bg-input border border-border rounded-lg px-3 py-2 pr-10 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          value={provider.api_key || ""}
+                          onChange={(e) =>
+                            onChange({ ...provider, api_key: e.target.value || null })
+                          }
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowApiKey((v) => !v)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-content-muted hover:text-content-primary text-xs px-1"
+                        >
+                          {showApiKey ? t("hide") : t("show")}
+                        </button>
+                      </div>
+                    )}
+                    {apiKeyEnvMode && (
+                      <p className="mt-1.5 text-xs text-content-muted">
+                        {t("apiKeyEnvHint")}
+                      </p>
+                    )}
                     {(() => {
                       const linkUrl = preset?.apiKeyUrl ?? provider.official_url ?? null;
                       if (!linkUrl) return null;

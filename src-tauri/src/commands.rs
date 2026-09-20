@@ -266,7 +266,7 @@ pub fn get_app_version() -> String {
 /// Fetch available models from a provider's API.
 #[tauri::command]
 pub async fn list_provider_models(provider: Provider) -> Result<Vec<DiscoveredModel>, String> {
-    let api_key = resolve_api_key(&provider)
+    let api_key = resolve_api_key(&provider)?
         .ok_or_else(|| format!("Provider '{}' has no API key configured", provider.name))?;
 
     let base = resolve_base_url(&provider);
@@ -333,21 +333,53 @@ pub async fn test_connectivity(provider: Provider) -> Result<ConnectivityResult,
     }
 }
 
-fn resolve_api_key(provider: &Provider) -> Option<String> {
+/// `api_key_env` (kimi-code 2.0.0+): resolve the referenced environment
+/// variable into the key itself. `Ok(None)` = the provider has no env-var
+/// reference configured; `Err` = a reference that this process cannot satisfy.
+///
+/// The error is deterministic (re-exporting the variable is the only fix) and
+/// names the provider plus the variable name — never a key value — so it is
+/// safe to surface in the UI as-is.
+fn resolve_api_key_env(provider: &Provider) -> Result<Option<String>, String> {
+    let Some(env_name) = provider
+        .api_key_env
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    else {
+        return Ok(None);
+    };
+    match std::env::var(env_name) {
+        Ok(value) if !value.trim().is_empty() => Ok(Some(value)),
+        _ => Err(format!(
+            "provider '{}' reads its API key from the environment variable \
+             {env_name}, which is not set in this process",
+            provider.name
+        )),
+    }
+}
+
+/// Static credential for a request: an `api_key_env` reference (resolved from
+/// this process's environment) outranks a stored `api_key`, which outranks the
+/// provider's `[providers.<name>.env]` entry for its type.
+fn resolve_api_key(provider: &Provider) -> Result<Option<String>, String> {
     if provider.managed {
-        return Some("managed".to_string());
+        return Ok(Some("managed".to_string()));
+    }
+    if let Some(key) = resolve_api_key_env(provider)? {
+        return Ok(Some(key));
     }
     if let Some(key) = &provider.api_key {
         if !key.is_empty() {
-            return Some(key.clone());
+            return Ok(Some(key.clone()));
         }
     }
     if let Some(env_key) = expected_api_key_key(&provider.provider_type) {
         if let Some(key) = provider.env.get(env_key).filter(|s| !s.is_empty()) {
-            return Some(key.clone());
+            return Ok(Some(key.clone()));
         }
     }
-    None
+    Ok(None)
 }
 
 fn resolve_base_url(provider: &Provider) -> String {
@@ -606,9 +638,37 @@ fn usage_cache() -> &'static UsageCache {
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+/// Resolve the credential a usage query sends: an `api_key_env` reference
+/// (kimi-code 2.0.0+, resolved from this process's environment) > a stored
+/// `api_key` > the provider's `[providers.<name>.env]` entry for its type.
+///
+/// Unlike `resolve_api_key` this does NOT special-case managed (OAuth)
+/// providers — the caller falls back to the OAuth session token itself, so a
+/// missing static key must stay `None` here rather than become a placeholder.
+///
+/// `Err(msg)` is a deterministic failure: the provider is configured to read
+/// its key from an environment variable this process does not have.
+fn resolve_usage_api_key(provider: &Provider) -> Result<Option<String>, String> {
+    if let Some(key) = resolve_api_key_env(provider)? {
+        return Ok(Some(key));
+    }
+    Ok(provider
+        .api_key
+        .clone()
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| {
+            expected_api_key_key(&provider.provider_type)
+                .and_then(|env_key| provider.env.get(env_key))
+                .cloned()
+                .filter(|s| !s.is_empty())
+        }))
+}
+
 /// Query a provider's balance / plan quota. The frontend passes only the
 /// provider name — base_url, api_key and usage kinds are all resolved here,
 /// so the API key never crosses IPC and the host routing cannot be spoofed.
+/// A provider configured with `api_key_env` resolves its key from this
+/// process's environment (see `resolve_usage_api_key`).
 ///
 /// Error channel semantics (cc-switch):
 /// - `Err(_)` = transient failure (network/timeout/body read) → frontend
@@ -656,16 +716,12 @@ pub async fn query_provider_usage(
     // error messages, or the cache key. Managed (OAuth-login) providers have
     // no static key; their credential comes from the Kimi Code OAuth session
     // file (refreshed on demand when the 15-min access token expires).
-    let mut api_key = provider
-        .api_key
-        .clone()
-        .filter(|s| !s.trim().is_empty())
-        .or_else(|| {
-            expected_api_key_key(&provider.provider_type)
-                .and_then(|env_key| provider.env.get(env_key))
-                .cloned()
-                .filter(|s| !s.is_empty())
-        });
+    let mut api_key = match resolve_usage_api_key(provider) {
+        Ok(key) => key,
+        // Deterministic: a missing `api_key_env` variable will not appear on
+        // retry, so report it instead of letting the frontend keep retrying.
+        Err(msg) => return Ok(UsageResult::failure(msg)),
+    };
     let mut oauth_err: Option<String> = None;
     if api_key.is_none() && provider.managed {
         // Resolve the credential slot + refresh host from the provider's oauth
@@ -775,6 +831,512 @@ pub async fn query_provider_usage(
         Err(transient.join("; "))
     } else {
         Ok(UsageResult::failure(errors.join("; ")))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 供应商一键体检（探活 + 账单/用量）
+// ---------------------------------------------------------------------------
+
+/// 体检并发上限：同时最多 8 个供应商在途，避免瞬间打爆网络 / 触发对端限流。
+const HEALTH_CHECK_CONCURRENCY: usize = 8;
+
+/// 整个体检的总超时：超时后返回已完成的部分结果，绝不无限期挂住 UI。
+const HEALTH_CHECK_TOTAL_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// 单项检测（探活 / 账单）的三态结论。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HealthCheck {
+    /// 真实通过。
+    Pass,
+    /// 真实失败。
+    Fail,
+    /// 中性：无法得出结论，不计入失败。目前只有探活 404 —— 很多中转 /
+    /// 套餐端点只代理 chat/completions，没实现 /v1/models，这不能说明
+    /// 供应商不可用。
+    Neutral,
+}
+
+/// 单项检测的结论 + 原始错误文案。错误只用于 tooltip 展示与鉴权判定，
+/// 中性（404）的原因不会进 [`HealthResult::error`] 汇总。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckResult {
+    pub state: HealthCheck,
+    pub error: Option<String>,
+}
+
+/// 单个供应商的体检结果（IPC 侧 camelCase）。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HealthResult {
+    pub provider_name: String,
+    /// 总体判定：pass=绿 / fail=红 / neutral=灰（判定规则见
+    /// [`overall_verdict`]，Rust 侧是唯一事实来源）。
+    pub verdict: HealthCheck,
+    /// `verdict == Pass` 的便捷布尔，供「x 正常 / y 失败」汇总计数。
+    pub ok: bool,
+    /// 失败原因汇总（仅 fail 项，`; ` 分隔）；无失败为 None。
+    pub error: Option<String>,
+    /// 账单/用量查询结论；该供应商未配置 usageKinds（或已关闭用量查询）时为
+    /// None，表示未执行。
+    pub usage: Option<CheckResult>,
+    /// 推理端点探活结论；探活是必做项，恒为 Some。
+    pub probe: Option<CheckResult>,
+    /// 探活耗时（毫秒）。
+    pub latency_ms: u64,
+}
+
+/// 体检目标：启用、且探活方式适用的供应商。探活走 OpenAI 兼容的
+/// `GET /v1/models`，anthropic / google-genai / vertexai 类型的端点没有这个
+/// 路由，硬探只会得到假阴性，故跳过（前端按「未检测」展示）。
+fn is_health_target(provider: &Provider) -> bool {
+    provider.enabled && provider.provider_type.is_openai_compatible()
+}
+
+/// 是否顺带查账单：配置了 usageKinds，且用户没有在配置面板关掉用量查询
+/// （关掉是明确意图，不该记成失败）。
+fn wants_usage_check(provider: &Provider) -> bool {
+    provider
+        .usage_kinds
+        .as_ref()
+        .is_some_and(|v| !v.is_empty())
+        && provider
+            .usage_config
+            .as_ref()
+            .map(|c| c.enabled)
+            .unwrap_or(true)
+}
+
+/// 探活 404 的判定前缀，与 services/probe.rs 的 `endpoint not found` 对应。
+fn is_not_found_error(error: &str) -> bool {
+    error.starts_with("endpoint not found")
+}
+
+/// 剥掉账单错误里的 kind 前缀：commands.rs 的 kinds 循环把单条错误包成
+/// `balance:deepseek: msg` / `plan:zhipu: msg`（与前端 localizeUsageError
+/// 同一套规则），剥掉后才能按前缀匹配。
+fn strip_kind_prefix(error: &str) -> &str {
+    for kind in ["balance:", "plan:"] {
+        if let Some(rest) = error.strip_prefix(kind) {
+            if let Some((_, msg)) = rest.split_once(": ") {
+                return msg;
+            }
+        }
+    }
+    error
+}
+
+/// 账单查询的鉴权类失败（401/403）。key 错了必须红，不能被「探活通过」抵消；
+/// 多 kind 时任一条鉴权失败即算（错误串用 `; ` 拼接）。
+fn is_auth_error(error: &str) -> bool {
+    error
+        .split("; ")
+        .any(|part| strip_kind_prefix(part).starts_with("Authentication failed"))
+}
+
+/// 探活结果 → 三态。404（端点未实现模型列表）归中性，其余网络 / 状态码错误
+/// 都是真实失败。
+fn classify_probe(outcome: Result<(), String>) -> CheckResult {
+    match outcome {
+        Ok(()) => CheckResult {
+            state: HealthCheck::Pass,
+            error: None,
+        },
+        Err(e) if is_not_found_error(&e) => CheckResult {
+            state: HealthCheck::Neutral,
+            error: Some(e),
+        },
+        Err(e) => CheckResult {
+            state: HealthCheck::Fail,
+            error: Some(e),
+        },
+    }
+}
+
+/// 账单查询结果 → 三态。`Err(_)`（瞬时失败）与 `Ok(success:false)`
+/// （确定性失败）都是真实失败；账单链路不产生中性结论。
+fn classify_usage(outcome: Result<(), String>) -> CheckResult {
+    match outcome {
+        Ok(()) => CheckResult {
+            state: HealthCheck::Pass,
+            error: None,
+        },
+        Err(e) => CheckResult {
+            state: HealthCheck::Fail,
+            error: Some(e),
+        },
+    }
+}
+
+/// 综合判定，优先级从高到低（纯函数，便于单测）：
+/// 1. 账单鉴权失败（401/403）→ fail（key 错了必须红）
+/// 2. 任一 check 真实通过 → pass（账单通或端点通都说明供应商可用）
+/// 3. 有 check 失败且无一通过 → fail
+/// 4. 其余（全部中性 / 未执行）→ neutral
+fn overall_verdict(probe: &CheckResult, usage: Option<&CheckResult>) -> HealthCheck {
+    if usage.is_some_and(|u| {
+        u.state == HealthCheck::Fail && u.error.as_deref().is_some_and(is_auth_error)
+    }) {
+        return HealthCheck::Fail;
+    }
+    let any_pass = probe.state == HealthCheck::Pass
+        || usage.is_some_and(|u| u.state == HealthCheck::Pass);
+    if any_pass {
+        return HealthCheck::Pass;
+    }
+    let any_fail = probe.state == HealthCheck::Fail
+        || usage.is_some_and(|u| u.state == HealthCheck::Fail);
+    if any_fail {
+        return HealthCheck::Fail;
+    }
+    HealthCheck::Neutral
+}
+
+/// 失败原因汇总（只收 fail 项，中性 / 通过的原始文案不进汇总），按
+/// 「探活 → 账单」顺序用 `; ` 拼接。纯函数，便于单测。
+fn fail_summary(probe: &CheckResult, usage: Option<&CheckResult>) -> Option<String> {
+    let mut errors: Vec<String> = Vec::new();
+    for check in std::iter::once(probe).chain(usage) {
+        if check.state == HealthCheck::Fail {
+            if let Some(e) = &check.error {
+                errors.push(e.clone());
+            }
+        }
+    }
+    if errors.is_empty() {
+        None
+    } else {
+        Some(errors.join("; "))
+    }
+}
+
+/// 体检用的凭据：复用 query_provider_usage 的解析顺序（api_key_env >
+/// 存储的 api_key > 供应商 env 段）；托管（OAuth）供应商没有静态 key，
+/// 回退到 OAuth 会话里的 access token（与 query_provider_usage 一致）。
+async fn resolve_health_api_key(provider: &Provider) -> Result<String, String> {
+    match resolve_usage_api_key(provider)? {
+        Some(key) => Ok(key),
+        None if provider.managed => {
+            let oauth_ref = crate::oauth::oauth_ref_from_provider(provider);
+            let base_url = provider.base_url.as_deref().unwrap_or("");
+            crate::oauth::get_valid_access_token(oauth_ref.as_ref(), base_url).await
+        }
+        None => Err("no API key configured".to_string()),
+    }
+}
+
+/// 单个供应商的体检：①推理端点探活（必做）②账单/用量（配了 usageKinds 时
+/// 顺带查一次）。信号量限流在函数内部获取，调用方可一次性把全部目标并发起来。
+async fn check_one_provider(
+    agent: Agent,
+    provider: Provider,
+    sem: &tokio::sync::Semaphore,
+) -> HealthResult {
+    let name = provider.name.clone();
+    // 信号量只在本轮体检内使用、永不 close，acquire 不会失败。
+    let _permit = sem
+        .acquire()
+        .await
+        .expect("health-check semaphore is never closed");
+
+    let base_url = resolve_base_url(&provider);
+    let api_key = match resolve_health_api_key(&provider).await {
+        Ok(key) => key,
+        // 凭据缺失是确定性失败，探活无法进行（拿不到 key 必然 401）。
+        Err(e) => {
+            let probe = CheckResult {
+                state: HealthCheck::Fail,
+                error: Some(e),
+            };
+            let error = fail_summary(&probe, None);
+            return HealthResult {
+                provider_name: name,
+                verdict: HealthCheck::Fail,
+                ok: false,
+                error,
+                usage: None,
+                probe: Some(probe),
+                latency_ms: 0,
+            };
+        }
+    };
+
+    let start = Instant::now();
+    let probe =
+        services::probe::probe_provider(&base_url, &api_key, services::probe::PROBE_TIMEOUT).await;
+    let latency_ms = start.elapsed().as_millis() as u64;
+    let probe = classify_probe(probe);
+
+    // 复用 query_provider_usage 的全部逻辑（缓存 / usage_config 模板 /
+    // OAuth / kinds 路由）；forceRefresh=true 保证拿到实时值。
+    // Err(_) = 瞬时失败，Ok(success:false) = 确定性失败，两者都算体检失败。
+    let usage = if wants_usage_check(&provider) {
+        Some(classify_usage(
+            match query_provider_usage(agent, name.clone(), Some(true)).await {
+                Ok(result) if result.success => Ok(()),
+                Ok(result) => Err(result
+                    .error
+                    .unwrap_or_else(|| "usage query failed".to_string())),
+                Err(e) => Err(e),
+            },
+        ))
+    } else {
+        None
+    };
+
+    let verdict = overall_verdict(&probe, usage.as_ref());
+    HealthResult {
+        provider_name: name,
+        ok: verdict == HealthCheck::Pass,
+        verdict,
+        error: fail_summary(&probe, usage.as_ref()),
+        usage,
+        probe: Some(probe),
+        latency_ms,
+    }
+}
+
+/// 一键体检：并行检测该 agent 下所有启用且探活适用的供应商。
+///
+/// 每个供应商跑「探活 + 账单查询」，结论汇总成 [`HealthResult`]，前端按
+/// provider 名索引结果并渲染状态点。凭据在 Rust 侧解析，key 不过 IPC。
+#[tauri::command]
+pub async fn health_check_all(agent: Agent) -> Result<Vec<HealthResult>, String> {
+    use futures_util::stream::{FuturesUnordered, StreamExt};
+
+    let config = load_agent_config_command(agent)?;
+    let targets: Vec<Provider> = config
+        .providers
+        .values()
+        .filter(|p| is_health_target(p))
+        .cloned()
+        .collect();
+
+    let sem = std::sync::Arc::new(tokio::sync::Semaphore::new(HEALTH_CHECK_CONCURRENCY));
+    let mut pending = FuturesUnordered::new();
+    for provider in targets {
+        pending.push(check_one_provider(agent, provider, &sem));
+    }
+
+    // 总超时兜底：到期返回已完成的部分结果（其余行前端按「未检测」展示），
+    // 单个供应商的耗时另有探活 5s + 账单查询自带超时的上界。
+    let deadline = tokio::time::Instant::now() + HEALTH_CHECK_TOTAL_TIMEOUT;
+    let mut results = Vec::new();
+    loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            break;
+        }
+        match tokio::time::timeout(remaining, pending.next()).await {
+            Ok(Some(result)) => results.push(result),
+            // 全部完成（None），或总超时（Err）——都收工。
+            Ok(None) | Err(_) => break,
+        }
+    }
+    Ok(results)
+}
+
+#[cfg(test)]
+mod health_check_tests {
+    use super::*;
+    use serde_json::Value;
+
+    fn provider(provider_type: ProviderType, enabled: bool) -> Provider {
+        Provider {
+            name: "p".to_string(),
+            provider_type,
+            base_url: None,
+            api_key: None,
+            api_key_env: None,
+            env: IndexMap::new(),
+            note: None,
+            official_url: None,
+            managed: false,
+            enabled,
+            active: false,
+            icon: None,
+            icon_color: None,
+            raw_other: Value::Null,
+            usage_kinds: None,
+            usage_config: None,
+        }
+    }
+
+    #[test]
+    fn health_target_requires_enabled_and_openai_compatible() {
+        assert!(is_health_target(&provider(ProviderType::Kimi, true)));
+        assert!(is_health_target(&provider(ProviderType::Openai, true)));
+        assert!(is_health_target(&provider(
+            ProviderType::OpenaiResponses,
+            true
+        )));
+        // 停用的供应商不体检
+        assert!(!is_health_target(&provider(ProviderType::Kimi, false)));
+        // 非 OpenAI 兼容类型没有 /v1/models 路由，硬探是假阴性
+        assert!(!is_health_target(&provider(ProviderType::Anthropic, true)));
+        assert!(!is_health_target(&provider(
+            ProviderType::GoogleGenai,
+            true
+        )));
+        assert!(!is_health_target(&provider(ProviderType::Vertexai, true)));
+        assert!(!is_health_target(&provider(
+            ProviderType::Unknown("mystery".to_string()),
+            true
+        )));
+    }
+
+    #[test]
+    fn usage_check_skips_empty_kinds_and_disabled_panel() {
+        let mut p = provider(ProviderType::Openai, true);
+        assert!(!wants_usage_check(&p));
+
+        p.usage_kinds = Some(vec![]);
+        assert!(!wants_usage_check(&p));
+
+        p.usage_kinds = Some(vec!["balance:deepseek".to_string()]);
+        assert!(wants_usage_check(&p));
+
+        // 面板里明确关掉用量查询 → 不查、也不记成失败
+        p.usage_config = Some(UsageConfig {
+            enabled: false,
+            template_type: "auto".to_string(),
+            base_url: None,
+            access_token: None,
+            user_id: None,
+            auto_query_interval_minutes: None,
+            timeout_seconds: None,
+            threshold: None,
+        });
+        assert!(!wants_usage_check(&p));
+    }
+
+    #[test]
+    fn probe_404_is_neutral_other_errors_fail() {
+        assert_eq!(classify_probe(Ok(())).state, HealthCheck::Pass);
+        // 端点未实现 /v1/models（zhipuai-coding-plan 等中转）→ 中性，不算失败
+        assert_eq!(
+            classify_probe(Err("endpoint not found (HTTP 404)".to_string())).state,
+            HealthCheck::Neutral
+        );
+        for err in [
+            "request timed out",
+            "connection failed (DNS or refused)",
+            "Authentication failed (HTTP 401)",
+            "API error (HTTP 502)",
+            "response is not valid JSON",
+            "missing base_url",
+            "no API key configured",
+        ] {
+            assert_eq!(
+                classify_probe(Err(err.to_string())).state,
+                HealthCheck::Fail,
+                "err: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn usage_never_yields_neutral() {
+        assert_eq!(classify_usage(Ok(())).state, HealthCheck::Pass);
+        assert_eq!(
+            classify_usage(Err("no API key configured".to_string())).state,
+            HealthCheck::Fail
+        );
+    }
+
+    #[test]
+    fn auth_error_detection_survives_the_kind_prefix() {
+        assert!(is_auth_error("Authentication failed (HTTP 401)"));
+        assert!(is_auth_error("Authentication failed (HTTP 403)"));
+        // kinds 循环的 `{kind}: {msg}` 包装
+        assert!(is_auth_error(
+            "balance:deepseek: Authentication failed (HTTP 401)"
+        ));
+        assert!(is_auth_error("plan:kimi_coding: Authentication failed (HTTP 401)"));
+        // 多 kind 拼接时任一条命中即算
+        assert!(is_auth_error(
+            "balance:deepseek: API error (HTTP 500); plan:zhipu: Authentication failed (HTTP 401)"
+        ));
+        // 非鉴权失败不得误判
+        assert!(!is_auth_error("API error (HTTP 500)"));
+        assert!(!is_auth_error("balance:deepseek: API error (HTTP 500)"));
+        assert!(!is_auth_error("usage query disabled in config panel"));
+    }
+
+    #[test]
+    fn verdict_is_green_when_either_channel_passes() {
+        let pass = classify_probe(Ok(()));
+        let neutral = classify_probe(Err("endpoint not found (HTTP 404)".to_string()));
+        let fail = classify_probe(Err("API error (HTTP 502)".to_string()));
+        let usage_pass = classify_usage(Ok(()));
+
+        // 账单通 + 探活 404（zhipuai-coding-plan 的真实场景）→ 绿
+        assert_eq!(overall_verdict(&neutral, Some(&usage_pass)), HealthCheck::Pass);
+        // 账单通 + 探活失败 → 绿（账单通了说明供应商可用）
+        assert_eq!(overall_verdict(&fail, Some(&usage_pass)), HealthCheck::Pass);
+        // 探活通 + 账单失败（非鉴权）→ 绿
+        let usage_fail = classify_usage(Err("API error (HTTP 500)".to_string()));
+        assert_eq!(overall_verdict(&pass, Some(&usage_fail)), HealthCheck::Pass);
+        // 只有探活且通过 → 绿
+        assert_eq!(overall_verdict(&pass, None), HealthCheck::Pass);
+    }
+
+    #[test]
+    fn verdict_is_gray_only_when_everything_is_neutral() {
+        let neutral = classify_probe(Err("endpoint not found (HTTP 404)".to_string()));
+        // 探活 404 且没配 usageKinds → 灰（既没通过也没失败）
+        assert_eq!(overall_verdict(&neutral, None), HealthCheck::Neutral);
+        assert!(!fail_summary(&neutral, None).is_some());
+    }
+
+    #[test]
+    fn verdict_is_red_when_everything_fails_or_the_key_is_bad() {
+        let neutral = classify_probe(Err("endpoint not found (HTTP 404)".to_string()));
+        let pass = classify_probe(Ok(()));
+        let fail = classify_probe(Err("request timed out".to_string()));
+
+        // 探活失败且没有账单结果 → 红
+        assert_eq!(overall_verdict(&fail, None), HealthCheck::Fail);
+        // 探活中性 + 账单失败 → 红
+        let usage_fail = classify_usage(Err("API error (HTTP 500)".to_string()));
+        assert_eq!(overall_verdict(&neutral, Some(&usage_fail)), HealthCheck::Fail);
+        // 账单鉴权失败 → 红，即使探活通过（key 错了必须红）
+        let usage_auth = classify_usage(Err("Authentication failed (HTTP 401)".to_string()));
+        assert_eq!(overall_verdict(&pass, Some(&usage_auth)), HealthCheck::Fail);
+        let usage_auth_kinded =
+            classify_usage(Err("balance:deepseek: Authentication failed (HTTP 401)".to_string()));
+        assert_eq!(
+            overall_verdict(&neutral, Some(&usage_auth_kinded)),
+            HealthCheck::Fail
+        );
+    }
+
+    #[test]
+    fn fail_summary_lists_only_failures() {
+        let pass = classify_probe(Ok(()));
+        let neutral = classify_probe(Err("endpoint not found (HTTP 404)".to_string()));
+        let fail = classify_probe(Err("request timed out".to_string()));
+
+        assert_eq!(fail_summary(&pass, None), None);
+        // 中性原因不进失败汇总
+        assert_eq!(fail_summary(&neutral, None), None);
+        assert_eq!(
+            fail_summary(&fail, None),
+            Some("request timed out".to_string())
+        );
+        // 探活中性 + 账单失败 → 只汇总账单那条
+        let usage_fail = classify_usage(Err("Authentication failed (HTTP 401)".to_string()));
+        assert_eq!(
+            fail_summary(&neutral, Some(&usage_fail)),
+            Some("Authentication failed (HTTP 401)".to_string())
+        );
+        // 两条都失败：按「探活 → 账单」顺序拼接
+        assert_eq!(
+            fail_summary(&fail, Some(&usage_fail)),
+            Some("request timed out; Authentication failed (HTTP 401)".to_string())
+        );
     }
 }
 
@@ -1237,6 +1799,268 @@ fn update_temp_filename() -> String {
     format!("KimiSwitch_update.{ext}")
 }
 
+// ---------------------------------------------------------------------------
+// Kimi Code CLI version tracking
+//
+// Settings shows three things: the `kimi` version installed on this machine,
+// the latest upstream release, and whether this KimiSwitch build is known to
+// work with that CLI version. The status mapping is a static baseline table —
+// bump it whenever a CLI release changes something KimiSwitch depends on.
+// ---------------------------------------------------------------------------
+
+const KIMI_CODE_LATEST_API: &str =
+    "https://api.github.com/repos/MoonshotAI/kimi-code/releases/latest";
+
+/// Hard deadline for `kimi --version`. The CLI is a bundled runtime that needs
+/// ~2.5–3.8s just to boot on Windows (measured), so keep generous headroom —
+/// a process that overruns it is killed and reported as "not installed".
+const KIMI_CODE_VERSION_TIMEOUT: Duration = Duration::from_secs(10);
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct KimiCodeVersionInfo {
+    /// Installed CLI version, `None` when the `kimi` command is unavailable.
+    pub installed: Option<String>,
+    /// Latest upstream version, normalized to a bare `major.minor.patch`,
+    /// `None` when unknown.
+    pub latest: Option<String>,
+    /// One of: current | outdated | partial | unknown | not_installed.
+    pub status: String,
+}
+
+/// Extract the first `major.minor.patch` triple out of free-form text. Used on
+/// both the CLI's `--version` output ("2.0.2", "kimi-code v0.43.1") and on
+/// upstream release tags ("@moonshot-ai/kimi-code@2.0.2"); `None` when nothing
+/// parseable shows up.
+fn parse_kimi_version(output: &str) -> Option<String> {
+    let re = regex::Regex::new(r"(\d+)\.(\d+)\.(\d+)").ok()?;
+    let caps = re.captures(output)?;
+    Some(format!("{}.{}.{}", &caps[1], &caps[2], &caps[3]))
+}
+
+/// Parse a `major.minor.patch` triple. A leading `v` and any pre-release /
+/// build suffix are ignored; missing minor/patch default to 0. Hand-rolled on
+/// purpose — three integers do not justify a semver dependency.
+fn semver_triple(version: &str) -> Option<(u32, u32, u32)> {
+    let core = version
+        .trim()
+        .trim_start_matches(|c: char| c == 'v' || c == 'V')
+        .split(|c: char| c == '-' || c == '+')
+        .next()?;
+    let mut parts = core.split('.');
+    let major = parts.next()?.trim().parse::<u32>().ok()?;
+    let minor = parts.next().unwrap_or("0").trim().parse::<u32>().ok()?;
+    let patch = parts.next().unwrap_or("0").trim().parse::<u32>().ok()?;
+    Some((major, minor, patch))
+}
+
+/// Adaptation baseline against the kimi-code CLI:
+///   >= 2.0.2  fully supported ("current")
+///   >= 0.43.1 quota parsing moved upstream — upgrade KimiSwitch ("outdated")
+///   >= 0.43.0 the auto_session_title flag is gone ("partial")
+///   <  0.43.0 untested ("unknown")
+fn kimi_code_status(installed: Option<&str>) -> &'static str {
+    let Some(version) = installed else {
+        return "not_installed";
+    };
+    match semver_triple(version) {
+        Some(t) if t >= (2, 0, 2) => "current",
+        Some(t) if t >= (0, 43, 1) => "outdated",
+        Some(t) if t >= (0, 43, 0) => "partial",
+        _ => "unknown",
+    }
+}
+
+/// Wait for a child process with a hard deadline, polling `try_wait` so a hung
+/// CLI cannot block the check forever. `None` on spawn failure, wait error or
+/// timeout (the child is killed on timeout).
+fn run_with_timeout(
+    mut cmd: std::process::Command,
+    timeout: Duration,
+) -> Option<std::process::Output> {
+    let mut child = cmd.spawn().ok()?;
+    let deadline = Instant::now() + timeout;
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) if Instant::now() >= deadline => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return None;
+            }
+            Ok(None) => std::thread::sleep(Duration::from_millis(50)),
+            Err(_) => return None,
+        }
+    }
+    child.wait_with_output().ok()
+}
+
+/// Run `kimi --version` and parse the version out of it. Windows goes through
+/// `cmd /C` so npm-style `kimi.cmd` shims resolve as well; a missing binary, a
+/// timeout and unparseable output all collapse to `None`.
+fn detect_kimi_code_version() -> Option<String> {
+    let mut cmd = if cfg!(windows) {
+        let mut c = std::process::Command::new("cmd");
+        c.arg("/C").arg("kimi").arg("--version");
+        c
+    } else {
+        let mut c = std::process::Command::new("kimi");
+        c.arg("--version");
+        c
+    };
+    cmd.stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // CREATE_NO_WINDOW: no console window flashing next to the GUI.
+        cmd.creation_flags(0x08000000);
+    }
+
+    let output = run_with_timeout(cmd, KIMI_CODE_VERSION_TIMEOUT)?;
+    // The version normally lands on stdout; some shims write it to stderr, so
+    // fall back to stderr only for a successful exit — a failed command's
+    // error text must not be scraped for digits.
+    if let Some(version) = parse_kimi_version(&String::from_utf8_lossy(&output.stdout)) {
+        return Some(version);
+    }
+    if !output.status.success() {
+        return None;
+    }
+    parse_kimi_version(&String::from_utf8_lossy(&output.stderr))
+}
+
+/// Locally installed kimi-code CLI version, `None` when the CLI is missing,
+/// times out, or prints nothing parseable. Blocking work runs off the UI
+/// thread so the 5s deadline cannot freeze the window.
+#[tauri::command]
+pub async fn get_kimi_code_version() -> Option<String> {
+    tauri::async_runtime::spawn_blocking(detect_kimi_code_version)
+        .await
+        .unwrap_or(None)
+}
+
+/// Latest upstream kimi-code release, normalized to a bare version by
+/// `normalize_release_tag`. Mirrors `check_for_update`: GitHub requires a
+/// User-Agent, the timeout keeps the check snappy, and network/parse failures
+/// surface as `Err` so the UI can tell "unknown" apart from "no release".
+#[tauri::command]
+pub async fn get_kimi_code_latest() -> Result<Option<String>, String> {
+    let client = reqwest::Client::builder()
+        .user_agent(concat!("KimiSwitch/", env!("CARGO_PKG_VERSION")))
+        .timeout(Duration::from_secs(8))
+        .build()
+        .map_err(|e| format!("client build failed: {e}"))?;
+
+    let release: serde_json::Value = client
+        .get(KIMI_CODE_LATEST_API)
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?
+        .json()
+        .await
+        .map_err(|e| format!("parse failed: {e}"))?;
+
+    Ok(release
+        .get("tag_name")
+        .and_then(|v| v.as_str())
+        .map(normalize_release_tag)
+        .filter(|tag| !tag.is_empty()))
+}
+
+/// Reduce a release tag to a bare version. Upstream does not use plain
+/// `v1.2.3` tags — they look like `@moonshot-ai/kimi-code@2.0.2` — so pull the
+/// first `major.minor.patch` triple out of whatever shape shows up; only when
+/// that fails fall back to the tag minus a leading `v`.
+fn normalize_release_tag(tag: &str) -> String {
+    if let Some(version) = parse_kimi_version(tag) {
+        return version;
+    }
+    tag.trim()
+        .trim_start_matches(|c: char| c == 'v' || c == 'V')
+        .to_string()
+}
+
+/// Installed version + upstream latest + adaptation status, in one round trip
+/// for the Settings card. A failing upstream lookup degrades to
+/// `latest: None` instead of an error so the local half still renders.
+#[tauri::command]
+pub async fn get_kimi_code_version_info() -> KimiCodeVersionInfo {
+    let installed = get_kimi_code_version().await;
+    let latest = get_kimi_code_latest().await.unwrap_or(None);
+    KimiCodeVersionInfo {
+        status: kimi_code_status(installed.as_deref()).to_string(),
+        installed,
+        latest,
+    }
+}
+
+#[cfg(test)]
+mod kimi_code_version_tests {
+    use super::*;
+
+    #[test]
+    fn parses_bare_and_decorated_version_output() {
+        assert_eq!(parse_kimi_version("2.0.2"), Some("2.0.2".to_string()));
+        assert_eq!(parse_kimi_version("0.43.1\n"), Some("0.43.1".to_string()));
+        assert_eq!(
+            parse_kimi_version("kimi-code v1.2.3"),
+            Some("1.2.3".to_string())
+        );
+        assert_eq!(
+            parse_kimi_version("kimi-code 0.43.1 (build abc123)"),
+            Some("0.43.1".to_string())
+        );
+        // A not-found error or empty output must not yield a version.
+        assert_eq!(parse_kimi_version("'kimi' is not recognized"), None);
+        assert_eq!(parse_kimi_version(""), None);
+    }
+
+    #[test]
+    fn semver_triple_handles_prefix_and_suffix() {
+        assert_eq!(semver_triple("v2.0.2"), Some((2, 0, 2)));
+        assert_eq!(semver_triple("0.43.1-beta.2"), Some((0, 43, 1)));
+        assert_eq!(semver_triple("2.0"), Some((2, 0, 0)));
+        assert_eq!(semver_triple(" 1.2.3 "), Some((1, 2, 3)));
+        assert_eq!(semver_triple("nope"), None);
+        assert_eq!(semver_triple(""), None);
+    }
+
+    #[test]
+    fn normalizes_the_upstream_tag_shapes() {
+        // Upstream ships scoped npm-style tags, not plain `vX.Y.Z`.
+        assert_eq!(
+            normalize_release_tag("@moonshot-ai/kimi-code@2.0.2"),
+            "2.0.2".to_string()
+        );
+        assert_eq!(normalize_release_tag("v0.43.1"), "0.43.1".to_string());
+        assert_eq!(normalize_release_tag("2.0.2"), "2.0.2".to_string());
+        // Unparseable tag falls back to the raw tag minus a leading `v`.
+        assert_eq!(normalize_release_tag("nightly"), "nightly".to_string());
+        assert_eq!(normalize_release_tag(""), String::new());
+    }
+
+    #[test]
+    fn status_follows_the_adaptation_baseline() {
+        assert_eq!(kimi_code_status(None), "not_installed");
+        assert_eq!(kimi_code_status(Some("2.0.2")), "current");
+        assert_eq!(kimi_code_status(Some("2.1.0")), "current");
+        assert_eq!(kimi_code_status(Some("0.43.1")), "outdated");
+        // 2.0.1 predates the fully-supported baseline.
+        assert_eq!(kimi_code_status(Some("2.0.1")), "outdated");
+        assert_eq!(kimi_code_status(Some("0.43.0")), "partial");
+        assert_eq!(kimi_code_status(Some("0.42.9")), "unknown");
+        assert_eq!(kimi_code_status(Some("garbage")), "unknown");
+    }
+
+    #[test]
+    fn missing_binary_yields_none_instead_of_hanging() {
+        let cmd = std::process::Command::new("kimi-code-not-installed-xyz");
+        assert!(run_with_timeout(cmd, Duration::from_secs(2)).is_none());
+    }
+}
+
 #[cfg(test)]
 mod asset_picker_tests {
     use super::*;
@@ -1355,6 +2179,12 @@ pub async fn kimi_oauth_poll(
 /// `search_worker` were promoted or removed earlier and are no longer
 /// probed here.
 ///
+/// Non-flag probes: `KIMI_CODE_LEGACY_FLAG` (v1 engine switch) and
+/// `KIMI_CODE_WATCH` (kimi-code 2.0.1+ `[watch] enabled` override) are not
+/// experimental flags — they gate a config section instead — but they are
+/// returned through the same map so the frontend can show the config value
+/// that is actually in effect.
+///
 /// The flag id → env var mapping mirrors `EXPERIMENTAL_FLAGS` in
 /// src/lib/subagent-settings.ts; keep both lists in sync.
 ///
@@ -1362,7 +2192,7 @@ pub async fn kimi_oauth_poll(
 /// the raw values are returned and the truthy check happens on the frontend.
 #[tauri::command]
 pub fn get_experimental_env_status() -> HashMap<String, String> {
-    const VARS: [(&str, &str); 7] = [
+    const VARS: [(&str, &str); 8] = [
         ("tool-select", "KIMI_CODE_EXPERIMENTAL_TOOL_SELECT"),
         ("tower", "KIMI_CODE_EXPERIMENTAL_TOWER"),
         ("subagent_fork", "KIMI_CODE_EXPERIMENTAL_SUBAGENT_FORK"),
@@ -1371,6 +2201,9 @@ pub fn get_experimental_env_status() -> HashMap<String, String> {
         // Non-flag probes consumed by the frontend:
         ("master", "KIMI_CODE_EXPERIMENTAL_FLAG"),
         ("legacy", "KIMI_CODE_LEGACY_FLAG"),
+        // Not an experimental flag either: the `[watch] enabled` override
+        // (kimi-code 2.0.1+). Consumed by AgentSettingsPanel's watch toggle.
+        ("watch", "KIMI_CODE_WATCH"),
     ];
     let mut out = HashMap::new();
     for (_, name) in VARS {
@@ -1381,4 +2214,103 @@ pub fn get_experimental_env_status() -> HashMap<String, String> {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod usage_key_tests {
+    use super::*;
+    use serde_json::Value;
+
+    fn provider(
+        api_key: Option<&str>,
+        api_key_env: Option<&str>,
+        env: IndexMap<String, String>,
+    ) -> Provider {
+        Provider {
+            name: "p".to_string(),
+            provider_type: ProviderType::Openai,
+            base_url: None,
+            api_key: api_key.map(String::from),
+            api_key_env: api_key_env.map(String::from),
+            env,
+            note: None,
+            official_url: None,
+            managed: false,
+            enabled: true,
+            active: false,
+            icon: None,
+            icon_color: None,
+            raw_other: Value::Null,
+            usage_kinds: None,
+            usage_config: None,
+        }
+    }
+
+    #[test]
+    fn api_key_env_resolves_from_the_process_environment() {
+        std::env::set_var("KIMI_SWITCH_TEST_KEY_FROM_ENV", "sk-from-env");
+        let p = provider(None, Some("KIMI_SWITCH_TEST_KEY_FROM_ENV"), IndexMap::new());
+        assert_eq!(
+            resolve_usage_api_key(&p).unwrap().as_deref(),
+            Some("sk-from-env")
+        );
+    }
+
+    #[test]
+    fn api_key_env_outranks_a_stored_api_key() {
+        std::env::set_var("KIMI_SWITCH_TEST_KEY_WINS", "sk-from-env");
+        let p = provider(
+            Some("sk-stored"),
+            Some("KIMI_SWITCH_TEST_KEY_WINS"),
+            IndexMap::new(),
+        );
+        assert_eq!(
+            resolve_usage_api_key(&p).unwrap().as_deref(),
+            Some("sk-from-env")
+        );
+    }
+
+    #[test]
+    fn unset_api_key_env_fails_naming_provider_and_variable() {
+        let mut p = provider(None, Some("KIMI_SWITCH_TEST_KEY_MISSING"), IndexMap::new());
+        p.name = "my-proxy".to_string();
+        let err = resolve_usage_api_key(&p).unwrap_err();
+        assert!(err.contains("my-proxy"), "{err}");
+        assert!(err.contains("KIMI_SWITCH_TEST_KEY_MISSING"), "{err}");
+    }
+
+    #[test]
+    fn blank_api_key_env_value_fails_and_blank_field_falls_through() {
+        std::env::set_var("KIMI_SWITCH_TEST_KEY_BLANK", "   ");
+        let p = provider(None, Some("KIMI_SWITCH_TEST_KEY_BLANK"), IndexMap::new());
+        assert!(resolve_usage_api_key(&p).is_err());
+
+        // An empty field (env mode selected, name not typed yet) is not a
+        // reference at all — the stored key is used.
+        let p = provider(Some("sk-stored"), Some(""), IndexMap::new());
+        assert_eq!(
+            resolve_usage_api_key(&p).unwrap().as_deref(),
+            Some("sk-stored")
+        );
+    }
+
+    #[test]
+    fn falls_back_to_stored_key_then_provider_env_section() {
+        let p = provider(Some("sk-stored"), None, IndexMap::new());
+        assert_eq!(
+            resolve_usage_api_key(&p).unwrap().as_deref(),
+            Some("sk-stored")
+        );
+
+        let mut env = IndexMap::new();
+        env.insert("OPENAI_API_KEY".to_string(), "sk-env-section".to_string());
+        let p = provider(None, None, env);
+        assert_eq!(
+            resolve_usage_api_key(&p).unwrap().as_deref(),
+            Some("sk-env-section")
+        );
+
+        let p = provider(None, None, IndexMap::new());
+        assert_eq!(resolve_usage_api_key(&p).unwrap(), None);
+    }
 }

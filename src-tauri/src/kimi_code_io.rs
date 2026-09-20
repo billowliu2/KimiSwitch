@@ -153,6 +153,14 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
 
             let base_url = table.get("base_url").and_then(|v| v.as_str()).map(|s| s.to_string());
             let api_key = table.get("api_key").and_then(|v| v.as_str()).map(|s| s.to_string());
+            // kimi-code 2.0.0+: `api_key_env` names the environment variable
+            // holding the credential; it is mutually exclusive with `api_key`.
+            // Captured as its own field (not left in raw_other) so export can
+            // enforce the exclusivity and the UI can edit it.
+            let api_key_env = table
+                .get("api_key_env")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
             let managed = table.contains_key("oauth")
                 || table.get("managed").and_then(|v| v.as_bool()).unwrap_or(false);
             let enabled = table.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
@@ -181,6 +189,7 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
                 rest.remove("type");
                 rest.remove("base_url");
                 rest.remove("api_key");
+                rest.remove("api_key_env");
                 rest.remove("managed");
                 rest.remove("enabled");
                 rest.remove("env");
@@ -200,6 +209,7 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
                     provider_type,
                     base_url: base_url.filter(|s| !s.is_empty()),
                     api_key: api_key.filter(|s| !s.is_empty()),
+                    api_key_env: api_key_env.filter(|s| !s.is_empty()),
                     env,
                     note: None,
                     official_url: None,
@@ -289,11 +299,30 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
         if let Some(base_url) = provider.base_url.clone().filter(|s| !s.is_empty()) {
             pt.insert("base_url".to_string(), TomlValue::String(base_url));
         }
+        // `api_key_env` (kimi-code 2.0.0+) and `api_key` are mutually
+        // exclusive upstream: emitting both makes the CLI reject the provider
+        // block, so the env var name alone is written whenever the provider is
+        // configured that way. A legacy row that still carries the key in
+        // raw_other (imports before the field existed) is used as the source
+        // too, so the setting survives the upgrade.
+        let api_key_env = provider
+            .api_key_env
+            .clone()
+            .or_else(|| {
+                provider
+                    .raw_other
+                    .get("api_key_env")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            })
+            .filter(|s| !s.is_empty());
         // Managed (OAuth) providers persist an empty api_key line so the block
         // matches the official CLI's provisioned shape (apiKey: ''). A
         // user-set api_key on a managed provider (api_key outranks OAuth in
         // the CLI's credential priority) must survive the round-trip.
-        if provider.managed
+        if let Some(env_key) = api_key_env {
+            pt.insert("api_key_env".to_string(), TomlValue::String(env_key));
+        } else if provider.managed
             && provider.api_key.as_deref().map_or(true, |s| s.is_empty())
         {
             pt.insert("api_key".to_string(), TomlValue::String("".to_string()));
@@ -328,10 +357,12 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
                 });
             pt.insert("oauth".to_string(), oauth);
         }
-        // Merge remaining raw fields (oauth and env are handled explicitly above).
+        // Merge remaining raw fields (oauth, env and api_key_env are handled
+        // explicitly above).
         if let TomlValue::Table(mut extra) = json_to_toml(&provider.raw_other).unwrap_or(TomlValue::Table(Table::new())) {
             extra.remove("oauth");
             extra.remove("env");
+            extra.remove("api_key_env");
             // Strip Kimi-Switch-private field: the remembered per-provider
             // default model is stored in raw_other.default_model and must NOT
             // leak into the agent's config.toml.
@@ -562,6 +593,7 @@ api_key = ""
                 provider_type: ProviderType::Anthropic,
                 base_url: Some("https://fast.cdks.work".to_string()),
                 api_key: Some("sk-test".to_string()),
+                api_key_env: None,
                 env: IndexMap::new(),
                 note: None,
                 official_url: None,
@@ -623,6 +655,7 @@ api_key = ""
             provider_type: ProviderType::Openai,
             base_url: Some(base_url.to_string()),
             api_key: Some("sk-test".to_string()),
+            api_key_env: None,
             env: IndexMap::new(),
             note: None,
             official_url: None,
@@ -760,6 +793,7 @@ default_effort = "low"
                 provider_type: ProviderType::Anthropic,
                 base_url: Some("https://example.com".to_string()),
                 api_key: Some("sk-test".to_string()),
+                api_key_env: None,
                 env: IndexMap::new(),
                 note: None,
                 official_url: None,
@@ -868,6 +902,7 @@ max_context_size = 1048576
                 provider_type: ProviderType::Anthropic,
                 base_url: Some("https://a.example.com".to_string()),
                 api_key: Some("sk-a".to_string()),
+                api_key_env: None,
                 env: IndexMap::new(),
                 note: None,
                 official_url: None,
@@ -888,6 +923,7 @@ max_context_size = 1048576
                 provider_type: ProviderType::Openai,
                 base_url: Some("https://b.example.com".to_string()),
                 api_key: Some("sk-b".to_string()),
+                api_key_env: None,
                 env: IndexMap::new(),
                 note: None,
                 official_url: None,
@@ -929,6 +965,7 @@ max_context_size = 1048576
                 provider_type: ProviderType::Anthropic,
                 base_url: None,
                 api_key: Some("sk-x".to_string()),
+                api_key_env: None,
                 env: IndexMap::new(),
                 note: None,
                 official_url: None,
@@ -974,6 +1011,7 @@ max_context_size = 1048576
             provider_type: ProviderType::Kimi,
             base_url: Some("https://api.kimi.com/coding/v1".to_string()),
             api_key: api_key.map(String::from),
+            api_key_env: None,
             env: IndexMap::new(),
             note: None,
             official_url: None,
@@ -1152,5 +1190,113 @@ enabled = true
             !root.contains_key("thinking"),
             "user-removed section must be dropped on export"
         );
+    }
+
+    #[test]
+    fn kimi_code_import_extracts_api_key_env() {
+        // kimi-code 2.0.0+: `api_key_env` names the environment variable that
+        // holds the credential. It must become its own Provider field and stop
+        // living in raw_other, so export can enforce the api_key exclusivity.
+        let toml_str = r#"
+default_model = "p1/m1"
+
+[providers.p1]
+type = "openai"
+base_url = "https://proxy.example.com/v1"
+api_key_env = "MY_PROXY_KEY"
+
+[models."p1/m1"]
+provider = "p1"
+model = "m1"
+max_context_size = 128000
+"#;
+        let value: TomlValue = toml_str.parse().unwrap();
+        let config = kimi_code_to_config(&value);
+
+        let provider = config.providers.get("p1").unwrap();
+        assert_eq!(provider.api_key_env.as_deref(), Some("MY_PROXY_KEY"));
+        assert_eq!(provider.api_key, None);
+        assert!(
+            provider.raw_other.get("api_key_env").is_none(),
+            "api_key_env must not stay in raw_other"
+        );
+
+        let exported = config_to_kimi_code(&config, Some(&value));
+        let exported_provider = exported
+            .as_table().unwrap()
+            .get("providers").unwrap()
+            .as_table().unwrap()
+            .get("p1").unwrap()
+            .as_table().unwrap();
+        assert_eq!(
+            exported_provider.get("api_key_env").and_then(|v| v.as_str()),
+            Some("MY_PROXY_KEY")
+        );
+        assert!(
+            !exported_provider.contains_key("api_key"),
+            "api_key and api_key_env are mutually exclusive upstream"
+        );
+    }
+
+    #[test]
+    fn kimi_code_export_api_key_env_wins_over_stored_api_key() {
+        // A provider switched to env-var credentials in the UI must export
+        // ONLY `api_key_env`: writing both keys makes the CLI reject the block.
+        // A legacy raw_other copy of the key acts as the source when the field
+        // is empty (rows saved before the field existed).
+        let make_provider = |api_key: Option<&str>, api_key_env: Option<&str>, raw: Value| Provider {
+            name: "p".to_string(),
+            provider_type: ProviderType::Openai,
+            base_url: Some("https://proxy.example.com/v1".to_string()),
+            api_key: api_key.map(String::from),
+            api_key_env: api_key_env.map(String::from),
+            env: IndexMap::new(),
+            note: None,
+            official_url: None,
+            managed: false,
+            enabled: true,
+            active: false,
+            icon: None,
+            icon_color: None,
+            raw_other: raw,
+            usage_kinds: None,
+            usage_config: None,
+        };
+        let export = |p: Provider| {
+            let config = Config {
+                default_model: None,
+                providers: IndexMap::from([("p".to_string(), p)]),
+                models: IndexMap::new(),
+                raw_other: Value::Null,
+                imported_section_keys: Vec::new(),
+            };
+            config_to_kimi_code(&config, None)
+                .as_table().unwrap()
+                .get("providers").unwrap()
+                .as_table().unwrap()
+                .get("p").unwrap()
+                .as_table()
+                .unwrap()
+                .clone()
+        };
+
+        // Both fields set (a DB row saved before the UI cleared the key).
+        let pt = export(make_provider(Some("sk-stale"), Some("MY_PROXY_KEY"), Value::Null));
+        assert_eq!(pt.get("api_key_env").and_then(|v| v.as_str()), Some("MY_PROXY_KEY"));
+        assert!(!pt.contains_key("api_key"), "the stored key must be dropped");
+
+        // Legacy row: only raw_other carries the key.
+        let pt = export(make_provider(
+            Some("sk-stale"),
+            None,
+            serde_json::json!({"api_key_env": "LEGACY_KEY"}),
+        ));
+        assert_eq!(pt.get("api_key_env").and_then(|v| v.as_str()), Some("LEGACY_KEY"));
+        assert!(!pt.contains_key("api_key"));
+
+        // No env reference → the stored key is written as before.
+        let pt = export(make_provider(Some("sk-keep"), None, Value::Null));
+        assert_eq!(pt.get("api_key").and_then(|v| v.as_str()), Some("sk-keep"));
+        assert!(!pt.contains_key("api_key_env"));
     }
 }

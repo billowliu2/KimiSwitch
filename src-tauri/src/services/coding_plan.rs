@@ -9,6 +9,9 @@
 //! "weekly_limit" / "monthly_limit"），`used` = 已用百分比（0-100），`total` = 100，
 //! `remaining` = 剩余百分比，`resets_at` 为 ISO 8601 字符串。
 //!
+//! 例外：Kimi 的加力钱包（`PLAN_BOOSTER_WALLET`）不是百分比窗口而是金额行，
+//! `used` / `total` / `remaining` 均为货币金额（分换算而来），`unit` 为币种。
+//!
 //! 错误通道语义与 balance.rs 一致（Err = 瞬时，Ok(success:false) = 确定性）。
 
 use super::balance::{get_json, get_json_with_ua, AuthStyle, Fetched};
@@ -23,6 +26,10 @@ const TIER_WEEKLY_LIMIT: &str = "weekly_limit";
 const TIER_MONTHLY_LIMIT: &str = "monthly_limit";
 /// Kimi quota 模型的月度代码窗口（kimi-code #3787 后 `limit_month_code`）。
 const TIER_MONTH_CODE: &str = "month_code";
+/// Kimi quota 响应里的加力钱包（boosterWallet）。**不是百分比 tier**：这条是
+/// 金额行，前端 src/lib/usage-display.ts 的 planLabel() 负责本地化，
+/// UsageFooter 按「金额行」而非配额行渲染（used/total 是钱数，不是配额比例）。
+const PLAN_BOOSTER_WALLET: &str = "booster_wallet";
 
 /// 套餐条目的统一构造：按百分比表示用量。
 fn percent_tier(name: &str, used_percent: f64, resets_at: Option<String>) -> UsageData {
@@ -75,7 +82,9 @@ fn parse_f64(value: &serde_json::Value) -> Option<f64> {
 // Response（kimi-code #3787 / 0.43.1 起服务端切换为 quota 模型）:
 //   { usages: { limit_5h, limit_7d, limit_month_total, limit_month_code:
 //               { used_ratio: 0-1, reset_time?: ISO 8601 } },
-//     boosterWallet, goods_version }
+//     boosterWallet: { balanceCents, totalCents, monthlyChargeLimitEnabled,
+//                      monthlyChargeLimitCents, monthlyUsedCents, currency },
+//     goods_version }
 // 旧结构（兼容保留）: { limits: [{ detail: { limit, remaining, resetTime } }],
 //                     usage: { limit, remaining, resetTime } }
 
@@ -143,8 +152,8 @@ fn parse_kimi_coding(body: &serde_json::Value) -> Vec<UsageData> {
 }
 
 /// 解析 quota 模型的 `usages` 窗口映射（`limit_5h` / `limit_7d` /
-/// `limit_month_total` / `limit_month_code`）。全部窗口缺失或无可解析
-/// 条目时返回 None，让调用方回退旧结构。
+/// `limit_month_total` / `limit_month_code`）+ 加力钱包。窗口与钱包都缺失或
+/// 无可解析条目时返回 None，让调用方回退旧结构。
 fn parse_kimi_quota(body: &serde_json::Value) -> Option<Vec<UsageData>> {
     let usages = body.get("usages")?;
     let mut tiers = Vec::new();
@@ -163,7 +172,44 @@ fn parse_kimi_quota(body: &serde_json::Value) -> Option<Vec<UsageData>> {
         let resets_at = entry.get("reset_time").and_then(extract_reset_time);
         tiers.push(percent_tier(tier, used_percent, resets_at));
     }
+    // 加力钱包排在四个窗口之后（钱包是余额，不是滚动窗口）。
+    if let Some(wallet) = body.get("boosterWallet").and_then(booster_wallet_tier) {
+        tiers.push(wallet);
+    }
     if tiers.is_empty() { None } else { Some(tiers) }
+}
+
+/// 解析加力钱包（boosterWallet）为金额行。字段单位为「分」，统一换算成元/美元。
+///
+/// 只在响应含新版 `*Cents` 字段时产出条目：kimi-code #3787 之前的
+/// `boosterWallet` 只有 `balance`（无币种/精度语义），产出全 0 的伪行只会误导。
+fn booster_wallet_tier(wallet: &serde_json::Value) -> Option<UsageData> {
+    let cents = |key: &str| wallet.get(key).and_then(parse_f64);
+    let (balance, total, used) = (
+        cents("balanceCents"),
+        cents("totalCents"),
+        cents("monthlyUsedCents"),
+    );
+    if balance.is_none() && total.is_none() && used.is_none() {
+        return None;
+    }
+    // 币种缺失时不猜（前端 formatAmount 会退化为纯数字展示）。
+    let unit = wallet
+        .get("currency")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+    Some(UsageData {
+        plan_name: Some(PLAN_BOOSTER_WALLET.to_string()),
+        remaining: balance.map(|c| c / 100.0),
+        total: total.map(|c| c / 100.0),
+        used: used.map(|c| c / 100.0),
+        unit,
+        is_valid: Some(true),
+        // 钱包没有窗口重置时间。
+        resets_at: None,
+    })
 }
 
 fn kimi_limit_tier(name: &str, detail: &serde_json::Value) -> UsageData {
@@ -510,6 +556,7 @@ mod tests {
             "boosterWallet": { "balance": 0 }
         });
         let tiers = parse_kimi_coding(&body);
+        // 旧版 boosterWallet（只有 balance，无 *Cents）不产出钱包行。
         assert_eq!(tiers.len(), 4);
         assert_eq!(tiers[0].plan_name.as_deref(), Some("five_hour"));
         assert_eq!(tiers[0].used, Some(60.0));
@@ -527,6 +574,38 @@ mod tests {
         assert_eq!(tiers[3].plan_name.as_deref(), Some("month_code"));
         assert_eq!(tiers[3].used, Some(88.0));
         assert_eq!(tiers[3].remaining, Some(12.0));
+    }
+
+    #[test]
+    fn kimi_coding_quota_appends_booster_wallet_row() {
+        // 加力钱包是金额行（分 → 元/美元），追加在四个窗口之后。
+        let body = json!({
+            "usages": {
+                "limit_5h": { "used_ratio": 0.6 },
+                "limit_7d": { "used_ratio": 0.25 },
+                "limit_month_total": { "used_ratio": 0.1 },
+                "limit_month_code": { "used_ratio": 0.88 }
+            },
+            "boosterWallet": {
+                "balanceCents": 1234,
+                "totalCents": 5000,
+                "monthlyChargeLimitEnabled": true,
+                "monthlyChargeLimitCents": 2000,
+                "monthlyUsedCents": 800,
+                "currency": "USD"
+            }
+        });
+        let tiers = parse_kimi_coding(&body);
+        assert_eq!(tiers.len(), 5);
+        assert_eq!(tiers[0].plan_name.as_deref(), Some("five_hour"));
+        let wallet = &tiers[4];
+        assert_eq!(wallet.plan_name.as_deref(), Some("booster_wallet"));
+        assert_eq!(wallet.used, Some(8.0));
+        assert_eq!(wallet.total, Some(50.0));
+        assert_eq!(wallet.remaining, Some(12.34));
+        assert_eq!(wallet.unit.as_deref(), Some("USD"));
+        assert_eq!(wallet.is_valid, Some(true));
+        assert!(wallet.resets_at.is_none());
     }
 
     #[test]

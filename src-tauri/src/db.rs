@@ -81,6 +81,7 @@ pub fn init_db() -> DbResult<Connection> {
             provider_type TEXT NOT NULL,
             base_url TEXT,
             api_key TEXT,
+            api_key_env TEXT,
             env TEXT,
             note TEXT,
             official_url TEXT,
@@ -141,6 +142,9 @@ pub fn init_db() -> DbResult<Connection> {
     for stmt in [
         "ALTER TABLE providers ADD COLUMN icon TEXT",
         "ALTER TABLE providers ADD COLUMN icon_color TEXT",
+        // `api_key_env` (kimi-code 2.0.0+): the name of the environment
+        // variable holding the credential, an alternative to `api_key`.
+        "ALTER TABLE providers ADD COLUMN api_key_env TEXT",
     ] {
         if let Err(e) = conn.execute(stmt, []) {
             let msg = e.to_string();
@@ -162,28 +166,29 @@ pub fn load_config(agent: &Agent) -> DbResult<Config> {
     let mut providers = IndexMap::new();
     {
         let mut stmt = tx.prepare(
-            "SELECT name, provider_type, base_url, api_key, env, note, official_url, managed, enabled, active, icon, icon_color, raw_other
+            "SELECT name, provider_type, base_url, api_key, api_key_env, env, note, official_url, managed, enabled, active, icon, icon_color, raw_other
              FROM providers WHERE agent = ?1 ORDER BY id",
         )?;
         let provider_rows = stmt.query_map(params![agent.as_str()], |row| {
             let provider_type: String = row.get(1)?;
-            let env_json: Option<String> = row.get(4)?;
-            let raw_json: Option<String> = row.get(12)?;
+            let env_json: Option<String> = row.get(5)?;
+            let raw_json: Option<String> = row.get(13)?;
             Ok(Provider {
                 name: row.get(0)?,
                 provider_type: provider_type_for_str(&provider_type),
                 base_url: row.get(2)?,
                 api_key: row.get(3)?,
+                api_key_env: row.get(4)?,
                 env: env_json
                     .and_then(|s| serde_json::from_str(&s).ok())
                     .unwrap_or_default(),
-                note: row.get(5)?,
-                official_url: row.get(6)?,
-                managed: row.get::<_, i32>(7)? != 0,
-                enabled: row.get::<_, i32>(8)? != 0,
-                active: row.get::<_, i32>(9)? != 0,
-                icon: row.get(10)?,
-                icon_color: row.get(11)?,
+                note: row.get(6)?,
+                official_url: row.get(7)?,
+                managed: row.get::<_, i32>(8)? != 0,
+                enabled: row.get::<_, i32>(9)? != 0,
+                active: row.get::<_, i32>(10)? != 0,
+                icon: row.get(11)?,
+                icon_color: row.get(12)?,
                 raw_other: raw_json
                     .and_then(|s| serde_json::from_str(&s).ok())
                     .unwrap_or(Value::Null),
@@ -253,8 +258,8 @@ pub fn save_config(agent: &Agent, config: &Config) -> DbResult<()> {
     {
         let mut insert_provider = tx.prepare(
             "INSERT INTO providers
-             (agent, name, provider_type, base_url, api_key, env, note, official_url, managed, enabled, active, icon, icon_color, raw_other)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+             (agent, name, provider_type, base_url, api_key, api_key_env, env, note, official_url, managed, enabled, active, icon, icon_color, raw_other)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
         )?;
 
         for provider in config.providers.values() {
@@ -264,6 +269,7 @@ pub fn save_config(agent: &Agent, config: &Config) -> DbResult<()> {
                 provider.provider_type.as_str(),
                 provider.base_url,
                 provider.api_key,
+                provider.api_key_env,
                 serde_json::to_string(&provider.env).ok(),
                 provider.note,
                 provider.official_url,

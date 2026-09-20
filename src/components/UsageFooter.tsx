@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { useTranslation } from "../i18n";
-import { formatAmount, localizeUsageError, planLabel } from "../lib/usage-display";
+import {
+  BOOSTER_WALLET_PLAN,
+  formatAmount,
+  localizeUsageError,
+  planLabel,
+} from "../lib/usage-display";
+import { isAlertTier } from "../hooks/useUsageQuery";
 import type { UsageData, UsageQueryState } from "../hooks/useUsageQuery";
 
 interface UsageFooterProps {
@@ -12,6 +18,20 @@ interface UsageFooterProps {
   /** "detail" (default) renders the multi-line footer; "compact" renders a
    * one-line summary + last-updated + refresh button for the card header. */
   variant?: "detail" | "compact";
+}
+
+/**
+ * 金额行 vs 配额行：NewAPI 与 Kimi 加力钱包（booster_wallet）只报金额，其
+ * used/total 是钱数而不是配额比例，必须走 formatAmount 渲染路径。判定只能看
+ * planName —— sub2api 的 USD 行 unit 同样不是 "%"，但语义仍是「额度用了百分之
+ * 多少」，按 unit 判定会把它误渲染成余额。
+ */
+function isMoneyRow(d: UsageData): boolean {
+  return d.planName === "NewAPI" || d.planName === BOOSTER_WALLET_PLAN;
+}
+
+function isPlanRow(d: UsageData): boolean {
+  return !!d.planName && !isMoneyRow(d) && (d.total != null || d.used != null);
 }
 
 export function UsageFooter({ usage, variant = "detail" }: UsageFooterProps) {
@@ -85,10 +105,7 @@ export function UsageFooter({ usage, variant = "detail" }: UsageFooterProps) {
     // A "plan" is a quota tier (used/total, e.g. 5h / weekly limit). Balance
     // entries carry only remaining + unit — their plan_name is a currency /
     // brand label and must render as an amount, not a percentage.
-    const isPlan =
-      !!d.planName &&
-      d.planName !== "NewAPI" &&
-      (d.total != null || d.used != null);
+    const isPlan = isPlanRow(d);
     if (d.isValid === false) {
       return { icon: "⚡", text: t("usageInvalidKey"), color: "text-red-500 dark:text-red-400" };
     }
@@ -207,13 +224,14 @@ export function UsageFooter({ usage, variant = "detail" }: UsageFooterProps) {
       {data.map((d, i) => {
         // Same plan-vs-balance rule as compactSummary: balance rows have no
         // quota fields (total/used), so they render as an amount.
-        const isPlan =
-          !!d.planName &&
-          d.planName !== "NewAPI" &&
-          (d.total != null || d.used != null);
+        const isPlan = isPlanRow(d);
         const pct = isPlan ? percentOf(d) : null;
-        const color =
-          pct == null
+        // 预警高亮：usage.alert 已按「查询成功」门控，失败时保留的上次数据
+        // 不会被误标红（此处是唯一的高亮来源，随每次查询结果重算）。
+        const rowAlert = usage.alert && isAlertTier(d, usage.threshold);
+        const color = rowAlert
+          ? "text-red-500 dark:text-red-400"
+          : pct == null
             ? "text-content-muted"
             : pct < 70
               ? "text-green-600 dark:text-green-400"
@@ -248,6 +266,15 @@ export function UsageFooter({ usage, variant = "detail" }: UsageFooterProps) {
             >
               {main}
             </span>
+            {rowAlert && (
+              <span
+                className="shrink-0 text-red-500 dark:text-red-400"
+                title={t("usageThresholdAlert")}
+                aria-label={t("usageThresholdAlert")}
+              >
+                ⚠
+              </span>
+            )}
             {resetText && (
               <span className="text-content-muted shrink-0">{resetText}</span>
             )}

@@ -1,10 +1,26 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Pencil, Copy, Activity, Loader2, Trash2, BarChart3 } from "lucide-react";
+import {
+  Pencil,
+  Copy,
+  Activity,
+  Loader2,
+  Trash2,
+  BarChart3,
+  Stethoscope,
+} from "lucide-react";
 import { useTranslation } from "../i18n";
 import { ProviderIcon } from "./ProviderIcon";
 import { UsageFooter } from "./UsageFooter";
 import { useUsageQuery } from "../hooks/useUsageQuery";
+import {
+  useHealthCheck,
+  localizeHealthError,
+  probeLine,
+  usageLine,
+  healthDotClass,
+  type HealthResult,
+} from "../hooks/useHealthCheck";
 import type { Agent, Model, Provider } from "../types";
 
 interface ConnectivityResult {
@@ -40,6 +56,12 @@ interface ProviderCardProps {
   models: Record<string, Model>;
   /** Inline connectivity-test state for this provider, or undefined when idle. */
   ts: TestState | undefined;
+  /** 一键体检结论；undefined = 本轮未出结果（检测中或未检测）。 */
+  health: HealthResult | undefined;
+  /** 体检请求进行中。 */
+  healthRunning: boolean;
+  /** 体检至少跑过一轮（决定是否渲染灰色「未检测」点）。 */
+  healthRan: boolean;
   onEdit: (name: string) => void;
   onDelete: (name: string) => void;
   onDuplicate: (name: string) => void;
@@ -54,6 +76,9 @@ function ProviderCard({
   defaultModel,
   models,
   ts,
+  health,
+  healthRunning,
+  healthRan,
   onEdit,
   onDelete,
   onDuplicate,
@@ -70,7 +95,8 @@ function ProviderCard({
     provider.name,
     provider.usageKinds,
     provider.usageConfig?.autoQueryIntervalMinutes,
-    provider.usageConfig?.enabled === false
+    provider.usageConfig?.enabled === false,
+    provider.usageConfig?.threshold
   );
   const providerModels = Object.values(models).filter(
     (m) => m.provider === provider.name
@@ -79,6 +105,17 @@ function ProviderCard({
     ? models[defaultModel]?.model || models[defaultModel]?.display_name || defaultModel
     : null;
   const isActive = provider.active === true;
+
+  // 一键体检状态点 tooltip：两项检测各自如实展示——探活可能是「不支持模型
+  // 列表」（中性），账单可能是「失败: xxx」，都不掩盖。
+  const healthTip = health
+    ? [
+        health.probe ? probeLine(health.probe, health.latencyMs, t) : null,
+        health.usage ? usageLine(health.usage, t) : null,
+      ]
+        .filter((s): s is string => s !== null)
+        .join(" · ")
+    : "";
 
   return (
     <div
@@ -102,6 +139,34 @@ function ProviderCard({
           <h3 className="font-semibold text-content-primary truncate">
             {provider.name}
           </h3>
+          {/* 一键体检状态点：绿=正常、红=失败、灰=未判定（未检测 / 检测中） */}
+          {health ? (
+            <span
+              role="img"
+              className={`w-2.5 h-2.5 shrink-0 rounded-full ${healthDotClass(
+                health.verdict
+              )}`}
+              title={healthTip}
+              aria-label={healthTip}
+            />
+          ) : healthRunning ? (
+            <span
+              className="shrink-0 flex items-center"
+              title={t("healthCheckRunning")}
+              aria-label={t("healthCheckRunning")}
+            >
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-content-muted" />
+            </span>
+          ) : healthRan ? (
+            <span
+              role="img"
+              className={`w-2.5 h-2.5 shrink-0 rounded-full ${healthDotClass(
+                "neutral"
+              )}`}
+              title={t("healthNotChecked")}
+              aria-label={t("healthNotChecked")}
+            />
+          ) : null}
           {isActive && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 border border-green-300 dark:border-green-500/30">
               {t("inUse")}
@@ -273,6 +338,7 @@ export function ProviderList({
 }: ProviderListProps) {
   const { t } = useTranslation();
   const [testState, setTestState] = useState<Record<string, TestState>>({});
+  const health = useHealthCheck(agent);
 
   // managed（OAuth 登录托管）供应商排在最前；其余保持原有顺序（稳定排序）。
   const sortedProviders = [...providers].sort(
@@ -312,28 +378,69 @@ export function ProviderList({
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <h2 className="font-medium text-content-primary">{t("providers")}</h2>
-        <button
-          type="button"
-          onClick={onAdd}
-          title={t("addProvider")}
-          className="w-9 h-9 flex items-center justify-center rounded-full bg-orange-500 hover:bg-orange-600 text-white shadow-lg focus:ring-2 focus:ring-orange-400 focus:outline-none transition-colors"
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
+      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border">
+        <div className="flex items-center gap-3 min-w-0">
+          <h2 className="font-medium text-content-primary shrink-0">
+            {t("providers")}
+          </h2>
+          {/* 体检汇总：检测中 / 请求失败 / x 正常 / y 失败 */}
+          {(health.running || health.ran || health.error) && (
+            <span
+              className={`text-xs tabular-nums truncate ${
+                health.error ? "text-red-500 dark:text-red-400" : "text-content-muted"
+              }`}
+              title={health.error ? localizeHealthError(health.error, t) : undefined}
+            >
+              {health.error
+                ? t("healthRequestFailed", {
+                    error: localizeHealthError(health.error, t),
+                  })
+                : health.running
+                  ? t("healthCheckRunning")
+                  : t("healthSummary", {
+                      ok: health.okCount,
+                      fail: health.failCount,
+                    })}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={health.run}
+            disabled={health.running}
+            title={t("healthCheckHint")}
+            aria-label={t("healthCheck")}
+            className="flex items-center gap-1.5 h-9 px-3 rounded-full border border-border text-sm text-content-muted hover:text-content-primary hover:bg-hover-2 disabled:opacity-50 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-colors whitespace-nowrap"
           >
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        </button>
+            {health.running ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Stethoscope className="w-4 h-4" />
+            )}
+            {t("healthCheck")}
+          </button>
+          <button
+            type="button"
+            onClick={onAdd}
+            title={t("addProvider")}
+            className="w-9 h-9 flex items-center justify-center rounded-full bg-orange-500 hover:bg-orange-600 text-white shadow-lg focus:ring-2 focus:ring-orange-400 focus:outline-none transition-colors"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto p-4">
@@ -371,6 +478,9 @@ export function ProviderList({
                 defaultModel={defaultModel}
                 models={models}
                 ts={testState[provider.name]}
+                health={health.results[provider.name]}
+                healthRunning={health.running}
+                healthRan={health.ran}
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onDuplicate={onDuplicate}

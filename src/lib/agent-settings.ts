@@ -13,6 +13,11 @@ const DEFAULT_SETTINGS: AgentSettings = {
   background: {
     keep_alive_on_exit: false,
   },
+  // `[watch] enabled` — kimi-code 2.0.1 added the key, 2.0.2 flipped the
+  // default to off, so an absent key reads as "off".
+  watch: {
+    enabled: false,
+  },
   permission: { rules: [] },
   hooks: [],
 };
@@ -76,6 +81,10 @@ export function getAgentSettings(rawOther: unknown): AgentSettings {
       ...DEFAULT_SETTINGS.background,
       ...getSection<AgentSettings["background"]>(rawOther, "background"),
     },
+    watch: {
+      ...DEFAULT_SETTINGS.watch,
+      ...getSection<AgentSettings["watch"]>(rawOther, "watch"),
+    },
     permission: {
       rules: sectionPermission?.rules ?? [],
       // `dangerous_command_guard` stays undefined unless the config carries
@@ -111,6 +120,7 @@ export function setAgentSettings(
     thinking: { ...current.thinking, ...patch.thinking },
     loop_control: { ...current.loop_control, ...patch.loop_control },
     background: { ...current.background, ...patch.background },
+    watch: { ...current.watch, ...patch.watch },
     permission,
     hooks: patch.hooks ?? current.hooks ?? [],
   };
@@ -129,9 +139,16 @@ export function setAgentSettings(
   if (!opts?.legacyV1) {
     delete next.loop_control?.max_retries_per_step;
   }
+  // `compaction_max_attempts` (kimi-code 0.43.0+): 0 / undefined means "leave
+  // the key out" — the config then falls back to the upstream default (5)
+  // instead of pinning a literal 0.
+  if (!next.loop_control?.compaction_max_attempts) {
+    delete next.loop_control?.compaction_max_attempts;
+  }
   if (next.thinking) root.thinking = next.thinking;
   if (next.loop_control) root.loop_control = next.loop_control;
   if (next.background) root.background = next.background;
+  if (next.watch) root.watch = next.watch;
   // Keep `[permission]` when it carries rules *or* an explicit
   // dangerous_command_guard — dropping the section would silently lose a
   // guard=false write (absent key = upstream default on). An empty rules

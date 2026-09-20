@@ -364,7 +364,7 @@ export function UsageConfigModal({ open, agent, provider, onClose, onSave }: Usa
                 )}
               </div>
 
-              {/* timeout + auto query interval */}
+              {/* timeout + auto query interval + alert threshold */}
               <div className="rounded-lg border border-border px-4 py-4 grid grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm text-content-muted mb-1.5">{t("usageTimeout")}</label>
@@ -393,6 +393,31 @@ export function UsageConfigModal({ open, agent, provider, onClose, onSave }: Usa
                     }}
                   />
                   <p className="mt-1 text-xs text-content-muted">{t("usageAutoIntervalHint")}</p>
+                </div>
+                <div>
+                  <label className="block text-sm text-content-muted mb-1.5">{t("usageThreshold")} %</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    className="w-32 bg-input border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    value={cfg.threshold ?? ""}
+                    onChange={(e) => {
+                      const raw = e.target.value.trim();
+                      // 清空输入框写回 undefined（关闭），而不是 0：两者判定等价，
+                      // 但 undefined 会被 serde 的 skip_serializing_if 从 SQLite
+                      // JSON 里省掉，不留冗余字段。
+                      if (raw === "") {
+                        setCfg({ ...cfg, threshold: undefined });
+                        return;
+                      }
+                      const n = parseInt(raw, 10);
+                      // 非数字（如 "1e" / "-"）不落库，保留上一次的有效值。
+                      if (Number.isNaN(n)) return;
+                      setCfg({ ...cfg, threshold: Math.min(100, Math.max(0, n)) });
+                    }}
+                  />
+                  <p className="mt-1 text-xs text-content-muted">{t("usageThresholdHint")}</p>
                 </div>
               </div>
             </>

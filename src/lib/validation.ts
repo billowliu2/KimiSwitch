@@ -50,7 +50,10 @@ export function validateProviders(
     const reasons: string[] = [];
 
     const apiKey = provider.api_key?.trim();
-    if (!apiKey && !provider.managed) {
+    // kimi-code 2.0.0+: the credential may come from an environment variable
+    // instead of a stored key — a provider configured that way is complete.
+    const apiKeyEnv = provider.api_key_env?.trim();
+    if (!apiKey && !apiKeyEnv && !provider.managed) {
       reasons.push(t("validationNoApiKey"));
     }
 

@@ -107,6 +107,12 @@ pub struct Provider {
     pub provider_type: ProviderType,
     pub base_url: Option<String>,
     pub api_key: Option<String>,
+    /// kimi-code 2.0.0+: name of the process environment variable holding the
+    /// credential, as an alternative to a stored `api_key` (the two are
+    /// mutually exclusive upstream — exporting both makes the CLI reject the
+    /// provider block). Only the variable *name* is stored, never its value.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key_env: Option<String>,
     #[serde(default)]
     pub env: IndexMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -149,6 +155,7 @@ impl PartialEq for Provider {
             && self.provider_type == other.provider_type
             && self.base_url == other.base_url
             && self.api_key == other.api_key
+            && self.api_key_env == other.api_key_env
             && self.env == other.env
             && self.note == other.note
             && self.official_url == other.official_url
@@ -172,6 +179,7 @@ impl std::fmt::Debug for Provider {
             .field("provider_type", &self.provider_type)
             .field("base_url", &self.base_url)
             .field("api_key", &"<redacted>")
+            .field("api_key_env", &self.api_key_env)
             .field("env", &"<redacted>")
             .field("managed", &self.managed)
             .field("enabled", &self.enabled)
@@ -285,6 +293,11 @@ pub struct UsageConfig {
     /// Per-request timeout in seconds; 0/None = default (8s).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeout_seconds: Option<u64>,
+    /// 用量预警阈值（百分比，0-100）；None/0 = 关闭。判定在前端
+    /// src/hooks/useUsageQuery.ts，Rust 只负责透传——缺了此字段，serde 会在
+    /// 保存时把前端写下的 threshold 静默丢掉。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threshold: Option<u32>,
 }
 
 impl UsageConfig {

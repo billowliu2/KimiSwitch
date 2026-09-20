@@ -78,6 +78,10 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
     update({ background: { ...settings.background, ...patch } });
   };
 
+  const updateWatch = (patch: Partial<AgentSettings["watch"]>) => {
+    update({ watch: { ...settings.watch, ...patch } });
+  };
+
   const setRules = (rules: PermissionRule[]) => {
     update({ permission: { rules } });
   };
@@ -141,6 +145,15 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
           value={settings.loop_control?.reserved_context_size ?? 50000}
           onChange={(v) => updateLoopControl({ reserved_context_size: v })}
         />
+        {/* kimi-code 0.43.0+ `loop_control.compaction_max_attempts`. The
+            upstream default is 5; an empty field or 0 removes the key instead
+            of writing a literal 0 (see setAgentSettings). */}
+        <NumberField
+          label={t("compactionMaxAttempts")}
+          value={settings.loop_control?.compaction_max_attempts ?? 5}
+          onChange={(v) => updateLoopControl({ compaction_max_attempts: v })}
+        />
+        <p className="text-xs text-content-muted">{t("compactionMaxAttemptsHint")}</p>
       </Card>
 
       <Card title={t("backgroundSettings")}>
@@ -154,6 +167,20 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
           checked={settings.background?.keep_alive_on_exit ?? false}
           onChange={(checked) => updateBackground({ keep_alive_on_exit: checked })}
         />
+      </Card>
+
+      <Card title={t("watchSettings")}>
+        {/* Top-level `[watch] enabled` (kimi-code 2.0.1+; off by default since
+            2.0.2). KIMI_CODE_WATCH outranks this config at runtime — the env
+            var is probed by get_experimental_env_status as a non-flag entry
+            but deliberately locks nothing here, the toggle just documents the
+            config value that applies when the env var is unset. */}
+        <Checkbox
+          label={t("watchEnabled")}
+          checked={settings.watch?.enabled ?? false}
+          onChange={(checked) => updateWatch({ enabled: checked })}
+        />
+        <p className="text-xs text-content-muted">{t("watchEnabledDesc")}</p>
       </Card>
 
       <Card title={t("permissionRules")}>

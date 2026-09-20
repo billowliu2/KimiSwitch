@@ -15,6 +15,12 @@ export interface Provider {
   provider_type: ProviderType;
   base_url: string | null;
   api_key: string | null;
+  /**
+   * Name of the process environment variable holding the credential
+   * (kimi-code 2.0.0+). Mutually exclusive with `api_key` upstream — the
+   * export writes only one of the two. Only the variable *name* is stored.
+   */
+  api_key_env?: string | null;
   env: Record<string, string>;
   /** Optional note / remark for the provider. */
   note?: string | null;
@@ -90,6 +96,9 @@ export interface UsageConfig {
   autoQueryIntervalMinutes?: number;
   /** Per-request timeout in seconds; 0/undefined = default (8s). */
   timeoutSeconds?: number;
+  /** 用量预警阈值（百分比 0-100）；0/undefined = 关闭预警。
+   *  判定见 src/hooks/useUsageQuery.ts 的 isAlertTier()。 */
+  threshold?: number;
 }
 
 /** A model discovered from a provider's API endpoint. */
@@ -125,11 +134,21 @@ export interface LoopControlConfig {
    *  KIMI_CODE_LEGACY_FLAG=1 (v1 engine compat). v2 saves strip it. */
   max_retries_per_step?: number;
   reserved_context_size?: number;
+  /** Retry budget for context compaction (kimi-code 0.43.0+). Absent/0 = the
+   *  key is not written and upstream's default (5) applies. */
+  compaction_max_attempts?: number;
 }
 
 export interface BackgroundConfig {
   max_running_tasks?: number;
   keep_alive_on_exit?: boolean;
+}
+
+/** Top-level `[watch]` section (kimi-code 2.0.1+). The key was added in
+ *  2.0.1 and its default flipped to off in 2.0.2, so an absent key reads as
+ *  disabled. `KIMI_CODE_WATCH` overrides the config value at runtime. */
+export interface WatchConfig {
+  enabled?: boolean;
 }
 
 export interface PermissionRule {
@@ -150,6 +169,8 @@ export interface AgentSettings {
   thinking?: ThinkingConfig;
   loop_control?: LoopControlConfig;
   background?: BackgroundConfig;
+  /** Top-level `[watch]` section (kimi-code 2.0.1+). */
+  watch?: WatchConfig;
   permission?: {
     rules?: PermissionRule[];
     /** kimi-code `[permission]` key. Default true when the key is
