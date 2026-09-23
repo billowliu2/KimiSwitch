@@ -24,6 +24,15 @@ import {
   type ValidationErrorKey,
 } from "../lib/subagent-settings";
 import { Card, Toggle } from "./ui/controls";
+import { applyModelsDevSnapshot, reloadModelsDev } from "../lib/models-dev";
+
+/** Mirror of models_dev::ModelsDevStatus (camelCase over IPC). */
+interface ModelsDevStatus {
+  source: "synced" | "builtin";
+  lastUpdated: string;
+  modelCount: number;
+  providerCount: number;
+}
 
 interface SubagentSettingsPageProps {
   /** config.raw_other — hosts the `[experimental]` and `[secondary_model]` sections. */
@@ -155,12 +164,64 @@ export function SubagentSettingsPage({
   const [addSelection, setAddSelection] = useState("");
   /** WebUI-open button in flight; disables both buttons while non-null. */
   const [webuiBusy, setWebuiBusy] = useState<"embedded" | "browser" | null>(null);
+  /** models.dev snapshot provenance (synced copy vs bundled asset). */
+  const [modelsDevStatus, setModelsDevStatus] = useState<ModelsDevStatus | null>(null);
+  /** Sync/restore button in flight; blocks the card's buttons. */
+  const [modelsDevBusy, setModelsDevBusy] = useState(false);
+  /** Last sync error (inline) and success flag (auto-cleared on next action). */
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [syncOk, setSyncOk] = useState(false);
 
   useEffect(() => {
     invoke<ExperimentalEnvStatus>("get_experimental_env_status")
       .then(setEnv)
       .catch(() => setEnv({}));
+    invoke<ModelsDevStatus>("get_models_dev_status")
+      .then(setModelsDevStatus)
+      .catch(() => setModelsDevStatus(null));
   }, []);
+
+  const refreshModelsDevStatus = () => {
+    invoke<ModelsDevStatus>("get_models_dev_status")
+      .then(setModelsDevStatus)
+      .catch(() => {});
+  };
+
+  const handleModelsDevSync = async () => {
+    setModelsDevBusy(true);
+    setSyncError(null);
+    setSyncOk(false);
+    try {
+      const st = await invoke<ModelsDevStatus>("sync_models_dev");
+      setModelsDevStatus(st);
+      // Hot-swap the frontend index; the dashboard price index rebuilds on
+      // its next query (mtime-triggered on the Rust side).
+      const raw = await invoke<string | null>("get_models_dev_snapshot");
+      if (raw) applyModelsDevSnapshot(JSON.parse(raw) as Record<string, unknown>);
+      setSyncOk(true);
+    } catch (err) {
+      setSyncError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setModelsDevBusy(false);
+    }
+  };
+
+  const handleModelsDevRestore = async () => {
+    if (!confirm(t("modelsDataRestoreConfirm"))) return;
+    setModelsDevBusy(true);
+    setSyncError(null);
+    setSyncOk(false);
+    try {
+      const st = await invoke<ModelsDevStatus>("reset_models_dev");
+      setModelsDevStatus(st);
+      await reloadModelsDev();
+    } catch (err) {
+      setSyncError(err instanceof Error ? err.message : String(err));
+      refreshModelsDevStatus();
+    } finally {
+      setModelsDevBusy(false);
+    }
+  };
 
   const flags = getExperimentalFlags(rawOther);
   const pool = getSubagentModelPool(rawOther);
@@ -395,6 +456,66 @@ export function SubagentSettingsPage({
             >
               {webuiBusy === "browser" ? t("webuiOpening") : t("openWebUIBrowser")}
             </button>
+          </div>
+        </Card>
+
+        {/* models.dev reference data: online sync / restore bundled */}
+        <Card title={t("modelsDataSection")}>
+          <p className="text-xs text-content-muted">{t("modelsDataDesc")}</p>
+          {modelsDevStatus && (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span
+                className={`shrink-0 rounded border px-1.5 py-0.5 text-xs ${
+                  modelsDevStatus.source === "synced"
+                    ? "border-blue-500/30 text-blue-600 dark:text-blue-400"
+                    : "border-border text-content-muted"
+                }`}
+              >
+                {modelsDevStatus.source === "synced"
+                  ? t("modelsDataSourceSynced")
+                  : t("modelsDataSourceBuiltin")}
+              </span>
+              <span className="text-xs text-content-muted">
+                {t("modelsDataStats", {
+                  date: modelsDevStatus.lastUpdated,
+                  models: modelsDevStatus.modelCount.toLocaleString(),
+                  providers: modelsDevStatus.providerCount.toLocaleString(),
+                })}
+              </span>
+            </div>
+          )}
+          {syncOk && (
+            <div className="bg-green-100 dark:bg-green-900/20 border border-green-300 dark:border-green-500/30 rounded-lg px-3 py-2 text-xs text-green-700 dark:text-green-400">
+              {t("modelsDataSyncOk")}
+            </div>
+          )}
+          {syncError && (
+            <div
+              role="alert"
+              className="bg-red-100 dark:bg-red-900/20 border border-red-300 dark:border-red-500/30 rounded-lg px-3 py-2 text-xs text-red-700 dark:text-red-400"
+            >
+              {t("modelsDataSyncFailed")}: {syncError}
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={modelsDevBusy}
+              onClick={handleModelsDevSync}
+              className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {modelsDevBusy ? t("modelsDataSyncing") : t("modelsDataSyncNow")}
+            </button>
+            {modelsDevStatus?.source === "synced" && (
+              <button
+                type="button"
+                disabled={modelsDevBusy}
+                onClick={handleModelsDevRestore}
+                className="px-3 py-1.5 text-sm border border-border rounded hover:bg-hover-2 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {t("modelsDataRestore")}
+              </button>
+            )}
           </div>
         </Card>
 

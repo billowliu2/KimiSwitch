@@ -4,6 +4,7 @@ pub mod dashboard;
 pub mod db;
 pub mod kimi_code_io;
 pub mod models;
+pub mod models_dev;
 pub mod oauth;
 pub mod pi_io;
 pub mod plugins;
@@ -119,6 +120,10 @@ pub fn run() {
             commands::kimi_oauth_start,
             commands::kimi_oauth_poll,
             commands::get_experimental_env_status,
+            models_dev::sync_models_dev,
+            models_dev::get_models_dev_status,
+            models_dev::get_models_dev_snapshot,
+            models_dev::reset_models_dev,
             dashboard::get_paths,
             dashboard::get_prices,
             dashboard::get_summary,

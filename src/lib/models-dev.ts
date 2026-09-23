@@ -3,12 +3,17 @@
  * (see scripts/fetch-models-dev.mjs).
  *
  * The snapshot (~1.3 MB JSON) is NOT bundled into the main chunk anymore:
- * parsing a 1.3 MB JSON literal at startup blocks first paint. It is served
- * as a static asset (`/models-dev.json`) and loaded once in the background.
- * `getModelRef` stays synchronous and returns undefined until the index is
- * ready — callers already fall back to defaults — and `modelsDevReady()`
- * lets the app re-render once the index arrives.
+ * parsing a 1.3 MB JSON literal at startup blocks first paint. Loading order
+ * (see modelsDevReady): the runtime-synced copy under ~/.kimi-switch/
+ * (via models_dev.rs, written by the 高级设置 sync button) when present,
+ * otherwise the bundled static asset (`/models-dev.json`). `getModelRef`
+ * stays synchronous and returns undefined until the index is ready — callers
+ * already fall back to defaults — and `modelsDevReady()` lets the app
+ * re-render once the index arrives. `applyModelsDevSnapshot` hot-swaps the
+ * index after an online sync without a restart.
  */
+
+import { invoke } from "@tauri-apps/api/core";
 
 export interface ModelCost {
   input?: number;
@@ -49,32 +54,64 @@ function buildIndex(raw: Record<string, unknown>) {
   return lower;
 }
 
+/**
+ * Swap in a new snapshot (initial load, online sync, or restore-to-builtin)
+ * and re-notify listeners so context/capability/price columns re-render.
+ * Listeners stay registered across reloads by design.
+ */
+function applySnapshot(raw: Record<string, unknown>) {
+  byLowerKey = buildIndex(raw);
+  for (const cb of readyListeners) cb();
+}
+
+async function fetchBundled(): Promise<Record<string, unknown>> {
+  const r = await fetch(`${import.meta.env.BASE_URL}models-dev.json`);
+  if (!r.ok) throw new Error(`models-dev.json HTTP ${r.status}`);
+  return (await r.json()) as Record<string, unknown>;
+}
+
 let loadPromise: Promise<void> | null = null;
 
 export function modelsDevReady(): Promise<void> {
   if (!loadPromise) {
-    loadPromise = fetch(`${import.meta.env.BASE_URL}models-dev.json`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`models-dev.json HTTP ${r.status}`);
-        return r.json() as Promise<Record<string, unknown>>;
-      })
-      .then((raw) => {
-        byLowerKey = buildIndex(raw);
-        const listeners = readyListeners;
-        readyListeners = [];
-        for (const cb of listeners) cb();
-      })
-      .catch((err) => {
-        // A failed load is permanent for this session: fall back to defaults.
-        byLowerKey = {};
-        loadPromise = null; // allow one retry next time
-        console.warn("models-dev.json load failed:", err);
-      });
+    // Prefer the runtime-synced copy (~/.kimi-switch/models-dev.json, via
+    // models_dev.rs); outside Tauri (or without one) fall back to the bundled
+    // static asset. A failed load is permanent for this session.
+    loadPromise = (async () => {
+      let raw: Record<string, unknown> | null = null;
+      try {
+        const synced = await invoke<string | null>("get_models_dev_snapshot");
+        if (synced) raw = JSON.parse(synced) as Record<string, unknown>;
+      } catch {
+        /* not running inside Tauri — use the bundled asset */
+      }
+      applySnapshot(raw ?? (await fetchBundled()));
+    })().catch((err) => {
+      byLowerKey = {};
+      loadPromise = null; // allow one retry next time
+      console.warn("models-dev.json load failed:", err);
+    });
   }
   return loadPromise;
 }
 
-/** Register a callback invoked once the models.dev index is ready. */
+/**
+ * Apply a freshly synced snapshot (already fetched by the caller) and notify
+ * listeners so the UI refreshes without a restart.
+ */
+export function applyModelsDevSnapshot(raw: Record<string, unknown>): void {
+  applySnapshot(raw);
+}
+
+/**
+ * Reload from the bundled static asset (after "restore built-in data" —
+ * the synced copy was already deleted on the Rust side).
+ */
+export function reloadModelsDev(): Promise<void> {
+  return fetchBundled().then(applySnapshot);
+}
+
+/** Register a callback invoked whenever the models.dev index changes. */
 export function onModelsDevReady(cb: () => void): void {
   if (byLowerKey) {
     cb();

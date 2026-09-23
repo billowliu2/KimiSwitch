@@ -594,6 +594,21 @@ export const enTranslations: Record<TranslationKey, string> = {
   openWebUIBrowser: "Open in Browser",
   webuiOpening: "Opening...",
 
+  // models.dev reference data (context / capabilities / pricing)
+  modelsDataSection: "Model Reference Data (models.dev)",
+  modelsDataDesc:
+    "Model context limits, capability flags, and pricing come from an online models.dev snapshot. Syncing applies new models immediately — no app update needed.",
+  modelsDataSourceSynced: "Online sync",
+  modelsDataSourceBuiltin: "Bundled with release",
+  modelsDataStats: "{date} · {models} models / {providers} providers",
+  modelsDataSyncNow: "Sync Now",
+  modelsDataSyncing: "Syncing...",
+  modelsDataSyncOk: "Synced — model parameters and pricing refreshed",
+  modelsDataSyncFailed: "Sync failed",
+  modelsDataRestore: "Restore Built-in Data",
+  modelsDataRestoreConfirm:
+    "Delete the local synced copy and fall back to the snapshot bundled with this release? You can sync again at any time.",
+
   // Plugin marketplace
   pluginMarketplace: "Plugin Marketplace",
   pluginMarketplaceSubtitle:

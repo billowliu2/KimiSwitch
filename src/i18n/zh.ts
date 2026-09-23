@@ -583,6 +583,21 @@ export const zhTranslations = {
   openWebUIBrowser: "在浏览器打开",
   webuiOpening: "打开中...",
 
+  // models.dev reference data (context / capabilities / pricing)
+  modelsDataSection: "模型参考数据（models.dev）",
+  modelsDataDesc:
+    "模型上下文长度、能力标记与单价参考来自 models.dev 在线快照。同步后新模型的参数与价格立即生效，无需等待新版本。",
+  modelsDataSourceSynced: "在线同步",
+  modelsDataSourceBuiltin: "随版本内置",
+  modelsDataStats: "{date} · {models} 模型 / {providers} 供应商",
+  modelsDataSyncNow: "立即同步",
+  modelsDataSyncing: "同步中...",
+  modelsDataSyncOk: "已同步，模型参数与单价已刷新",
+  modelsDataSyncFailed: "同步失败",
+  modelsDataRestore: "恢复内置数据",
+  modelsDataRestoreConfirm:
+    "删除本地同步副本并回退到随版本内置的快照数据？之后可随时重新同步。",
+
   // Plugin marketplace
   pluginMarketplace: "插件市场",
   pluginMarketplaceSubtitle:

@@ -1,9 +1,17 @@
 #!/usr/bin/env node
 /**
  * Fetch the latest model reference data from models.dev and write:
- *   1. src/lib/models-dev.json      — compact per-model snapshot (frontend)
- *   2. src/lib/models-dev-full.json — provider-grouped full list incl. pricing
- *   3. src/lib/models-dev.last-good.json — local backup of the last success
+ *   1. src/lib/models-dev.json      — compact per-model snapshot; embedded
+ *                                     into the Rust binary by dashboard.rs
+ *                                     (include_str!) and loaded by the
+ *                                     frontend as fallback
+ *   2. public/models-dev.json       — the same snapshot as a static asset;
+ *                                     this is what the frontend actually
+ *                                     serves at runtime (must stay in sync
+ *                                     with #1 — they serve different halves
+ *                                     of the app)
+ *   3. src/lib/models-dev-full.json — provider-grouped full list incl. pricing
+ *   4. src/lib/models-dev.last-good.json — local backup of the last success
  *
  * The data source is https://models.dev/api.json (176 providers; each model
  * carries `cost` = { input, output, cache_read?, cache_write? } in $/M tokens).
@@ -63,6 +71,8 @@ if (proxy && process.env.NODE_USE_ENV_PROXY !== "1") {
 const SOURCE_URL = "https://models.dev/api.json";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SNAPSHOT = join(ROOT, "src", "lib", "models-dev.json");
+// Static-asset copy served to the frontend (see header — must equal SNAPSHOT).
+const SNAPSHOT_PUBLIC = join(ROOT, "public", "models-dev.json");
 const FULL = join(ROOT, "src", "lib", "models-dev-full.json");
 // Local backup of the last successful snapshot. Not committed to git (see
 // .gitignore); the committed models-dev.json itself is the versioned fallback.
@@ -168,12 +178,15 @@ async function main() {
   }
 
   await mkdir(dirname(SNAPSHOT), { recursive: true });
+  await mkdir(dirname(SNAPSHOT_PUBLIC), { recursive: true });
   const json = JSON.stringify(snapshot, null, 2) + "\n";
   await writeFile(SNAPSHOT, json, "utf8");
+  await writeFile(SNAPSHOT_PUBLIC, json, "utf8");
   await writeFile(FULL, JSON.stringify(full, null, 2) + "\n", "utf8");
   await writeFile(BACKUP, json, "utf8");
 
   console.log(`models.dev snapshot: ${modelCount} models -> ${SNAPSHOT}`);
+  console.log(`models.dev static asset: -> ${SNAPSHOT_PUBLIC}`);
   console.log(
     `models.dev full list: ${Object.keys(full.providers).length} providers -> ${FULL}`,
   );
