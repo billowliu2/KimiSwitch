@@ -96,7 +96,9 @@ function ProviderCard({
     provider.usageKinds,
     provider.usageConfig?.autoQueryIntervalMinutes,
     provider.usageConfig?.enabled === false,
-    provider.usageConfig?.threshold
+    provider.usageConfig?.threshold,
+    provider.usageConfig?.templateType === "newapi" ||
+      provider.usageConfig?.templateType === "sub2api"
   );
   const providerModels = Object.values(models).filter(
     (m) => m.provider === provider.name
@@ -221,7 +223,7 @@ function ProviderCard({
         )}
         {/* compact usage summary — sits left of the switch button,
             mirroring cc-switch's card layout (usage → action buttons) */}
-        {(provider.usageKinds?.length ?? 0) > 0 && (
+        {usage.supported && (
           <UsageFooter usage={usage} variant="compact" />
         )}
         <button

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isAlertTier, type UsageData } from "./useUsageQuery";
+import { isAlertTier, usageQuerySupported, type UsageData } from "./useUsageQuery";
 
 /** 百分比窗口行（five_hour 等）；套餐类 tier 的 unit 恒为 "%"。 */
 function percentTier(used: number): UsageData {
@@ -40,5 +40,24 @@ describe("isAlertTier", () => {
 
   it("used 缺失时不告警", () => {
     expect(isAlertTier({ planName: "five_hour", unit: "%", remaining: 20 }, 50)).toBe(false);
+  });
+});
+
+describe("usageQuerySupported", () => {
+  it("有识别类型即可查询", () => {
+    expect(usageQuerySupported(["balance:deepseek"])).toBe(true);
+    expect(usageQuerySupported([], true)).toBe(true);
+  });
+
+  it("显式模板（newapi/sub2api）绕过 usage_kinds——自定义供应商也该查", () => {
+    expect(usageQuerySupported(undefined, true)).toBe(true);
+  });
+
+  it("无识别类型且非显式模板时不查询", () => {
+    expect(usageQuerySupported(undefined)).toBe(false);
+    expect(usageQuerySupported([])).toBe(false);
+    // auto 模板没有识别到类型 = 不支持（与弹窗短路口径一致）
+    expect(usageQuerySupported([], false)).toBe(false);
+    expect(usageQuerySupported(undefined, undefined)).toBe(false);
   });
 });

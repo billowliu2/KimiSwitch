@@ -75,15 +75,30 @@ export function isAlertTier(
   return d.unit === "%" && d.used != null && d.used >= threshold;
 }
 
+/**
+ * 是否值得为该供应商发起用量查询：有预设识别类型，或后端按显式模板
+ * （newapi / sub2api，二者绕过 usage_kinds）查询。
+ */
+export function usageQuerySupported(
+  usageKinds?: string[],
+  explicitTemplate?: boolean
+): boolean {
+  return (usageKinds?.length ?? 0) > 0 || explicitTemplate === true;
+}
+
 export function useUsageQuery(
   agent: Agent,
   providerName: string,
   usageKinds?: string[],
   autoIntervalMinutes?: number,
   disabled?: boolean,
-  threshold?: number
+  threshold?: number,
+  /** Backend resolves the query from an explicit template (newapi / sub2api)
+   * regardless of usageKinds — those bypass kinds entirely, so the row is
+   * supported even when the provider has no preset-detected kinds. */
+  explicitTemplate?: boolean
 ): UsageQueryState {
-  const supported = (usageKinds?.length ?? 0) > 0;
+  const supported = usageQuerySupported(usageKinds, explicitTemplate);
   // Cache key includes the agent so a Kimi Code provider and a Pi provider
   // with the same name do not clobber each other's cached result.
   const cacheKey = `${agent}:${providerName}`;
