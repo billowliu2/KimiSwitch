@@ -1,12 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "../i18n";
 import type { TranslationKey } from "../i18n/zh";
 import { getAgentSettings, setAgentSettings } from "../lib/agent-settings";
+import { getModelRef, modelsDevReady } from "../lib/models-dev";
+import {
+  THINKING_EFFORTS,
+  readSupportEfforts,
+  resolveThinkingEffortSupport,
+  type EffortAvailability,
+} from "../lib/thinking-efforts";
 import type {
   AgentSettings,
   ExperimentalEnvStatus,
   Hook,
+  Model,
   PermissionRule,
 } from "../types";
 import { Card, Checkbox, NumberField, Segmented } from "./ui/controls";
@@ -14,14 +22,18 @@ import { Card, Checkbox, NumberField, Segmented } from "./ui/controls";
 interface AgentSettingsPanelProps {
   rawOther: unknown;
   onChange: (nextRawOther: unknown) => void;
+  /** Configured models (alias → entry) — used to resolve effort support. */
+  models?: Record<string, Model>;
+  /** Alias of the model the effort tier actually applies to. */
+  defaultModel?: string | null;
 }
 
-// Upstream removed the "max" effort tier (auto-migrates to "high").
-const THINKING_LEVELS = ["low", "medium", "high"] as const;
-const THINKING_LABELS: Record<(typeof THINKING_LEVELS)[number], TranslationKey> = {
+const THINKING_LABELS: Record<(typeof THINKING_EFFORTS)[number], TranslationKey> = {
   low: "thinkingLow",
   medium: "thinkingMedium",
   high: "thinkingHigh",
+  max: "thinkingMax",
+  xhigh: "thinkingXHigh",
 };
 
 const PERMISSION_DECISIONS = ["allow", "deny", "ask"] as const;
@@ -44,7 +56,7 @@ const COMMON_EVENTS = [
   "SessionEnd",
 ] as const;
 
-export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelProps) {
+export function AgentSettingsPanel({ rawOther, onChange, models, defaultModel }: AgentSettingsPanelProps) {
   const { t } = useTranslation();
   const settings = getAgentSettings(rawOther);
   /**
@@ -52,6 +64,9 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
    * v1-engine users; the default (v2) writes only max_attempts_per_step.
    */
   const [legacyV1, setLegacyV1] = useState(false);
+  // The models.dev index loads in the background; re-render once it lands so
+  // the reasoning flag can disable the thinking area.
+  const [, forceModelsDevReady] = useReducer((x: number) => x + 1, 0);
 
   useEffect(() => {
     invoke<ExperimentalEnvStatus>("get_experimental_env_status")
@@ -60,6 +75,18 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
         setLegacyV1(["1", "true", "yes", "on"].includes(value.trim().toLowerCase()));
       })
       .catch(() => setLegacyV1(false));
+  }, []);
+
+  useEffect(() => {
+    // The panel only needs the flag once; App owns the permanent
+    // onModelsDevReady listener for later hot swaps.
+    let alive = true;
+    modelsDevReady().then(() => {
+      if (alive) forceModelsDevReady();
+    });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const update = (patch: Partial<AgentSettings>) => {
@@ -92,6 +119,42 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
 
   const thinkingEnabled = settings.thinking?.enabled ?? true;
 
+  // Which tiers the current default model accepts: `[models."<alias>"]
+  // support_efforts` first, then the models.dev `reasoning` flag.
+  const defaultEntry = defaultModel ? models?.[defaultModel] : undefined;
+  const effortSupport = resolveThinkingEffortSupport({
+    supportEfforts: readSupportEfforts(defaultEntry),
+    reasoning: defaultEntry ? getModelRef(defaultEntry.model)?.reasoning : undefined,
+  });
+
+  const effortNote = (availability: EffortAvailability): string | undefined => {
+    const note = availability.note;
+    if (!note) return undefined;
+    if (note.kind === "thinkingUnsupported") return t("thinkingEffortUnsupported");
+    if (note.kind === "tierUnsupported") {
+      return t("thinkingEffortTierUnsupported", { levels: note.supported.join(", ") });
+    }
+    return t("thinkingEffortTierUndeclared");
+  };
+
+  // Upstream takes a free-form string: keep a hand-written tier visible and
+  // selectable instead of dropping it from the control.
+  const effort = settings.thinking?.effort ?? "medium";
+  const effortOptions: {
+    key: string;
+    label: string;
+    disabled?: boolean;
+    title?: string;
+  }[] = THINKING_EFFORTS.map((tier) => ({
+    key: tier,
+    label: t(THINKING_LABELS[tier]),
+    disabled: !effortSupport.levels[tier].enabled,
+    title: effortNote(effortSupport.levels[tier]),
+  }));
+  if (!THINKING_EFFORTS.includes(effort as (typeof THINKING_EFFORTS)[number])) {
+    effortOptions.push({ key: effort, label: effort });
+  }
+
   return (
     <div className="mt-6 space-y-4">
       <h3 className="text-content-muted text-sm font-medium">{t("agentSettings")}</h3>
@@ -105,17 +168,20 @@ export function AgentSettingsPanel({ rawOther, onChange }: AgentSettingsPanelPro
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-sm text-content-muted">{t("thinkingLevel")}</span>
           <Segmented
-            options={THINKING_LEVELS.map((lvl) => ({
-              key: lvl,
-              label: t(THINKING_LABELS[lvl]),
-            }))}
-            value={settings.thinking?.effort ?? "medium"}
-            onChange={(effort) =>
-              updateThinking({ effort: effort as NonNullable<AgentSettings["thinking"]>["effort"] })
-            }
-            disabled={!thinkingEnabled}
+            options={effortOptions}
+            value={effort}
+            onChange={(next) => updateThinking({ effort: next })}
+            disabled={!thinkingEnabled || !effortSupport.thinkingSupported}
           />
         </div>
+        {!effortSupport.thinkingSupported && (
+          <p className="text-xs text-amber-500 dark:text-amber-400">
+            {t("thinkingEffortUnsupported")}
+          </p>
+        )}
+        <p className="text-xs text-content-muted">
+          {t("thinkingEffortDependsOnDefaultModel")}
+        </p>
         <Checkbox
           label={t("thinkingKeep")}
           checked={settings.thinking?.keep === "all"}

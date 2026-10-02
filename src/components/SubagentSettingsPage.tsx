@@ -43,12 +43,15 @@ interface SubagentSettingsPageProps {
   onBack: () => void;
 }
 
-// Upstream removed the "max" effort tier (auto-migrates to "high").
-const EFFORTS = ["low", "medium", "high"] as const;
+// Effort tiers the CLI accepts; the value is forwarded verbatim upstream, and
+// per-model support comes from `[models."<alias>"] support_efforts`.
+const EFFORTS = ["low", "medium", "high", "max", "xhigh"] as const;
 const EFFORT_LABELS: Record<(typeof EFFORTS)[number], TranslationKey> = {
   low: "thinkingLow",
   medium: "thinkingMedium",
   high: "thinkingHigh",
+  max: "thinkingMax",
+  xhigh: "thinkingXHigh",
 };
 
 const FLAG_LABELS: Record<string, { name: TranslationKey; desc: TranslationKey }> = {
@@ -281,9 +284,8 @@ export function SubagentSettingsPage({
         ? `${Math.round(n / 1000)}K`
         : String(n);
   const effortLabel = (e: string): string => {
-    // Stored "max" tiers from old configs are shown as "high" (upstream
-    // removed the tier; it auto-migrates to "high").
-    const key = EFFORT_LABELS[e === "max" ? "high" : (e as (typeof EFFORTS)[number])];
+    // Unknown values (hand-written config) are shown verbatim.
+    const key = EFFORT_LABELS[e as (typeof EFFORTS)[number]];
     return key ? t(key) : e;
   };
 

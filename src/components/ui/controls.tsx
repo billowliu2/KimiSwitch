@@ -106,7 +106,7 @@ export function Segmented({
   onChange,
   disabled,
 }: {
-  options: { key: string; label: string }[];
+  options: { key: string; label: string; disabled?: boolean; title?: string }[];
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
@@ -117,21 +117,27 @@ export function Segmented({
         disabled ? "opacity-50" : ""
       }`}
     >
-      {options.map((opt) => (
-        <button
-          key={opt.key}
-          type="button"
-          disabled={disabled}
-          onClick={() => onChange(opt.key)}
-          className={`px-3 py-1 text-sm ${
-            value === opt.key
-              ? "bg-blue-600 text-white"
-              : "bg-input text-content-muted hover:bg-hover-2"
-          }`}
-        >
-          {opt.label}
-        </button>
-      ))}
+      {options.map((opt) => {
+        const optDisabled = disabled || opt.disabled === true;
+        return (
+          // The title lives on the wrapper: a disabled button swallows pointer
+          // events in Chromium, so its own tooltip would never show.
+          <span key={opt.key} title={opt.title} className="inline-flex">
+            <button
+              type="button"
+              disabled={optDisabled}
+              onClick={() => onChange(opt.key)}
+              className={`px-3 py-1 text-sm ${
+                value === opt.key
+                  ? "bg-blue-600 text-white"
+                  : "bg-input text-content-muted hover:bg-hover-2"
+              } ${optDisabled ? "cursor-not-allowed opacity-40 hover:bg-input" : ""}`}
+            >
+              {opt.label}
+            </button>
+          </span>
+        );
+      })}
     </div>
   );
 }

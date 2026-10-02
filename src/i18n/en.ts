@@ -164,6 +164,15 @@ export const enTranslations: Record<TranslationKey, string> = {
   thinkingLow: "Low",
   thinkingMedium: "Medium",
   thinkingHigh: "High",
+  thinkingMax: "Max",
+  thinkingXHigh: "XHigh",
+  thinkingEffortUnsupported: "The current default model does not support thinking.",
+  thinkingEffortTierUnsupported:
+    "The current default model does not support this tier (supported: {levels}).",
+  thinkingEffortTierUndeclared:
+    "This model declares no thinking effort tiers; the upstream may reject this one.",
+  thinkingEffortDependsOnDefaultModel:
+    "The tier that actually applies depends on the current default model.",
   thinkingContextHint: "Thinking uses more context. Ensure the model context length and reserved size are sufficient.",
   loopControlSettings: "Loop Control",
   maxAttemptsPerStep: "Max attempts per step",

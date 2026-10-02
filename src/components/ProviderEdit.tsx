@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "../i18n";
@@ -141,6 +141,13 @@ export function ProviderEdit({
    */
   const apiKeyEnvSupported = agent === "kimi_code";
   const apiKeyEnvMode = apiKeyEnvSupported && provider.api_key_env != null;
+
+  // Alias → entry lookup for panels that resolve a model by alias
+  // (AgentSettingsPanel reads the default model's support_efforts).
+  const modelsByAlias = useMemo(
+    () => Object.fromEntries(models.map((m) => [m.alias, m])),
+    [models]
+  );
 
   useEffect(() => {
     const def = defaultBaseUrl(agent, provider.provider_type);
@@ -462,6 +469,8 @@ export function ProviderEdit({
               <AgentSettingsPanel
                 rawOther={rawOther}
                 onChange={onRawOtherChange}
+                models={modelsByAlias}
+                defaultModel={defaultModel}
               />
             )}
           </>

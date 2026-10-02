@@ -111,11 +111,12 @@ export interface DiscoveredModel {
 export interface ThinkingConfig {
   enabled?: boolean;
   /**
-   * Effort tier. `max` is read-compatible only — upstream removed the tier
-   * (old configs auto-migrate to `high`); the UI normalizes it and the
-   * serialization path never writes it.
+   * Effort tier, forwarded verbatim to OpenAI-compatible upstreams as
+   * `reasoning_effort`. Upstream accepts a free-form string; the UI offers
+   * low/medium/high/max/xhigh and derives per-model support from
+   * `[models."<alias>"] support_efforts`.
    */
-  effort?: "low" | "medium" | "high" | "max";
+  effort?: string;
   /**
    * Keep thinking content. The legacy off values (`false`, `0`, "no", "none",
    * `null`) are read-compatible — old configs may carry them; the UI

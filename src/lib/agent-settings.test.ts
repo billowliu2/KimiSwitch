@@ -20,7 +20,7 @@ function loopOf(raw: unknown): Record<string, unknown> {
 }
 
 // ---------------------------------------------------------------------------
-// Reading — legacy off values normalized to "off", "max" → "high"
+// Reading — legacy off values normalized to "off"; effort tiers pass through
 // ---------------------------------------------------------------------------
 
 describe("getAgentSettings — thinking.keep normalization", () => {
@@ -52,11 +52,28 @@ describe("getAgentSettings — thinking.keep normalization", () => {
   });
 });
 
-describe("getAgentSettings — effort \"max\" read mapping", () => {
-  it("normalizes a stored \"max\" to \"high\" on read", () => {
+describe("getAgentSettings — thinking.effort read mapping", () => {
+  it("keeps a stored \"max\" as-is (the tier is valid upstream)", () => {
     expect(getAgentSettings({ thinking: { effort: "max" } }).thinking?.effort).toBe(
-      "high"
+      "max"
     );
+  });
+
+  it("passes an \"xhigh\" tier through untouched", () => {
+    expect(getAgentSettings({ thinking: { effort: "xhigh" } }).thinking?.effort).toBe(
+      "xhigh"
+    );
+  });
+
+  it("keeps the default \"medium\" when the key is absent", () => {
+    expect(getAgentSettings({}).thinking?.effort).toBe("medium");
+  });
+
+  it("round-trips an arbitrary hand-written tier on save", () => {
+    const next = setAgentSettings({ thinking: { effort: "ultra" } }, {
+      thinking: { effort: "ultra" },
+    });
+    expect(thinkingOf(next).effort).toBe("ultra");
   });
 });
 

@@ -65,11 +65,6 @@ export function getAgentSettings(rawOther: unknown): AgentSettings {
   if (thinking.keep !== undefined && thinking.keep !== "all") {
     thinking.keep = "off";
   }
-  // The "max" effort tier was removed upstream (auto-migrates to "high");
-  // old configs still carrying it are shown as "high" (not rewritten on read).
-  if (thinking.effort === "max") {
-    thinking.effort = "high";
-  }
   const sectionPermission = getSection<AgentSettings["permission"]>(
     rawOther,
     "permission"
