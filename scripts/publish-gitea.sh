@@ -17,6 +17,7 @@ TAG="${1:?usage: publish-gitea.sh <tag> <asset> [asset...]}"
 shift
 
 NOTES_FILE="docs/release-notes/${TAG}.md"
+[ -f "$NOTES_FILE" ] || NOTES_FILE="docs/release-notes/release-notes-${TAG}.md"
 [ -f "$NOTES_FILE" ] || NOTES_FILE="release-notes-${TAG}.md"
 json_escape() {
   python - "$1" <<'PYEOF'
