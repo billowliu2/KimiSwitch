@@ -649,6 +649,114 @@ api_key = ""
     }
 
     #[test]
+    fn kimi_code_export_writes_and_drops_max_output_size() {
+        // max_output_size is not a first-class Model field: it round-trips
+        // through raw_other and must land in config.toml verbatim, and must be
+        // removable (unset = upstream default) without disturbing its siblings.
+        let mut providers = IndexMap::new();
+        providers.insert(
+            "p".to_string(),
+            Provider {
+                name: "p".to_string(),
+                provider_type: ProviderType::Openai,
+                base_url: Some("https://a.example.com".to_string()),
+                api_key: Some("sk-a".to_string()),
+                api_key_env: None,
+                env: IndexMap::new(),
+                note: None,
+                official_url: None,
+                managed: false,
+                enabled: true,
+                active: true,
+                icon: None,
+                icon_color: None,
+                raw_other: Value::Null,
+                usage_kinds: None,
+                usage_config: None,
+            },
+        );
+        let make_model = |raw_other: Value| Model {
+            alias: "p/m".to_string(),
+            provider: "p".to_string(),
+            model: "m".to_string(),
+            max_context_size: 128_000,
+            display_name: None,
+            supports_1m: false,
+            capabilities: vec![],
+            raw_other,
+        };
+
+        let mut models = IndexMap::new();
+        models.insert(
+            "p/m".to_string(),
+            make_model(serde_json::json!({
+                "max_output_size": 32768,
+                "support_efforts": ["low", "high"],
+            })),
+        );
+        let config = Config {
+            default_model: None,
+            providers,
+            models,
+            raw_other: Value::Null,
+            imported_section_keys: Vec::new(),
+        };
+
+        let exported = config_to_kimi_code(&config, None);
+        let root = exported.as_table().unwrap();
+        let model = root
+            .get("models")
+            .unwrap()
+            .as_table()
+            .unwrap()
+            .get("p/m")
+            .unwrap()
+            .as_table()
+            .unwrap();
+        assert_eq!(model.get("max_output_size").and_then(|v| v.as_integer()), Some(32768));
+        assert!(model.get("support_efforts").is_some());
+
+        // Re-import through real TOML text (the same serialize → parse path
+        // save_kimi_code_config / load_kimi_code_config use): the key must
+        // come back in the model's raw_other as an integer.
+        let toml_text = toml::to_string_pretty(&exported).unwrap();
+        assert!(toml_text.contains("max_output_size = 32768"), "toml: {toml_text}");
+        let reparsed: TomlValue = toml_text.parse().unwrap();
+        let parsed = kimi_code_to_config(&reparsed);
+        let loaded = parsed.models.get("p/m").unwrap();
+        assert_eq!(
+            loaded.raw_other.get("max_output_size").and_then(|v| v.as_i64()),
+            Some(32768)
+        );
+
+        // Clearing the override drops the key entirely.
+        let mut models = IndexMap::new();
+        models.insert(
+            "p/m".to_string(),
+            make_model(serde_json::json!({ "support_efforts": ["low", "high"] })),
+        );
+        let config = Config {
+            default_model: None,
+            providers: IndexMap::new(),
+            models,
+            raw_other: Value::Null,
+            imported_section_keys: Vec::new(),
+        };
+        let exported = config_to_kimi_code(&config, None);
+        let root = exported.as_table().unwrap();
+        let model = root
+            .get("models")
+            .unwrap()
+            .as_table()
+            .unwrap()
+            .get("p/m")
+            .unwrap()
+            .as_table()
+            .unwrap();
+        assert!(model.get("max_output_size").is_none());
+    }
+
+    #[test]
     fn kimi_code_export_adds_opencode_go_session_header() {
         let make_provider = |base_url: &str, raw_other: Value| Provider {
             name: "p".to_string(),

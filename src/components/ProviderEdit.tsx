@@ -1,11 +1,17 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useReducer, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "../i18n";
 import type { TranslationKey } from "../i18n/zh";
 import { findPresetForProvider } from "../config/providerPresets";
 import { getDefaultMaxContextSize } from "../lib/model-defaults";
-import { capabilitiesFromRef, getModelRef } from "../lib/models-dev";
+import {
+  parseMaxOutputInput,
+  readMaxOutputSize,
+  setMaxOutputSize,
+  withMaxOutputSize,
+} from "../lib/model-max-output";
+import { capabilitiesFromRef, getModelRef, modelsDevReady } from "../lib/models-dev";
 import { getIconMetadata } from "../icons/extracted/metadata";
 import { AgentSettingsPanel } from "./AgentSettingsPanel";
 import { KimiOAuthDialog } from "./KimiOAuthDialog";
@@ -567,6 +573,33 @@ function ModelMapping({
   const [discoverError, setDiscoverError] = useState<string | null>(null);
   const [fetchThinking, setFetchThinking] = useState(true);
 
+  // The models.dev index loads in the background; re-render once it lands so
+  // the max-output "参考" hints appear even when this panel mounted first.
+  const [, forceModelsDevReady] = useReducer((x: number) => x + 1, 0);
+  // One-shot backfill: models with no max_output_size yet get the models.dev
+  // `output` cap filled in automatically. onModelChange only mutates the
+  // in-memory config — the user still reviews and presses 保存配置.
+  const backfillDone = useRef(false);
+  const modelsRef = useRef(models);
+  modelsRef.current = models;
+  useEffect(() => {
+    let alive = true;
+    modelsDevReady().then(() => {
+      if (!alive) return;
+      forceModelsDevReady();
+      if (backfillDone.current || agent !== "kimi_code") return;
+      backfillDone.current = true;
+      for (const m of modelsRef.current) {
+        if (readMaxOutputSize(m.raw_other) !== undefined) continue;
+        const output = getModelRef(m.model)?.output;
+        if (output !== undefined) onModelChange(withMaxOutputSize(m, output));
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const handleDiscover = async () => {
     setDiscovering(true);
     setDiscoverError(null);
@@ -636,6 +669,12 @@ function ModelMapping({
           : fetchThinking
             ? ["thinking"]
             : [],
+        // Seed the max_output_size override only when models.dev knows the
+        // cap — an absent key means the upstream default applies. kimi_code
+        // only: Pi's equivalent is `maxTokens` (not written by this UI).
+        ...(agent === "kimi_code" && ref?.output
+          ? { raw_other: setMaxOutputSize(undefined, ref.output) }
+          : {}),
       });
     }
     onBulkAdd(toAdd);
@@ -648,7 +687,10 @@ function ModelMapping({
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-medium text-content-primary">{t("modelMapping")}</h3>
-          <p className="text-xs text-content-muted mt-1">{t("modelMappingDesc")}</p>
+          <p className="text-xs text-content-muted mt-1">
+            {t("modelMappingDesc")}
+            {agent === "kimi_code" ? ` ${t("maxOutputSizeDesc")}` : ""}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -756,7 +798,9 @@ function ModelMapping({
               <th className="text-left px-4 py-3 font-medium">{t("displayName")}</th>
               <th className="text-left px-4 py-3 font-medium">{t("actualModel")}</th>
               <th className="text-left px-4 py-3 font-medium w-28">{t("contextSize")}</th>
-              <th className="text-center px-4 py-3 font-medium w-28">{t("supports1M")}</th>
+              {agent === "kimi_code" && (
+                <th className="text-left px-4 py-3 font-medium w-32">{t("maxOutputSize")}</th>
+              )}
               {agent === "kimi_code" && (
                 <th className="text-left px-4 py-3 font-medium">{t("capabilities")}</th>
               )}
@@ -797,19 +841,14 @@ function ModelMapping({
                     }}
                   />
                 </td>
-                <td className="px-4 py-2 text-center">
-                  <input
-                    type="checkbox"
-                    checked={m.supports_1m || false}
-                    onChange={(e) =>
-                      onModelChange({
-                        ...m,
-                        supports_1m: e.target.checked,
-                      })
-                    }
-                    className="w-4 h-4 rounded border-border bg-input text-blue-600 focus:ring-blue-500"
-                  />
-                </td>
+                {agent === "kimi_code" && (
+                  <td className="px-4 py-2">
+                    <MaxOutputCell
+                      model={m}
+                      onChange={(next) => onModelChange(next)}
+                    />
+                  </td>
+                )}
                 {agent === "kimi_code" && (
                   <td className="px-4 py-2">
                     <CapabilitiesCell
@@ -981,6 +1020,50 @@ function CapabilitiesCell({
         <span className="w-full text-[11px] text-content-muted">
           {t("capImageInHint")}
         </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Max output tokens override (`[models."<alias>"] max_output_size`).
+ *
+ * Not a first-class Model field, so the value lives in `raw_other` (see
+ * lib/model-max-output.ts). Blank input removes the key — "unset" means the
+ * upstream default applies. When models.dev knows the model's cap it is shown
+ * as a click-to-fill reference underneath.
+ */
+function MaxOutputCell({
+  model,
+  onChange,
+}: {
+  model: Model;
+  onChange: (next: Model) => void;
+}) {
+  const { t } = useTranslation();
+  const current = readMaxOutputSize(model.raw_other);
+  const refOutput = getModelRef(model.model)?.output;
+
+  return (
+    <div>
+      <input
+        type="number"
+        min={0}
+        step={1024}
+        className="w-full bg-transparent border border-border rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        value={current ?? ""}
+        onChange={(e) =>
+          onChange(withMaxOutputSize(model, parseMaxOutputInput(e.target.value)))
+        }
+      />
+      {refOutput !== undefined && refOutput !== current && (
+        <button
+          type="button"
+          onClick={() => onChange(withMaxOutputSize(model, refOutput))}
+          className="mt-1 text-[11px] text-content-muted hover:text-blue-500"
+        >
+          {t("maxOutputRef", { value: refOutput })}
+        </button>
       )}
     </div>
   );

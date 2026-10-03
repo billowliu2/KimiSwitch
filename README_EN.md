@@ -73,7 +73,7 @@ Build instructions: [`docs/BUILD.md`](./docs/BUILD.md).
 | **Connectivity test** | Real `base_url` latency, coloured bubble (green / orange / red), auto-dismiss in 6 seconds |
 | **Duplicate provider** | Deep-copy a provider + all its models; key auto-suffixed to `xxx-copy` |
 | **Iconified actions** | Activate / Edit / Duplicate / Test Connectivity / Delete via lucide-react |
-| **Model mapping** | Alias (`"provider/model"`) ↔ real model ID, with display name, context size, 1M-context flag, and capabilities |
+| **Model mapping** | Alias (`"provider/model"`) ↔ real model ID, with display name, context size, max output tokens (`max_output_size`), and capabilities (Kimi Code only) |
 | **Auto context size** | On model fetch: **API response > models.dev ref > regex fallback** — three-tier priority |
 | **Auto capabilities** | `image_in / video_in / tool_use` all derived from models.dev; UI only exposes `thinking` as a manual toggle |
 | **Global settings** | Full `[thinking]` table (enabled / effort / keep); Kimi Code only |
@@ -105,7 +105,7 @@ Provider name, notes, official URL, managed-provider toggle, API format, API key
 
 ![Edit provider — model mapping](docs/screenshots/provider-model-mapping.png)
 
-A single table for all model mappings: display name, real model ID, context length, 1M-context flag, capability (thinking only), default toggle, delete.
+A single table for all model mappings: display name, real model ID, context length, max output tokens (`max_output_size`, with a click-to-fill models.dev reference), capability (thinking only), default toggle, delete (the last two are Kimi Code only).
 
 **Usage dashboard**
 
@@ -175,7 +175,7 @@ Per-workspace Kimi Code session browsing, active / archived / all filters; strea
 - **`config.toml` is the authoritative source for Kimi Code**: all providers and models are always written in full; `default_model` selects the active one (matching the CLI's native `/provider` behaviour). Switching only changes `default_model`; newly added providers are auto-promoted to the top of the list and never get overwritten
 - **SQLite holds Kimi Switch-private metadata only**: notes, official URLs, per-agent remembered default model (the `settings` table), ordering. Theme / language / last-update-check live in frontend `localStorage` (WebView2), not under `~/.kimi-switch`. It acts as a fallback when `config.toml` is incomplete
 - **`raw_other` passes unknown fields through untouched**, including `[oauth]` blocks — round-trips never drop fields
-- **models.dev snapshot**: derived from `https://models.dev/api.json`, cached to a local JSON; `capabilitiesFromRef` derives `thinking / image_in / video_in / tool_use`, `getModelRef` derives `max_context_size / display_name`
+- **models.dev snapshot**: derived from `https://models.dev/api.json`, cached to a local JSON; `capabilitiesFromRef` derives `thinking / image_in / video_in / tool_use`, `getModelRef` derives `max_context_size / display_name / max output tokens`
 - **Override env vars**: `KIMI_CODE_HOME` / `PI_CODING_AGENT_DIR` override the Kimi Code / Pi dirs; Kimi Switch's own data dir is fixed at `~/.kimi-switch` (no env override yet). See [Data Storage Locations](#data-storage-locations)
 
 ## Feature Details

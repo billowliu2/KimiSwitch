@@ -138,6 +138,14 @@ fn build_snapshot(raw: &Value) -> Result<Value, String> {
             {
                 entry.insert("context".into(), num(ctx));
             }
+            // Max output tokens — reference for the max_output_size column.
+            if let Some(out) = m
+                .pointer("/limit/output")
+                .and_then(|x| x.as_f64())
+                .filter(|o| *o > 0.0)
+            {
+                entry.insert("output".into(), num(out));
+            }
             for flag in ["reasoning", "tool_call", "structured_output"] {
                 if m.get(flag).and_then(|x| x.as_bool()) == Some(true) {
                     entry.insert(flag.into(), Value::Bool(true));
@@ -286,7 +294,7 @@ mod tests {
                     },
                     "kimi-image": {
                         "name": "Kimi Image",
-                        "limit": { "context": 0 },
+                        "limit": { "context": 0, "output": 0 },
                         "modalities": { "input": ["text", "image", "video"] }
                     }
                 }
@@ -309,6 +317,7 @@ mod tests {
         let k3 = &obj["moonshotai/kimi-k3"];
         assert_eq!(k3["name"], "Kimi K3");
         assert_eq!(k3["context"], 262144);
+        assert_eq!(k3["output"], 16384);
         assert_eq!(k3["reasoning"], true);
         assert_eq!(k3["tool_call"], true);
         assert_eq!(k3["structured_output"], true);
@@ -318,9 +327,10 @@ mod tests {
         assert_eq!(k3["cost"]["cache_read"], 0.3);
         assert_eq!(k3["cost"]["cache_write"], 0.0);
 
-        // Context 0 → dropped; video modality → flagged.
+        // Context 0 / output 0 → dropped; video modality → flagged.
         let img = &obj["moonshotai/kimi-image"];
         assert!(img.get("context").is_none());
+        assert!(img.get("output").is_none());
         assert_eq!(img["video"], true);
         assert!(img.get("cost").is_none());
 

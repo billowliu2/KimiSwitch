@@ -25,6 +25,8 @@ export interface ModelCost {
 export interface ModelRef {
   name?: string;
   context?: number;
+  /** Upper bound on generated tokens (`limit.output` on models.dev). */
+  output?: number;
   reasoning?: boolean;
   tool_call?: boolean;
   structured_output?: boolean;

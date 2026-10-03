@@ -2,7 +2,7 @@
  * Thinking-effort capability resolution.
  *
  * kimi-code's `[thinking] effort` is a free-form string (low/medium/high/
- * max/xhigh in practice) that the CLI forwards verbatim to OpenAI-compatible
+ * xhigh/max in practice) that the CLI forwards verbatim to OpenAI-compatible
  * upstreams as `reasoning_effort`. Which tiers a given model accepts is
  * declared per model in config.toml (`[models."<alias>"] support_efforts`);
  * models.dev only carries a boolean `reasoning` flag with no tier list. The
@@ -16,8 +16,8 @@ export const THINKING_EFFORTS = [
   "low",
   "medium",
   "high",
-  "max",
   "xhigh",
+  "max",
 ] as const;
 
 export type ThinkingEffort = (typeof THINKING_EFFORTS)[number];

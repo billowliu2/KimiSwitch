@@ -133,6 +133,11 @@ async function main() {
       if (typeof m.limit?.context === "number" && m.limit.context > 0) {
         entry.context = m.limit.context;
       }
+      // Max output tokens — the reference value behind the max_output_size
+      // column (model mapping table).
+      if (typeof m.limit?.output === "number" && m.limit.output > 0) {
+        entry.output = m.limit.output;
+      }
       if (m.reasoning === true) entry.reasoning = true;
       if (m.tool_call === true) entry.tool_call = true;
       if (m.structured_output === true) entry.structured_output = true;

@@ -79,7 +79,7 @@
 | **连通性测试** | 实测 `base_url` 延迟，绿/橙/红彩色气泡，6 秒自动消失 |
 | **重复供应商** | 一键深拷贝供应商 + 全部模型，key 改 `xxx-copy` |
 | **图标按钮操作** | 启用 / 编辑 / 复制 / 测试连通 / 删除 全图标化（lucide-react） |
-| **模型映射** | 别名（"provider/model" 形式）↔ 实际请求模型 ID，自定义显示名、上下文长度、1M 上下文声明、能力 |
+| **模型映射** | 别名（"provider/model" 形式）↔ 实际请求模型 ID，自定义显示名、上下文长度、最大输出 Token（`max_output_size`）、能力（仅 Kimi Code） |
 | **自动上下文** | 拉取模型时 **API 返回 > models.dev ref > 正则兜底** 三级优先级自动适配 |
 | **能力自动推导** | `image_in / video_in / tool_use` 全部由 models.dev 推得；UI 仅暴露 `thinking` 一个手动开关 |
 | **全局设置** | `[thinking]` 表完整支持（enabled / effort / keep），仅 Kimi Code 生效 |
@@ -111,7 +111,7 @@
 
 ![编辑供应商-模型映射](docs/screenshots/provider-model-mapping.png)
 
-一张表管理全部模型映射：显示名、实际请求模型、上下文长度、1M 上下文声明、能力（仅"思考"）、设为默认、删除。
+一张表管理全部模型映射：显示名、实际请求模型、上下文长度、最大输出 Token（`max_output_size`，可点参考值填 models.dev 上限）、能力（仅"思考"）、设为默认、删除（后两项仅 Kimi Code）。
 
 **用量仪表盘**
 

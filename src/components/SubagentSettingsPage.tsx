@@ -45,7 +45,7 @@ interface SubagentSettingsPageProps {
 
 // Effort tiers the CLI accepts; the value is forwarded verbatim upstream, and
 // per-model support comes from `[models."<alias>"] support_efforts`.
-const EFFORTS = ["low", "medium", "high", "max", "xhigh"] as const;
+const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
 const EFFORT_LABELS: Record<(typeof EFFORTS)[number], TranslationKey> = {
   low: "thinkingLow",
   medium: "thinkingMedium",
