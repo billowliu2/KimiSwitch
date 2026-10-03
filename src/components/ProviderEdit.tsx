@@ -39,6 +39,9 @@ const CAPABILITY_LABELS: Record<
   tool_use: "capToolUse",
 };
 
+/** Fallback max-output cap (128K) for models models.dev doesn't know. */
+const FALLBACK_MAX_OUTPUT = 131_072;
+
 const PROVIDER_TYPES: ProviderType[] = [
   "openai",
   "openai_responses",
@@ -577,8 +580,9 @@ function ModelMapping({
   // the max-output "参考" hints appear even when this panel mounted first.
   const [, forceModelsDevReady] = useReducer((x: number) => x + 1, 0);
   // One-shot backfill: models with no max_output_size yet get the models.dev
-  // `output` cap filled in automatically. onModelChange only mutates the
-  // in-memory config — the user still reviews and presses 保存配置.
+  // `output` cap, or the 128K fallback when nothing matches. onModelChange
+  // only mutates the in-memory config — the user still reviews and presses
+  // 保存配置.
   const backfillDone = useRef(false);
   const modelsRef = useRef(models);
   modelsRef.current = models;
@@ -591,8 +595,12 @@ function ModelMapping({
       backfillDone.current = true;
       for (const m of modelsRef.current) {
         if (readMaxOutputSize(m.raw_other) !== undefined) continue;
-        const output = getModelRef(m.model)?.output;
-        if (output !== undefined) onModelChange(withMaxOutputSize(m, output));
+        onModelChange(
+          withMaxOutputSize(
+            m,
+            getModelRef(m.model)?.output ?? FALLBACK_MAX_OUTPUT
+          )
+        );
       }
     });
     return () => {
@@ -669,11 +677,16 @@ function ModelMapping({
           : fetchThinking
             ? ["thinking"]
             : [],
-        // Seed the max_output_size override only when models.dev knows the
-        // cap — an absent key means the upstream default applies. kimi_code
-        // only: Pi's equivalent is `maxTokens` (not written by this UI).
-        ...(agent === "kimi_code" && ref?.output
-          ? { raw_other: setMaxOutputSize(undefined, ref.output) }
+        // Seed the max_output_size override with the models.dev cap, falling
+        // back to 128K when nothing matches. kimi_code only: Pi's equivalent
+        // is `maxTokens` (not written by this UI).
+        ...(agent === "kimi_code"
+          ? {
+              raw_other: setMaxOutputSize(
+                undefined,
+                ref?.output ?? FALLBACK_MAX_OUTPUT
+              ),
+            }
           : {}),
       });
     }
