@@ -8,7 +8,7 @@ const icons: Record<string, Icon> = {
   linux: LinuxLogo,
 };
 
-const VERSION = "0.7.12";
+const VERSION = "0.8.0";
 const GITHUB = "https://github.com/billowliu2/KimiSwitch";
 const MIRROR_RELEASES = "https://git.codingplan.site/admin/KimiCodeSwitch/releases";
 const dl = (file: string) => `${GITHUB}/releases/download/v${VERSION}/${file}`;

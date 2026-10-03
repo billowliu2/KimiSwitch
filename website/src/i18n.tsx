@@ -16,10 +16,10 @@ const zh = {
     performance: "性能",
     changelog: "更新日志",
     download: "下载",
-    downloadBtn: "下载 v0.7.12",
+    downloadBtn: "下载 v0.8.0",
   },
   hero: {
-    badge: "v0.7.12 · 开源 MIT · Windows / macOS / Linux",
+    badge: "v0.8.0 · 开源 MIT · Windows / macOS / Linux",
     titleBefore: "统一管理你的",
     titleAccent: "AI 供应商",
     titleAfter: "",
@@ -29,7 +29,7 @@ const zh = {
     source: "查看源码",
     stats: [
       { value: "22", label: "预设供应商" },
-      { value: "7495", label: "模型价格库" },
+      { value: "8385", label: "模型价格库" },
       { value: "MIT", label: "开源协议" },
     ],
   },
@@ -76,7 +76,7 @@ const zh = {
       {
         id: "model-discovery",
         title: "模型自动发现",
-        desc: "可用模型直接问供应商 API；显示名 / 上下文 / 能力取自 models.dev 快照（当前 7495 个模型、212 家供应商）。",
+        desc: "可用模型直接问供应商 API；显示名 / 上下文 / 能力取自 models.dev 快照（当前 8,385 个模型、226 家供应商）。",
         img: "screenshots/kimi-cli-select-model.png",
       },
       {
@@ -89,7 +89,7 @@ const zh = {
   },
   showcase: {
     title: "界面演示",
-    subtitle: "以下截图取自 v0.7.12 实机运行。",
+    subtitle: "以下截图取自 v0.8.0 实机运行。",
     items: [
       {
         src: "screenshots/usage-config-page.png",
@@ -140,6 +140,23 @@ const zh = {
     syncedNote: "数据已同步 GitHub Releases",
     fallbackNote: "内置版本记录",
     entries: [
+      {
+        version: "v0.8.0",
+        date: "2026-10-03",
+        items: [
+          "模型映射新增「最大输出 Token」列：逐模型设置 max_output_size（留空用上游默认），models.dev 有 output 上限时显示可点击参考值，打开编辑页自动补全空值",
+          "models.dev 快照新增 output 上限字段，同步至 2026-10-03（8,385 模型 / 226 供应商，output 覆盖 97.4%）",
+          "移除无效的「声明支持 1M」复选框（勾选从不生效），由「最大输出 Token」列取代",
+        ],
+      },
+      {
+        version: "v0.7.23",
+        date: "2026-09-30",
+        items: [
+          "思考等级五档 + 能力感知：Low / Medium / High / XHigh / Max，按当前默认模型声明的 support_efforts 自动置灰不支持档位并提示原因",
+          "models.dev 标记不支持思考的模型整体禁用思考区；未声明档位的模型保留可选并提示上游可能拒绝",
+        ],
+      },
       {
         version: "v0.7.12",
         date: "2026-09-03",
@@ -322,7 +339,7 @@ const zh = {
   },
   download: {
     title: "下载 Kimi Switch",
-    subtitle: "当前版本 v0.7.12 · Windows / macOS / Linux 三平台已发布",
+    subtitle: "当前版本 v0.8.0 · Windows / macOS / Linux 三平台已发布",
     autoUpdate: "更新检查跑在启动时和每 8 小时的周期任务里，设置页也可以手动触发。",
     ready: "已发布",
     wip: "开发中",
@@ -391,10 +408,10 @@ const en: Dict = {
     performance: "Performance",
     changelog: "Changelog",
     download: "Download",
-    downloadBtn: "Download v0.7.12",
+    downloadBtn: "Download v0.8.0",
   },
   hero: {
-    badge: "v0.7.12 · Open source MIT · Windows / macOS / Linux",
+    badge: "v0.8.0 · Open source MIT · Windows / macOS / Linux",
     titleBefore: "One app for all your ",
     titleAccent: "AI providers",
     titleAfter: "",
@@ -404,7 +421,7 @@ const en: Dict = {
     source: "View source",
     stats: [
       { value: "22", label: "Provider presets" },
-      { value: "7495", label: "Model price DB" },
+      { value: "8385", label: "Model price DB" },
       { value: "MIT", label: "License" },
     ],
   },
@@ -451,7 +468,7 @@ const en: Dict = {
       {
         id: "model-discovery",
         title: "Model discovery",
-        desc: "Model lists are fetched from the provider API itself; display names, context sizes and capabilities come from a build-time models.dev snapshot (7495 models, 212 providers).",
+        desc: "Model lists are fetched from the provider API itself; display names, context sizes and capabilities come from a build-time models.dev snapshot (8,385 models, 226 providers).",
         img: "screenshots/kimi-cli-select-model.png",
       },
       {
@@ -464,7 +481,7 @@ const en: Dict = {
   },
   showcase: {
     title: "Screenshots",
-    subtitle: "All screenshots below are taken from the running v0.7.12 build.",
+    subtitle: "All screenshots below are taken from the running v0.8.0 build.",
     items: [
       {
         src: "screenshots/usage-config-page.png",
@@ -515,6 +532,23 @@ const en: Dict = {
     syncedNote: "Synced from GitHub Releases",
     fallbackNote: "Built-in release notes",
     entries: [
+      {
+        version: "v0.8.0",
+        date: "2026-10-03",
+        items: [
+          "New per-model Max Output Token column: sets max_output_size in config.toml (blank keeps the upstream default), shows a click-to-fill reference when models.dev knows the cap, and backfills empty rows automatically",
+          "models.dev snapshot gains the output-limit field, synced to 2026-10-03 (8,385 models / 226 providers, 97.4% output coverage)",
+          "Removed the ineffective 'Supports 1M' checkbox (it was never persisted), replaced by the Max Output Token column",
+        ],
+      },
+      {
+        version: "v0.7.23",
+        date: "2026-09-30",
+        items: [
+          "Thinking levels expanded to five tiers with capability awareness: Low / Medium / High / XHigh / Max, greying out tiers the current default model's support_efforts doesn't declare, with an explanation",
+          "Models flagged non-reasoning by models.dev disable the whole thinking area; undeclared tiers stay selectable with an upstream-may-reject hint",
+        ],
+      },
       {
         version: "v0.7.12",
         date: "2026-09-03",
@@ -696,7 +730,7 @@ const en: Dict = {
   },
   download: {
     title: "Download Kimi Switch",
-    subtitle: "Current version v0.7.12 · Windows, macOS and Linux now released",
+    subtitle: "Current version v0.8.0 · Windows, macOS and Linux now released",
     autoUpdate: "Update checks run at startup and every 8 hours; Settings also has a manual check.",
     ready: "Available",
     wip: "In development",
