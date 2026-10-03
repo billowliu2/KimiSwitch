@@ -26175,9 +26175,9 @@
           "id": "tencent/hy3",
           "name": "Hy3",
           "cost": {
-            "input": 0.13,
-            "output": 0.53,
-            "cache_read": 0.033
+            "input": 0.0825,
+            "output": 0.33,
+            "cache_read": 0.020625
           },
           "context": 262144,
           "input_limit": 192000,
@@ -26201,9 +26201,9 @@
           "id": "tencent/hy4-preview",
           "name": "Hy4 preview",
           "cost": {
-            "input": 0.834,
-            "output": 2.501,
-            "cache_read": 0.042
+            "input": 0.7506,
+            "output": 2.2509,
+            "cache_read": 0.0378
           },
           "context": 1048576,
           "output_limit": 64000,
@@ -28245,9 +28245,10 @@
           "id": "moonshotai/kimi-k3",
           "name": "Kimi K3",
           "cost": {
-            "input": 0.99,
-            "output": 13,
-            "cache_read": 0.8
+            "input": 3,
+            "output": 15,
+            "cache_read": 0.3,
+            "cache_write": 3.75
           },
           "context": 1048576,
           "output_limit": 943718,
@@ -39344,9 +39345,9 @@
           "id": "tencent/hy3",
           "name": "Hy3",
           "cost": {
-            "input": 0.132,
-            "output": 0.528,
-            "cache_read": 0.033
+            "input": 0.0825,
+            "output": 0.33,
+            "cache_read": 0.020625
           },
           "context": 262144,
           "input_limit": 192000,
@@ -39370,9 +39371,9 @@
           "id": "tencent/hy4-preview",
           "name": "Hy4 preview",
           "cost": {
-            "input": 0.834,
-            "output": 2.501,
-            "cache_read": 0.042
+            "input": 0.7506,
+            "output": 2.2509,
+            "cache_read": 0.0378
           },
           "context": 1048576,
           "output_limit": 64000,

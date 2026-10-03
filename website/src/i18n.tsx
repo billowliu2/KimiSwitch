@@ -141,6 +141,15 @@ const zh = {
     fallbackNote: "内置版本记录",
     entries: [
       {
+        version: "v0.8.1",
+        date: "2026-10-04",
+        items: [
+          "全局配置新增两个顶层开关：自动生成会话标题（auto_session_title）与重复调用拦截（repeat_breaker），默认开启",
+          "最大输出未匹配 models.dev 时回填默认值 131072（128K 兜底）",
+          "修复 [watch] enabled 默认值显示（上游 #4015 翻回默认开启）；「最大输出」列描述对齐上游 #4091",
+        ],
+      },
+      {
         version: "v0.8.0",
         date: "2026-10-03",
         items: [
@@ -532,6 +541,15 @@ const en: Dict = {
     syncedNote: "Synced from GitHub Releases",
     fallbackNote: "Built-in release notes",
     entries: [
+      {
+        version: "v0.8.1",
+        date: "2026-10-04",
+        items: [
+          "Two new top-level switches in Global Settings: auto session title (auto_session_title) and repeat breaker (repeat_breaker), on by default",
+          "Max output backfills a 131072 (128K) default when models.dev has no match",
+          "Fixed the [watch] enabled default display (upstream #4015 flipped it back on); Max output column wording aligned with upstream #4091",
+        ],
+      },
       {
         version: "v0.8.0",
         date: "2026-10-03",

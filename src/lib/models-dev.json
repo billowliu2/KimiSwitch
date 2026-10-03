@@ -23338,9 +23338,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.13,
-      "output": 0.53,
-      "cache_read": 0.033
+      "input": 0.0825,
+      "output": 0.33,
+      "cache_read": 0.020625
     }
   },
   "kilo/tencent/hy-mt2-7b": {
@@ -23361,9 +23361,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.834,
-      "output": 2.501,
-      "cache_read": 0.042
+      "input": 0.7506,
+      "output": 2.2509,
+      "cache_read": 0.0378
     }
   },
   "kilo/anthracite-org/magnum-v4-72b": {
@@ -25260,9 +25260,10 @@
     "image": true,
     "video": true,
     "cost": {
-      "input": 0.99,
-      "output": 13,
-      "cache_read": 0.8
+      "input": 3,
+      "output": 15,
+      "cache_read": 0.3,
+      "cache_write": 3.75
     }
   },
   "kilo/moonshotai/kimi-k2.6": {
@@ -35356,9 +35357,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.132,
-      "output": 0.528,
-      "cache_read": 0.033
+      "input": 0.0825,
+      "output": 0.33,
+      "cache_read": 0.020625
     }
   },
   "openrouter/tencent/hy-mt2-7b": {
@@ -35379,9 +35380,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.834,
-      "output": 2.501,
-      "cache_read": 0.042
+      "input": 0.7506,
+      "output": 2.2509,
+      "cache_read": 0.0378
     }
   },
   "openrouter/anthracite-org/magnum-v4-72b": {
