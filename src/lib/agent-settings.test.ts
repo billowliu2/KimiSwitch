@@ -201,8 +201,8 @@ describe("loop_control.compaction_max_attempts", () => {
 });
 
 // ---------------------------------------------------------------------------
-// [watch] enabled (kimi-code 2.0.1+) — top-level section, off by default since
-// 2.0.2; mirrors the [background] handling
+// [watch] enabled (kimi-code 2.0.1+) — top-level section; 2.0.2 flipped the
+// default off, #4015 flipped it back on. Mirrors the [background] handling.
 // ---------------------------------------------------------------------------
 
 function watchOf(raw: unknown): Record<string, unknown> {
@@ -213,9 +213,9 @@ function watchOf(raw: unknown): Record<string, unknown> {
 }
 
 describe("[watch] enabled", () => {
-  it("reads as false when the section or key is absent (2.0.2 default)", () => {
-    expect(getAgentSettings({}).watch?.enabled).toBe(false);
-    expect(getAgentSettings({ watch: {} }).watch?.enabled).toBe(false);
+  it("reads as true when the section or key is absent (#4015 default)", () => {
+    expect(getAgentSettings({}).watch?.enabled).toBe(true);
+    expect(getAgentSettings({ watch: {} }).watch?.enabled).toBe(true);
   });
 
   it("reads an explicit value", () => {
@@ -245,6 +245,49 @@ describe("[watch] enabled", () => {
     ) as { background?: Record<string, unknown> };
     expect(next.background?.max_running_tasks).toBe(2);
     expect(watchOf(next).enabled).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Top-level booleans (auto_session_title #3962 / repeat_breaker #3995):
+// upstream default true — false is written explicitly, true removes the key.
+// ---------------------------------------------------------------------------
+
+describe("top-level boolean switches", () => {
+  it("reads as undefined when the key is absent (default true)", () => {
+    const s = getAgentSettings({});
+    expect(s.auto_session_title).toBeUndefined();
+    expect(s.repeat_breaker).toBeUndefined();
+  });
+
+  it("reads explicit false values", () => {
+    const s = getAgentSettings({
+      auto_session_title: false,
+      repeat_breaker: false,
+    });
+    expect(s.auto_session_title).toBe(false);
+    expect(s.repeat_breaker).toBe(false);
+  });
+
+  it("writes false explicitly and removes the key on true", () => {
+    const off = setAgentSettings({}, { repeat_breaker: false }) as Record<
+      string,
+      unknown
+    >;
+    expect(off.repeat_breaker).toBe(false);
+    const on = setAgentSettings(
+      { repeat_breaker: false },
+      { repeat_breaker: true }
+    ) as Record<string, unknown>;
+    expect("repeat_breaker" in on).toBe(false);
+  });
+
+  it("keeps an explicit false on saves that do not touch it", () => {
+    const next = setAgentSettings(
+      { auto_session_title: false },
+      { thinking: { effort: "high" } }
+    ) as Record<string, unknown>;
+    expect(next.auto_session_title).toBe(false);
   });
 });
 

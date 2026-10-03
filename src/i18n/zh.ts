@@ -109,7 +109,7 @@ export const zhTranslations = {
   envPairs: "Env 键值对",
   addEnv: "+ 添加",
   modelMappingDesc: "显示名称只影响 /model 菜单。",
-  maxOutputSizeDesc: "「最大输出 Token」写入 max_output_size，留空则用上游默认值。",
+  maxOutputSizeDesc: "「最大输出 Token」写入 max_output_size，留空则不发送输出上限。",
   oneClickSetup: "一键设置",
   fetchModels: "获取模型列表",
   fetchingModels: "获取中...",
@@ -181,7 +181,14 @@ export const zhTranslations = {
   watchSettings: "文件监听",
   watchEnabled: "启用文件监听",
   watchEnabledDesc:
-    "监听配置文件与工作目录变化（kimi-code 2.0.1 起可配置，2.0.2 起默认关闭）。环境变量 KIMI_CODE_WATCH 会覆盖本配置。",
+    "监听配置文件与工作目录变化（kimi-code 2.0.1 起可配置，默认开启）。环境变量 KIMI_CODE_WATCH 会覆盖本配置。",
+  behaviorSettings: "行为开关",
+  autoSessionTitle: "自动生成会话标题",
+  autoSessionTitleDesc:
+    "允许客户端自动生成会话标题（默认开启；关闭后写入 false）。",
+  repeatBreaker: "重复调用拦截",
+  repeatBreakerDesc:
+    "连续重复相同工具调用时提醒并强制停止（默认开启）。环境变量 KIMI_CODE_REPEAT_BREAKER 会覆盖本配置。",
   permissionRules: "权限规则",
   permissionDecision: "处置",
   permissionPattern: "模式",

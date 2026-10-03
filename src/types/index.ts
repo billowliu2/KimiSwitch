@@ -172,6 +172,13 @@ export interface AgentSettings {
   background?: BackgroundConfig;
   /** Top-level `[watch]` section (kimi-code 2.0.1+). */
   watch?: WatchConfig;
+  /** Top-level config.toml key (kimi-code #3962): let clients auto-generate
+   *  session titles. Default true; only an explicit false disables. */
+  auto_session_title?: boolean;
+  /** Top-level config.toml key (kimi-code #3995): repeat-breaker for
+   *  consecutively repeated identical tool calls. Default true; env
+   *  KIMI_CODE_REPEAT_BREAKER outranks this config. */
+  repeat_breaker?: boolean;
   permission?: {
     rules?: PermissionRule[];
     /** kimi-code `[permission]` key. Default true when the key is

@@ -112,7 +112,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   envPairs: "Env pairs",
   addEnv: "+ Add",
   modelMappingDesc: "Display name only affects the /model menu.",
-  maxOutputSizeDesc: "Max output tokens writes max_output_size — leave blank to use the upstream default.",
+  maxOutputSizeDesc: "Max output tokens writes max_output_size — leave blank to send no output cap upstream.",
   oneClickSetup: "One-click setup",
   fetchModels: "Fetch models",
   fetchingModels: "Fetching...",
@@ -188,7 +188,14 @@ export const enTranslations: Record<TranslationKey, string> = {
   watchSettings: "File Watching",
   watchEnabled: "Enable file watching",
   watchEnabledDesc:
-    "Watch config files and the workspace for changes (configurable since kimi-code 2.0.1, off by default since 2.0.2). The KIMI_CODE_WATCH environment variable overrides this setting.",
+    "Watch config files and the workspace for changes (configurable since kimi-code 2.0.1, on by default). The KIMI_CODE_WATCH environment variable overrides this setting.",
+  behaviorSettings: "Behavior",
+  autoSessionTitle: "Auto session title",
+  autoSessionTitleDesc:
+    "Let clients auto-generate session titles (on by default; turning it off writes false).",
+  repeatBreaker: "Repeat breaker",
+  repeatBreakerDesc:
+    "Remind and force-stop on consecutively repeated identical tool calls (on by default). The KIMI_CODE_REPEAT_BREAKER environment variable overrides this setting.",
   permissionRules: "Permission Rules",
   permissionDecision: "Decision",
   permissionPattern: "Pattern",

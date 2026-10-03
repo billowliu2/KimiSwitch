@@ -236,17 +236,35 @@ export function AgentSettingsPanel({ rawOther, onChange, models, defaultModel }:
       </Card>
 
       <Card title={t("watchSettings")}>
-        {/* Top-level `[watch] enabled` (kimi-code 2.0.1+; off by default since
-            2.0.2). KIMI_CODE_WATCH outranks this config at runtime — the env
-            var is probed by get_experimental_env_status as a non-flag entry
-            but deliberately locks nothing here, the toggle just documents the
-            config value that applies when the env var is unset. */}
+        {/* Top-level `[watch] enabled` (kimi-code 2.0.1+; 2.0.2 flipped the
+            default off, #4015 flipped it back on). KIMI_CODE_WATCH outranks
+            this config at runtime — the env var is probed by
+            get_experimental_env_status as a non-flag entry but deliberately
+            locks nothing here, the toggle just documents the config value
+            that applies when the env var is unset. */}
         <Checkbox
           label={t("watchEnabled")}
-          checked={settings.watch?.enabled ?? false}
+          checked={settings.watch?.enabled ?? true}
           onChange={(checked) => updateWatch({ enabled: checked })}
         />
         <p className="text-xs text-content-muted">{t("watchEnabledDesc")}</p>
+      </Card>
+
+      <Card title={t("behaviorSettings")}>
+        {/* Top-level booleans, both default true upstream: false is written
+            explicitly, true removes the key (see setAgentSettings). */}
+        <Checkbox
+          label={t("autoSessionTitle")}
+          checked={settings.auto_session_title ?? true}
+          onChange={(checked) => update({ auto_session_title: checked })}
+        />
+        <p className="text-xs text-content-muted">{t("autoSessionTitleDesc")}</p>
+        <Checkbox
+          label={t("repeatBreaker")}
+          checked={settings.repeat_breaker ?? true}
+          onChange={(checked) => update({ repeat_breaker: checked })}
+        />
+        <p className="text-xs text-content-muted">{t("repeatBreakerDesc")}</p>
       </Card>
 
       <Card title={t("permissionRules")}>

@@ -13,10 +13,11 @@ const DEFAULT_SETTINGS: AgentSettings = {
   background: {
     keep_alive_on_exit: false,
   },
-  // `[watch] enabled` — kimi-code 2.0.1 added the key, 2.0.2 flipped the
-  // default to off, so an absent key reads as "off".
+  // `[watch] enabled` — kimi-code 2.0.1 added the key; 2.0.2 flipped the
+  // default to off, then #4015 flipped it back on, so an absent key reads
+  // as "on".
   watch: {
-    enabled: false,
+    enabled: true,
   },
   permission: { rules: [] },
   hooks: [],
@@ -37,6 +38,7 @@ function getSection<T>(rawOther: unknown, key: string): T | undefined {
 }
 
 export function getAgentSettings(rawOther: unknown): AgentSettings {
+  const root = asRecord(rawOther);
   const sectionLoop = getSection<AgentSettings["loop_control"]>(
     rawOther,
     "loop_control"
@@ -92,6 +94,16 @@ export function getAgentSettings(rawOther: unknown): AgentSettings {
         : {}),
     },
     hooks: getSection<AgentSettings["hooks"]>(rawOther, "hooks") ?? [],
+    // Top-level booleans (upstream default true): keep only explicit values,
+    // an absent key means "on" — the UI shows `?? true`.
+    auto_session_title:
+      typeof root.auto_session_title === "boolean"
+        ? root.auto_session_title
+        : undefined,
+    repeat_breaker:
+      typeof root.repeat_breaker === "boolean"
+        ? root.repeat_breaker
+        : undefined,
   };
 }
 
@@ -164,6 +176,18 @@ export function setAgentSettings(
     root.hooks = next.hooks;
   } else {
     delete root.hooks;
+  }
+
+  // Top-level booleans with an upstream default of true: an explicit false
+  // is written; true/undefined removes the key so the config tracks the
+  // upstream default instead of pinning it.
+  for (const key of ["auto_session_title", "repeat_breaker"] as const) {
+    const value = patch[key] ?? current[key];
+    if (value === false) {
+      root[key] = false;
+    } else {
+      delete root[key];
+    }
   }
 
   return root;
