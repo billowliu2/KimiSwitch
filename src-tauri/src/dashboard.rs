@@ -384,12 +384,13 @@ fn is_kimi_home(dir: &Path) -> bool {
     dir.join("config.toml").exists() || dir.join("sessions").exists()
 }
 
-/// Build a legacy alias→provider map by merging the current config.toml with every
-/// `config.toml.bak.*` snapshot (home root + backups/). Historical usage records may
-/// reference model aliases that no longer exist in the current config (old bare or
-/// `-N`-suffixed aliases); their provider is recovered from these snapshots.
-fn build_alias_provider_map(home: &Path) -> HashMap<String, String> {
-    let mut map: HashMap<String, String> = HashMap::new();
+/// Every config file the alias→provider map is built from, in parse order: the
+/// current `config.toml` first (it wins on conflict), then every
+/// `config.toml.bak.*` snapshot from the home root and from `backups/`.
+///
+/// The scan-input cache stats exactly this list, so both readers of the config
+/// agree on what a change looks like.
+fn alias_provider_config_files(home: &Path) -> Vec<PathBuf> {
     let mut candidates: Vec<PathBuf> = Vec::new();
     let current = home.join("config.toml");
     if current.is_file() {
@@ -405,7 +406,16 @@ fn build_alias_provider_map(home: &Path) -> HashMap<String, String> {
             }
         }
     }
-    for path in candidates {
+    candidates
+}
+
+/// Build a legacy alias→provider map by merging the current config.toml with every
+/// `config.toml.bak.*` snapshot (home root + backups/). Historical usage records may
+/// reference model aliases that no longer exist in the current config (old bare or
+/// `-N`-suffixed aliases); their provider is recovered from these snapshots.
+fn build_alias_provider_map(home: &Path) -> HashMap<String, String> {
+    let mut map: HashMap<String, String> = HashMap::new();
+    for path in alias_provider_config_files(home) {
         let content = match std::fs::read_to_string(&path) {
             Ok(c) => c,
             Err(_) => continue,
@@ -837,10 +847,50 @@ const SECONDARY_MODEL_CACHE_KEY: &str = "dashboard.secondary_model_cache";
 /// once per scan: the configured secondary-model alias and the legacy
 /// alias→provider map. `fingerprint` changes whenever either of them does,
 /// which is what invalidates the per-file parse cache.
+#[derive(Clone)]
 struct ScanInputs {
     secondary_alias: Option<String>,
     alias2prov: HashMap<String, String>,
     fingerprint: String,
+}
+
+/// A stat-only change key for one config file: path plus (mtime_ms, len).
+/// Content is never read to derive it — the pair moves on every write, on
+/// creation (present/absent) and on deletion (dropped from the list), which is
+/// what makes it a sound invalidation key for the parsed inputs.
+type ConfigStatStamp = (String, u64, u64);
+
+/// The scan-input cache entry: the home it belongs to, the config stat stamps
+/// the inputs were derived from, and the resolved inputs themselves.
+struct ScanInputsCacheEntry {
+    home: String,
+    stamp: Vec<ConfigStatStamp>,
+    inputs: Arc<ScanInputs>,
+    /// `[secondary_model].model` exactly as `config.toml` declares it, before
+    /// the persisted-cache fallback. Snapshot synthesis mirrors the archiver,
+    /// which prices with this config-only value.
+    config_secondary: Option<String>,
+}
+
+/// Cache of `resolve_scan_inputs`, keyed on the stat stamps of every config
+/// file that feeds it. `scan_usage_cached` runs on every dashboard refresh and
+/// `get_day_detail`, followed by the archive merge; without this the scanner
+/// re-read and re-parsed the whole config plus every `config.toml.bak.*`
+/// snapshot (and hit SQLite twice) on every call even when nothing under the
+/// sessions tree had moved.
+static SCAN_INPUTS_CACHE: Mutex<Option<ScanInputsCacheEntry>> = Mutex::new(None);
+
+/// Stat every config file `resolve_scan_inputs` would read. Missing files
+/// simply contribute no entry; a file appearing or disappearing changes the
+/// list and therefore the stamp. Only metadata is touched — never the contents.
+fn scan_inputs_stamp(home: &Path) -> Vec<ConfigStatStamp> {
+    alias_provider_config_files(home)
+        .into_iter()
+        .filter_map(|path| {
+            let meta = fs::metadata(&path).ok()?;
+            Some((path.to_string_lossy().to_string(), file_mtime_ms(&meta), meta.len()))
+        })
+        .collect()
 }
 
 /// Resolve the scan inputs for `home`.
@@ -849,7 +899,41 @@ struct ScanInputs {
 /// inside the scanner on every pass; they move up here so the incremental
 /// cache can compare them before walking the tree, and so a call that reuses
 /// every cached file never repeats the config reads.
-fn resolve_scan_inputs(home: &Path) -> ScanInputs {
+fn resolve_scan_inputs(home: &Path) -> Arc<ScanInputs> {
+    resolve_scan_config(home).0
+}
+
+/// The cached scan inputs plus the raw config-declared secondary alias.
+///
+/// The inputs are keyed on `scan_inputs_stamp`: while no config file's stat
+/// moves, neither the config reads, the SQLite lookup nor the fingerprint
+/// recomputation happen again — the cached `Arc` is handed out instead, so a
+/// hit costs one `read_dir` per config location and a handful of `stat`s.
+/// A different home always misses, as does any backup appearing or vanishing.
+fn resolve_scan_config(home: &Path) -> (Arc<ScanInputs>, Option<String>) {
+    let home_s = home.to_string_lossy().to_string();
+    let stamp = scan_inputs_stamp(home);
+    let mut cache = SCAN_INPUTS_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(entry) = cache.as_ref() {
+        if entry.home == home_s && entry.stamp == stamp {
+            return (Arc::clone(&entry.inputs), entry.config_secondary.clone());
+        }
+    }
+    let config_secondary = read_secondary_model_alias(home);
+    let inputs = Arc::new(compute_scan_inputs(home, &config_secondary));
+    *cache = Some(ScanInputsCacheEntry {
+        home: home_s,
+        stamp,
+        inputs: Arc::clone(&inputs),
+        config_secondary: config_secondary.clone(),
+    });
+    (inputs, config_secondary)
+}
+
+/// The uncached resolution: merge the alias→provider map, resolve the
+/// secondary alias and derive the fingerprint. `current_secondary` is the
+/// already-parsed `[secondary_model].model`, so `config.toml` is read once.
+fn compute_scan_inputs(home: &Path, current_secondary: &Option<String>) -> ScanInputs {
     let alias2prov = build_alias_provider_map(home);
     // Resolve the `__secondary__` marker (subagent requests bound to the
     // configured secondary model) to the real model alias once per scan.
@@ -857,14 +941,16 @@ fn resolve_scan_inputs(home: &Path) -> ScanInputs {
     // keep a stable billing basis after the secondary config is removed or
     // changed. When the config still declares a secondary model, refresh the
     // cache with it.
-    let current_secondary = read_secondary_model_alias(home);
-    let cached_secondary = crate::db::get_setting_pub(SECONDARY_MODEL_CACHE_KEY)
-        .ok()
-        .flatten()
-        .filter(|s| !s.is_empty());
+    let stored_secondary = crate::db::get_setting_pub(SECONDARY_MODEL_CACHE_KEY).ok().flatten();
+    let cached_secondary = stored_secondary.clone().filter(|s| !s.is_empty());
     let secondary_alias = current_secondary.clone().or(cached_secondary);
-    if let Some(alias) = &current_secondary {
-        let _ = crate::db::set_setting_pub(SECONDARY_MODEL_CACHE_KEY, alias);
+    // Only write when the stored alias actually moves: the write is a SQLite
+    // transaction, and this path is on the hot refresh route.
+    if let Some(alias) = current_secondary {
+        let cached = stored_secondary.as_deref().filter(|s| !s.is_empty());
+        if cached != Some(alias.as_str()) {
+            let _ = crate::db::set_setting_pub(SECONDARY_MODEL_CACHE_KEY, alias);
+        }
     }
     let fingerprint = scan_inputs_fingerprint(&secondary_alias, &alias2prov);
     ScanInputs { secondary_alias, alias2prov, fingerprint }
@@ -1152,11 +1238,19 @@ fn snapshot_from_records(records: &[UsageRecord]) -> Vec<DayStat> {
 /// whose session directory is gone are synthesized: sessions still on disk
 /// are covered by the live wire.jsonl scan, and emitting both would double
 /// count their usage.
+///
+/// The alias→provider map and the secondary alias come from the cached scan
+/// inputs instead of re-reading `config.toml` and every backup. The secondary
+/// alias stays the config-declared one (`resolve_scan_config`'s second value)
+/// rather than the DB-backed fallback the scanner uses: the archiver priced
+/// these snapshots with the config-only value, and synthesizing them against a
+/// different alias would move billed numbers for old archives.
 fn synthesize_snapshot_records(rows: &[ArchivedSessionSnapshot], home: &Path) -> Vec<UsageRecord> {
     let root = sessions_root(home);
     let legacy_root = root.join(".kcd-archive");
-    let alias2prov = build_alias_provider_map(home);
-    let secondary_alias = read_secondary_model_alias(home);
+    let (inputs, config_secondary) = resolve_scan_config(home);
+    let alias2prov = &inputs.alias2prov;
+    let secondary_alias = config_secondary;
     let mut out = Vec::new();
     for row in rows {
         if root.join(&row.workspace_id).join(&row.session_id).exists() { continue; }
@@ -1175,7 +1269,7 @@ fn synthesize_snapshot_records(rows: &[ArchivedSessionSnapshot], home: &Path) ->
                     model: m.model.clone(),
                     model_resolved: bare,
                     model_display: m.model.clone(),
-                    provider: resolve_provider(&price_model, &alias2prov),
+                    provider: resolve_provider(&price_model, alias2prov),
                     from_env: m.model == "__kimi_env_model__",
                     is_secondary,
                     input_other: m.input_other,
@@ -1192,17 +1286,16 @@ fn synthesize_snapshot_records(rows: &[ArchivedSessionSnapshot], home: &Path) ->
     out
 }
 
-/// Append the synthesized records for `rows` to a live scan result and
-/// restore the newest-first ordering the sessions walk produces.
+/// Append already-synthesized records to a live scan result and restore the
+/// newest-first ordering the sessions walk produces.
+///
+/// The caller decides whether the merge is worth a copy at all — see
+/// `records_with_archive_merge` — so this only does the append and the sort.
 fn merge_snapshot_records(
     mut records: Vec<UsageRecord>,
-    rows: &[ArchivedSessionSnapshot],
-    home: &Path,
+    synthesized: Vec<UsageRecord>,
 ) -> Vec<UsageRecord> {
-    // Nothing archived yet: keep the scan result untouched (and skip the
-    // config reads the synthesis would do).
-    if rows.is_empty() { return records; }
-    records.extend(synthesize_snapshot_records(rows, home));
+    records.extend(synthesized);
     records.sort_by(|a, b| b.time.cmp(&a.time));
     records
 }
@@ -1210,13 +1303,23 @@ fn merge_snapshot_records(
 /// Live scan records plus the stored usage of archived sessions whose files
 /// have been deleted, so dashboard stats survive session deletion.
 ///
-/// With nothing archived the scanned `Arc` is handed straight back — the
-/// merged table is only materialized (one copy) when there are snapshots to
-/// append, which is the rare path.
+/// The scanned `Arc` is handed straight back — same pointer, no copy — unless
+/// there is something to append. Both "nothing archived" and "archived but
+/// every session directory still exists" take that path: the second case is
+/// the common one (the archiver only marks state, it does not delete), and
+/// the synthesis is skipped before the clone so an all-still-present archive
+/// costs no memory traffic at all.
+///
+/// Skipping the merge when the synthesis is empty is byte-for-byte equivalent:
+/// the scan result is already sorted newest-first, `Vec::extend` with an empty
+/// iterator is a no-op, and `sort_by` is a stable sort, which leaves an
+/// already-sorted input in its exact original order.
 fn records_with_archive_merge(home: &Path, records: Arc<Vec<UsageRecord>>) -> Arc<Vec<UsageRecord>> {
     let rows = crate::db::list_archived_sessions().unwrap_or_default();
     if rows.is_empty() { return records; }
-    Arc::new(merge_snapshot_records((*records).clone(), &rows, home))
+    let synthesized = synthesize_snapshot_records(&rows, home);
+    if synthesized.is_empty() { return records; }
+    Arc::new(merge_snapshot_records((*records).clone(), synthesized))
 }
 
 // ---------------------------------------------------------------------------
@@ -1225,11 +1328,24 @@ fn records_with_archive_merge(home: &Path, records: Arc<Vec<UsageRecord>>) -> Ar
 
 static SCAN_CACHE: Mutex<Option<ScanCacheState>> = Mutex::new(None);
 
-/// Drop everything the incremental cache holds for tests. Production never
-/// calls this — a stale cache is corrected by the file stats, not by a purge.
+/// Drop everything the incremental cache holds for tests, including the
+/// scan-input cache: a stale entry there would outlive its temp home and hide
+/// a config change from the parse cache. Production never calls this — a stale
+/// cache is corrected by the file stats, not by a purge.
 #[cfg(test)]
 fn clear_scan_cache() {
-    *SCAN_CACHE.lock().unwrap() = None;
+    *SCAN_CACHE.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    *SCAN_INPUTS_CACHE.lock().unwrap_or_else(|e| e.into_inner()) = None;
+}
+
+/// Serializes the tests that touch process-global state — the two `static`
+/// caches and the `KIMI_SWITCH_DB_PATH` override. A test that mutates either
+/// takes this lock, so a parallel test can never observe another one's temp
+/// home, redirected database or purged cache.
+#[cfg(test)]
+fn test_state_lock() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 /// The record table is shared behind an `Arc` so the unchanged path hands out
@@ -1242,7 +1358,7 @@ fn clear_scan_cache() {
 fn scan_usage_cached(home: &Path, refresh: bool) -> (Arc<Vec<UsageRecord>>, ScanMeta) {
     let home_s = home.to_string_lossy().to_string();
     let inputs = resolve_scan_inputs(home);
-    let mut cache = SCAN_CACHE.lock().unwrap();
+    let mut cache = SCAN_CACHE.lock().unwrap_or_else(|e| e.into_inner());
     // A different home or a moved parsing input invalidates every cached
     // parse, so the owner is replaced wholesale rather than patched.
     let reusable = cache
@@ -3103,6 +3219,7 @@ mod archive_snapshot_tests {
 
     #[test]
     fn synthesize_only_covers_sessions_whose_files_are_gone() {
+        let _guard = test_state_lock();
         let td = tempfile::tempdir().unwrap();
         let home = td.path().join("home");
         fs::create_dir_all(home.join("sessions").join(WID).join(LIVE_SID)).unwrap();
@@ -3131,6 +3248,7 @@ mod archive_snapshot_tests {
 
     #[test]
     fn merge_appends_missing_sessions_newest_first_without_double_counting() {
+        let _guard = test_state_lock();
         let td = tempfile::tempdir().unwrap();
         let home = td.path().join("home");
         fs::create_dir_all(home.join("sessions").join(WID).join(LIVE_SID)).unwrap();
@@ -3146,7 +3264,7 @@ mod archive_snapshot_tests {
             snapshot_row(gone_new, new_day, "openai/gpt-x", 20),
         ];
         let live = vec![rec(new_day + 5_000, "openai/gpt-x", (1, 1, 1, 1), 0.01)];
-        let merged = merge_snapshot_records(live, &rows, &home);
+        let merged = merge_snapshot_records(live, synthesize_snapshot_records(&rows, &home));
 
         assert_eq!(merged.len(), 3, "live record plus the two missing sessions");
         assert_eq!(merged[0].time, new_day + 5_000, "newest record first");
@@ -3188,6 +3306,11 @@ mod archive_snapshot_tests {
 
     #[test]
     fn bulk_archive_flags_old_sessions_and_snapshots_their_usage() {
+        // `KIMI_SWITCH_DB_PATH` is process-global and the archive row list is
+        // read by `records_with_archive_merge`, so this test takes the shared
+        // lock before touching either.
+        let _guard = test_state_lock();
+        clear_scan_cache();
         let td = tempfile::tempdir().unwrap();
         let home = td.path().join("home");
         // Redirect the SQLite store so the test never touches the user's DB.
@@ -3255,6 +3378,82 @@ mod archive_snapshot_tests {
         assert_eq!(merged[0].output, 50);
         assert_eq!(day_key(merged[0].time), day_key(old_ms));
     }
+
+    /// An archive that has nothing to synthesize must hand the scanned table
+    /// back untouched — same `Arc` pointer, no clone and no re-sort.
+    ///
+    /// This is the everyday case: the archiver only flags `archived: true` in
+    /// `state.json` and keeps the directory, so every archived row is skipped
+    /// by synthesis while the live scan still owns the usage.
+    #[test]
+    fn archive_rows_with_live_dirs_hand_back_the_same_arc() {
+        let _guard = test_state_lock();
+        clear_scan_cache();
+        let td = tempfile::tempdir().unwrap();
+        let home = td.path().join("home");
+        std::env::set_var("KIMI_SWITCH_DB_PATH", td.path().join("test.db"));
+
+        // The archived session's directory is still on disk.
+        let dir = home.join("sessions").join(WID).join(LIVE_SID);
+        fs::create_dir_all(&dir).unwrap();
+        write_state(&dir, 1_700_000_000_000, true);
+        crate::db::upsert_archived_session(&snapshot_row(
+            LIVE_SID,
+            1_700_000_000_000,
+            "openai/gpt-x",
+            100,
+        ))
+        .unwrap();
+        assert_eq!(
+            crate::db::list_archived_sessions().unwrap().len(),
+            1,
+            "the row exists, so the merge is not skipped by the empty-list check"
+        );
+
+        let records = Arc::new(vec![
+            rec(1_700_000_600_000, "openai/gpt-x", (1, 1, 1, 1), 0.01),
+            rec(1_700_000_300_000, "openai/gpt-x", (2, 2, 2, 2), 0.02),
+            rec(1_700_000_000_000, "moonshotai/kimi-k3", (3, 3, 3, 3), 0.03),
+        ]);
+        let before = Arc::clone(&records);
+        let after = records_with_archive_merge(&home, records);
+
+        assert!(
+            Arc::ptr_eq(&before, &after),
+            "nothing to synthesize must return the identical Arc, not a rebuilt copy"
+        );
+        assert_eq!(after.len(), 3, "no synthesized record is appended");
+        // The live table is already newest-first and must stay that way.
+        assert!(after.windows(2).all(|w| w[0].time >= w[1].time));
+    }
+
+    /// ...and the merge really does fire (pointer changes) once the archived
+    /// session's directory is gone.
+    #[test]
+    fn archive_rows_with_missing_dirs_rebuild_a_new_arc() {
+        let _guard = test_state_lock();
+        clear_scan_cache();
+        let td = tempfile::tempdir().unwrap();
+        let home = td.path().join("home");
+        std::env::set_var("KIMI_SWITCH_DB_PATH", td.path().join("test.db"));
+        fs::create_dir_all(home.join("sessions").join(WID)).unwrap();
+        crate::db::upsert_archived_session(&snapshot_row(
+            GONE_SID,
+            1_700_000_000_000,
+            "openai/gpt-x",
+            100,
+        ))
+        .unwrap();
+
+        let records = Arc::new(vec![rec(1_700_000_600_000, "openai/gpt-x", (1, 1, 1, 1), 0.01)]);
+        let before = Arc::clone(&records);
+        let after = records_with_archive_merge(&home, records);
+
+        assert!(!Arc::ptr_eq(&before, &after), "a synthesized record forces a rebuilt table");
+        assert_eq!(after.len(), 2);
+        assert_eq!(after[0].time, 1_700_000_600_000, "live record still newest");
+        assert_eq!(after[1].input_other, 100, "the archived totals are appended");
+    }
 }
 
 #[cfg(test)]
@@ -3264,14 +3463,14 @@ mod scan_cache_tests {
     const WID: &str = "wd_proj_a1b2c3d4e5f6";
     const SID: &str = "session_11111111-2222-3333-4444-555555555555";
 
-    /// `scan_usage_cached` keeps one `static` cache, so the tests that want to
-    /// observe reuse (rather than just correctness) take this lock to keep a
-    /// second test from replacing the state mid-run. Results stay correct
-    /// either way — a foreign home or a purged cache only forces a full rescan
-    /// — but ptr-equality assertions need a quiet cache.
+    /// `scan_usage_cached` and `resolve_scan_config` keep one `static` cache
+    /// each, so the tests that want to observe reuse (rather than just
+    /// correctness) take this lock to keep a second test from replacing the
+    /// state mid-run. Results stay correct either way — a foreign home or a
+    /// purged cache only forces a full rescan — but ptr-equality assertions
+    /// need a quiet cache.
     fn scan_lock() -> std::sync::MutexGuard<'static, ()> {
-        static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        let guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let guard = test_state_lock();
         clear_scan_cache();
         guard
     }
@@ -3473,6 +3672,89 @@ mod scan_cache_tests {
         assert_eq!(meta.files_scanned, 0);
         assert_eq!(meta.record_count, 0);
         assert_eq!(meta.errors, vec!["sessions directory not found".to_string()]);
+    }
+
+    /// The scan-input cache must notice a rewritten `config.toml`, so the
+    /// fingerprint handed to the per-file parse cache still moves when the
+    /// config does — through a create, a resize, a delete and a new backup.
+    #[test]
+    fn config_edit_invalidates_the_scan_input_cache_and_moves_the_fingerprint() {
+        let _guard = scan_lock();
+        let (_td, home, _wire) = setup_home_with_wire(&[usage_line(1_700_000_000_000, "legacy-alias")]);
+        let cfg = home.join("config.toml");
+
+        // No config yet: the stamp is empty and the fingerprint reflects that.
+        let first = resolve_scan_inputs(&home);
+        assert!(first.alias2prov.is_empty(), "no config leaves the alias map empty");
+        assert_eq!(resolve_scan_inputs(&home).fingerprint, first.fingerprint);
+
+        // A config that did not exist before appears: the stamp list grows.
+        fs::write(&cfg, "[models.legacy-alias]\nprovider=\"CodingPlan\"\n").unwrap();
+        let a = resolve_scan_inputs(&home);
+        let b = resolve_scan_inputs(&home);
+        assert!(Arc::ptr_eq(&a, &b), "an unchanged config must be served from the cache");
+        assert_ne!(
+            a.fingerprint, first.fingerprint,
+            "writing config.toml must move the fingerprint"
+        );
+        assert_eq!(a.alias2prov.get("legacy-alias").map(String::as_str), Some("CodingPlan"));
+
+        // A different length on the same path invalidates it again.
+        fs::write(&cfg, "[models.legacy-alias]\nprovider=\"CodingPlanSite\"\n").unwrap();
+        let c = resolve_scan_inputs(&home);
+        assert!(!Arc::ptr_eq(&a, &c), "a resized config must not be served from the cache");
+        assert_ne!(c.fingerprint, a.fingerprint);
+        assert_eq!(
+            c.alias2prov.get("legacy-alias").map(String::as_str),
+            Some("CodingPlanSite")
+        );
+
+        // Deleting it returns to the empty map rather than a stale entry.
+        fs::remove_file(&cfg).unwrap();
+        let d = resolve_scan_inputs(&home);
+        assert!(d.alias2prov.is_empty(), "a deleted config must drop the cached map");
+
+        // A backup written later is part of the stamp too.
+        fs::write(
+            home.join("config.toml.bak.1"),
+            "[models.old-alias]\nprovider = \"openai\"\n",
+        )
+        .unwrap();
+        let e = resolve_scan_inputs(&home);
+        assert_eq!(e.alias2prov.get("old-alias").map(String::as_str), Some("openai"));
+        assert_ne!(e.fingerprint, d.fingerprint, "a new backup also moves the fingerprint");
+    }
+
+    /// A different home must never be served from another home's cache entry.
+    #[test]
+    fn scan_inputs_cache_is_keyed_on_the_home() {
+        let _guard = scan_lock();
+        let td = tempfile::tempdir().unwrap();
+        let home_a = td.path().join("a");
+        let home_b = td.path().join("b");
+        fs::create_dir_all(&home_a).unwrap();
+        fs::create_dir_all(&home_b).unwrap();
+        fs::write(
+            home_a.join("config.toml"),
+            "[models.alias-a]\nprovider = \"openai\"\n",
+        )
+        .unwrap();
+        fs::write(
+            home_b.join("config.toml"),
+            "[models.alias-b]\nprovider = \"anthropic\"\n",
+        )
+        .unwrap();
+
+        let a = resolve_scan_inputs(&home_a);
+        let b = resolve_scan_inputs(&home_b);
+        assert_eq!(a.alias2prov.get("alias-a").map(String::as_str), Some("openai"));
+        assert_eq!(b.alias2prov.get("alias-b").map(String::as_str), Some("anthropic"));
+        assert!(!b.alias2prov.contains_key("alias-a"), "homes must not share inputs");
+        assert_ne!(a.fingerprint, b.fingerprint);
+
+        // ...and going back to A still resolves A's config.
+        let a_again = resolve_scan_inputs(&home_a);
+        assert_eq!(a_again.alias2prov.get("alias-a").map(String::as_str), Some("openai"));
     }
 
     /// Every field of every record, in order — the strongest equality check
