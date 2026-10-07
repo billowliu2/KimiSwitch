@@ -179,7 +179,7 @@ export function DashboardPage() {
           </div>
           {loadStats && !loading && (
             <span className="hidden text-[10px] text-content-muted sm:inline">
-              {t("loadStats", { ms: loadStats.ms, kb: loadStats.kb })}
+              {t("loadStats", { ms: loadStats.ms })}
             </span>
           )}
         </div>

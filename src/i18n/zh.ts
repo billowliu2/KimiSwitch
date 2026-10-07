@@ -249,7 +249,7 @@ export const zhTranslations = {
   scanning: "扫描中…",
   refresh: "刷新",
   refreshing: "刷新中…",
-  loadStats: "加载 {ms} ms · 数据 {kb} KB",
+  loadStats: "加载 {ms} ms",
   refreshed: "已刷新",
   cancel: "取消",
   confirmDeleteTitle: "永久删除会话？",

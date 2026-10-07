@@ -257,7 +257,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   scanning: "Scanning…",
   refresh: "Refresh",
   refreshing: "Refreshing…",
-  loadStats: "Loaded in {ms} ms · {kb} KB payload",
+  loadStats: "Loaded in {ms} ms",
   refreshed: "Refreshed",
   cancel: "Cancel",
   confirmDeleteTitle: "Delete session forever?",

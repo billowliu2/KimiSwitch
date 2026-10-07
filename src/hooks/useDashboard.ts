@@ -23,7 +23,7 @@ export function useDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** Round-trip timing for the last get_summary call (user-perceived lag). */
-  const [loadStats, setLoadStats] = useState<{ ms: number; kb: number } | null>(null);
+  const [loadStats, setLoadStats] = useState<{ ms: number } | null>(null);
 
   const refresh = useCallback(async (force = false) => {
     setLoading(true);
@@ -35,10 +35,7 @@ export function useDashboard() {
         refresh: force,
       });
       setData(result);
-      setLoadStats({
-        ms: Math.round(performance.now() - start),
-        kb: Math.round(JSON.stringify(result).length / 1024),
-      });
+      setLoadStats({ ms: Math.round(performance.now() - start) });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
