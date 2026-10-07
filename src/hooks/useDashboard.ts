@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { SummaryResult } from "../types/dashboard";
 
@@ -24,8 +24,11 @@ export function useDashboard() {
   const [error, setError] = useState<string | null>(null);
   /** Round-trip timing for the last get_summary call (user-perceived lag). */
   const [loadStats, setLoadStats] = useState<{ ms: number } | null>(null);
+  // Generation counter: stale responses (superseded range / unmounted) are dropped.
+  const genRef = useRef(0);
 
   const refresh = useCallback(async (force = false) => {
+    const gen = ++genRef.current;
     setLoading(true);
     setError(null);
     const start = performance.now();
@@ -34,19 +37,28 @@ export function useDashboard() {
         range,
         refresh: force,
       });
+      if (genRef.current !== gen) return;
       setData(result);
       setLoadStats({ ms: Math.round(performance.now() - start) });
     } catch (err) {
+      if (genRef.current !== gen) return;
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
     } finally {
-      setLoading(false);
+      if (genRef.current === gen) setLoading(false);
     }
   }, [range]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Ignore late responses after unmount.
+  useEffect(() => {
+    return () => {
+      genRef.current += 1;
+    };
+  }, []);
 
   const changeRange = useCallback((next: DashboardRange) => {
     setRange(next);
