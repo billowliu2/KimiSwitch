@@ -16,10 +16,10 @@ const zh = {
     performance: "性能",
     changelog: "更新日志",
     download: "下载",
-    downloadBtn: "下载 v0.8.0",
+    downloadBtn: "下载 v0.8.2",
   },
   hero: {
-    badge: "v0.8.0 · 开源 MIT · Windows / macOS / Linux",
+    badge: "v0.8.2 · 开源 MIT · Windows / macOS / Linux",
     titleBefore: "统一管理你的",
     titleAccent: "AI 供应商",
     titleAfter: "",
@@ -29,7 +29,7 @@ const zh = {
     source: "查看源码",
     stats: [
       { value: "22", label: "预设供应商" },
-      { value: "8385", label: "模型价格库" },
+      { value: "8467", label: "模型价格库" },
       { value: "MIT", label: "开源协议" },
     ],
   },
@@ -76,7 +76,7 @@ const zh = {
       {
         id: "model-discovery",
         title: "模型自动发现",
-        desc: "可用模型直接问供应商 API；显示名 / 上下文 / 能力取自 models.dev 快照（当前 8,385 个模型、226 家供应商）。",
+        desc: "可用模型直接问供应商 API；显示名 / 上下文 / 能力取自 models.dev 快照（当前 8,467 个模型、225 家供应商）。",
         img: "screenshots/kimi-cli-select-model.png",
       },
       {
@@ -89,7 +89,7 @@ const zh = {
   },
   showcase: {
     title: "界面演示",
-    subtitle: "以下截图取自 v0.8.0 实机运行。",
+    subtitle: "以下截图取自 v0.8.2 实机运行。",
     items: [
       {
         src: "screenshots/usage-config-page.png",
@@ -140,6 +140,16 @@ const zh = {
     syncedNote: "数据已同步 GitHub Releases",
     fallbackNote: "内置版本记录",
     entries: [
+      {
+        version: "v0.8.2",
+        date: "2026-10-09",
+        items: [
+          "仪表盘重启后首次打开从约 25 秒降到 1 秒内：用量解析快照持久化到本地，启动直读并在后台校验，有变化自动无感更新（6.4 万条记录实测）",
+          "切换时间范围几乎瞬时：热力图 / 模型总览 / 各范围汇总按记录集缓存；去除原「全时段」聚合的整表无用遍历",
+          "界面不再闪加载态：切范围与重新进入页面先呈现上次数据再后台静默刷新；供应商卡片墙由 N 次配置全量加载降为 1 次",
+          "models.dev 快照同步至 2026-10-09（8,467 模型 / 225 供应商）",
+        ],
+      },
       {
         version: "v0.8.1",
         date: "2026-10-04",
@@ -348,7 +358,7 @@ const zh = {
   },
   download: {
     title: "下载 Kimi Switch",
-    subtitle: "当前版本 v0.8.0 · Windows / macOS / Linux 三平台已发布",
+    subtitle: "当前版本 v0.8.2 · Windows / macOS / Linux 三平台已发布",
     autoUpdate: "更新检查跑在启动时和每 8 小时的周期任务里，设置页也可以手动触发。",
     ready: "已发布",
     wip: "开发中",
@@ -417,10 +427,10 @@ const en: Dict = {
     performance: "Performance",
     changelog: "Changelog",
     download: "Download",
-    downloadBtn: "Download v0.8.0",
+    downloadBtn: "Download v0.8.2",
   },
   hero: {
-    badge: "v0.8.0 · Open source MIT · Windows / macOS / Linux",
+    badge: "v0.8.2 · Open source MIT · Windows / macOS / Linux",
     titleBefore: "One app for all your ",
     titleAccent: "AI providers",
     titleAfter: "",
@@ -430,7 +440,7 @@ const en: Dict = {
     source: "View source",
     stats: [
       { value: "22", label: "Provider presets" },
-      { value: "8385", label: "Model price DB" },
+      { value: "8467", label: "Model price DB" },
       { value: "MIT", label: "License" },
     ],
   },
@@ -477,7 +487,7 @@ const en: Dict = {
       {
         id: "model-discovery",
         title: "Model discovery",
-        desc: "Model lists are fetched from the provider API itself; display names, context sizes and capabilities come from a build-time models.dev snapshot (8,385 models, 226 providers).",
+        desc: "Model lists are fetched from the provider API itself; display names, context sizes and capabilities come from a build-time models.dev snapshot (8,467 models, 225 providers).",
         img: "screenshots/kimi-cli-select-model.png",
       },
       {
@@ -490,7 +500,7 @@ const en: Dict = {
   },
   showcase: {
     title: "Screenshots",
-    subtitle: "All screenshots below are taken from the running v0.8.0 build.",
+    subtitle: "All screenshots below are taken from the running v0.8.2 build.",
     items: [
       {
         src: "screenshots/usage-config-page.png",
@@ -541,6 +551,16 @@ const en: Dict = {
     syncedNote: "Synced from GitHub Releases",
     fallbackNote: "Built-in release notes",
     entries: [
+      {
+        version: "v0.8.2",
+        date: "2026-10-09",
+        items: [
+          "First dashboard open after a restart drops from ~25s to under 1s: the usage snapshot is persisted locally and read straight at startup, then verified in the background with silent updates when things changed (measured at 64k records)",
+          "Switching the time range is near-instant: heatmap / model overview / per-range totals are cached per record set, and the wasteful full-table pass behind the 'all time' aggregate is gone",
+          "No more loading flicker: switching ranges or reopening the page shows the previous data first and revalidates silently; the provider card wall loads config once instead of once per card",
+          "models.dev snapshot synced to 2026-10-09 (8,467 models / 225 providers)",
+        ],
+      },
       {
         version: "v0.8.1",
         date: "2026-10-04",
@@ -748,7 +768,7 @@ const en: Dict = {
   },
   download: {
     title: "Download Kimi Switch",
-    subtitle: "Current version v0.8.0 · Windows, macOS and Linux now released",
+    subtitle: "Current version v0.8.2 · Windows, macOS and Linux now released",
     autoUpdate: "Update checks run at startup and every 8 hours; Settings also has a manual check.",
     ready: "Available",
     wip: "In development",

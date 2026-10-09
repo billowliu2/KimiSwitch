@@ -8,13 +8,13 @@ const icons: Record<string, Icon> = {
   linux: LinuxLogo,
 };
 
-const VERSION = "0.8.1";
+const VERSION = "0.8.2";
 const GITHUB = "https://github.com/billowliu2/KimiSwitch";
 const MIRROR_RELEASES = "https://git.codingplan.site/admin/KimiCodeSwitch/releases";
 const dl = (file: string) => `${GITHUB}/releases/download/v${VERSION}/${file}`;
 
 /** Per-platform download assets for the current release (names match the CI
- *  release workflow exactly — verified against the published v0.7.12 assets:
+ *  release workflow exactly — verified against the published v0.8.2 assets:
  *  tauri-bundler on CI produces `Kimi.Switch_…` (dots) on every platform,
  *  except the rpm which uses `Kimi.Switch-<version>-1` (hyphens).
  *  Filenames interpolate VERSION, so a release bump only changes the
