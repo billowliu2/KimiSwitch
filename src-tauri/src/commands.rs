@@ -6,7 +6,7 @@ use indexmap::IndexMap;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, UNIX_EPOCH};
 use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 
@@ -79,8 +79,61 @@ fn load_pi_native_config() -> Result<Config, String> {
     Ok(config)
 }
 
+/// Cached `load_agent_config_command` results, keyed by agent. The full load
+/// parses config.toml, reads all of SQLite and runs `merge_usage_kinds` (two
+/// settings reads per provider); a usage-card wall triggers one load per
+/// provider card, so caching turns N loads into one. Entries are validated
+/// against the db generation counter (bumped by every write path in db.rs)
+/// plus the config.toml file stamp (catches edits made outside the app, e.g.
+/// the CLI's /provider command).
+static CONFIG_CACHE: Mutex<Option<HashMap<String, (u64, Option<(u64, u64)>, Config)>>> =
+    Mutex::new(None);
+
+/// (mtime_ms, len) of the authoritative on-disk config file for the agent, or
+/// None when the file is absent / the agent has no authoritative file (Pi is
+/// SQLite-first, so the db generation alone covers it).
+fn config_file_stamp(agent: &Agent) -> Option<(u64, u64)> {
+    match agent {
+        Agent::KimiCode => {
+            let md = std::fs::metadata(crate::kimi_code_io::kimi_code_config_path()).ok()?;
+            let mtime_ms = md
+                .modified()
+                .ok()?
+                .duration_since(UNIX_EPOCH)
+                .ok()?
+                .as_millis() as u64;
+            Some((mtime_ms, md.len()))
+        }
+        Agent::Pi => None,
+    }
+}
+
 #[tauri::command]
 pub fn load_agent_config_command(agent: Agent) -> Result<Config, String> {
+    let stamp = config_file_stamp(&agent);
+    let gen = db::generation();
+    let key = agent.as_str().to_string();
+
+    {
+        let guard = CONFIG_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(map) = guard.as_ref() {
+            if let Some((cached_gen, cached_stamp, config)) = map.get(&key) {
+                if *cached_gen == gen && *cached_stamp == stamp {
+                    return Ok(config.clone());
+                }
+            }
+        }
+    }
+
+    let config = load_agent_config_uncached(agent)?;
+    let mut guard = CONFIG_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    guard
+        .get_or_insert_with(HashMap::new)
+        .insert(key, (gen, stamp, config.clone()));
+    Ok(config)
+}
+
+fn load_agent_config_uncached(agent: Agent) -> Result<Config, String> {
     // Load Kimi Switch's own SQLite database (metadata + migration fallback).
     let db_config = db::load_config(&agent).ok();
 

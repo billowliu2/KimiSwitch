@@ -335,7 +335,7 @@ pub struct ScanCache {
     pub model_map: ModelMapInfo,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UsageRecord {
     pub time: u64,
     pub model: String,
@@ -1004,6 +1004,223 @@ struct ScanCacheState {
     /// Last assembled table, shared with callers. When the walk finds nothing
     /// changed this pointer is handed out instead of rebuilding the table.
     result: Option<Arc<Vec<UsageRecord>>>,
+    /// Set when a file was parsed or dropped since the snapshot on disk was
+    /// written, so the snapshot no longer describes this state.
+    dirty: bool,
+    /// When the snapshot on disk was last written, to keep a busy tree from
+    /// re-serializing tens of MB on every refresh.
+    written_at_ms: u64,
+    /// True while `result` came from the disk snapshot without a walk in this
+    /// process. Consumed by the call that serves it, so the table is only ever
+    /// handed out unverified once and a later call always walks.
+    pending_verification: bool,
+    /// `ScanMeta` counts for the current per-file set. Persisted with the
+    /// snapshot so a call that serves it without walking still reports the
+    /// payload an unchanged walk would have produced.
+    files_scanned: usize,
+    lines_seen: usize,
+}
+
+// ---------------------------------------------------------------------------
+// On-disk scan cache
+// ---------------------------------------------------------------------------
+
+/// Bumped whenever the serialized shape changes. An older file is ignored
+/// rather than migrated, so a stale format can never be misread.
+const SCAN_DISK_CACHE_VERSION: u32 = 1;
+
+/// How often a changed snapshot may be re-serialized.
+///
+/// Writing it means roughly a second of JSON encoding for ~25 MB, so a tree
+/// that keeps moving (a session in progress) must not pay that on every refresh.
+/// A minute of lag only delays the fast start, and never affects the numbers a
+/// call returns.
+const SCAN_DISK_WRITE_INTERVAL_MS: u64 = 60_000;
+
+/// Directory holding the per-home scan snapshots.
+///
+/// Defaults to the app data directory beside the SQLite store. Tests redirect
+/// `KIMI_SWITCH_DB_PATH` to a temp dir — the snapshot then lands in that same
+/// temp dir — and fall back to the system temp dir otherwise, so a test run
+/// never writes into real user data.
+fn scan_disk_cache_dir() -> PathBuf {
+    if let Some(p) = std::env::var_os("KIMI_SWITCH_DB_PATH") {
+        if !p.is_empty() {
+            if let Some(parent) = PathBuf::from(&p).parent() {
+                return parent.to_path_buf();
+            }
+        }
+    }
+    #[cfg(test)]
+    let fallback = std::env::temp_dir().join("kimiswitch-scan-cache");
+    #[cfg(not(test))]
+    let fallback = crate::db::kimi_switch_data_dir();
+    fallback
+}
+
+/// One snapshot file per home, named by a hash of the home path so two homes
+/// (or two test temp dirs) can never overwrite each other's cache.
+fn scan_disk_cache_path(home: &Path) -> PathBuf {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(home.to_string_lossy().as_bytes());
+    let tag: String = digest.iter().take(16).map(|b| format!("{:02x}", b)).collect();
+    scan_disk_cache_dir().join(format!("scan-cache-{tag}.json"))
+}
+
+/// The persisted parse of one home: the per-file records with their stat keys,
+/// plus the context they were parsed under and the `ScanMeta` counts.
+///
+/// `UsageRecord` is stored in full — it is what the scanner produces, and
+/// re-deriving any field from the file would mean reading the file, which is
+/// exactly the cost this exists to avoid.
+#[derive(Serialize, Deserialize)]
+struct DiskScanCache {
+    version: u32,
+    home: String,
+    parse_ctx: String,
+    /// When the snapshot was taken, so a later run can tell how far a session
+    /// may have advanced since.
+    written_at_ms: u64,
+    /// `ScanMeta` counts, so a table reconstructed from this snapshot reports
+    /// the same payload an unchanged walk would.
+    files_scanned: usize,
+    lines_seen: usize,
+    files: Vec<DiskFileEntry>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct DiskFileEntry {
+    path: String,
+    mtime_ms: u64,
+    len: u64,
+    lines_seen: usize,
+    records: Vec<UsageRecord>,
+}
+
+/// Assemble the record table from the per-file parses.
+///
+/// Files are visited in path order so records sharing a timestamp keep a stable
+/// order regardless of hash or directory iteration order; the shared `Arc` lets
+/// an untouched tree hand out a pointer instead of a copy.
+fn assemble_table(files: &HashMap<PathBuf, FileScanEntry>) -> Arc<Vec<UsageRecord>> {
+    let mut paths: Vec<&PathBuf> = files.keys().collect();
+    paths.sort_unstable();
+    let mut records: Vec<UsageRecord> =
+        Vec::with_capacity(files.values().map(|e| e.records.len()).sum());
+    for p in paths {
+        records.extend(files[p].records.iter().cloned());
+    }
+    records.sort_by(|a, b| b.time.cmp(&a.time));
+    Arc::new(records)
+}
+
+impl ScanCacheState {
+    /// Snapshot the current parses for persistence.
+    fn to_disk(&self) -> DiskScanCache {
+        DiskScanCache {
+            version: SCAN_DISK_CACHE_VERSION,
+            home: self.home.clone(),
+            parse_ctx: self.parse_ctx.clone(),
+            written_at_ms: now_ms(),
+            files_scanned: self.files_scanned,
+            lines_seen: self.lines_seen,
+            files: self
+                .files
+                .iter()
+                .map(|(path, e)| DiskFileEntry {
+                    path: path.to_string_lossy().to_string(),
+                    mtime_ms: e.mtime_ms,
+                    len: e.len,
+                    lines_seen: e.lines_seen,
+                    records: e.records.clone(),
+                })
+                .collect(),
+        }
+    }
+}
+
+/// Read the snapshot for `home`, or `None` for any reason at all.
+///
+/// Every failure mode — absent file, truncated or corrupt JSON, a different
+/// serialization version, a stale path or a moved parse context — degrades to
+/// the same thing: an empty state, which the caller turns into a full scan. The
+/// cache is an optimization, never a source of truth, so a bad file must never
+/// surface as an error.
+fn load_disk_cache(home: &Path, parse_ctx: &str) -> Option<DiskScanCache> {
+    let path = scan_disk_cache_path(home);
+    let bytes = fs::read(&path).ok()?;
+    let cache: DiskScanCache = serde_json::from_slice(&bytes).ok()?;
+    if cache.version != SCAN_DISK_CACHE_VERSION { return None; }
+    if cache.home != home.to_string_lossy() { return None; }
+    // The config-derived parsing context (secondary alias + alias→provider map)
+    // prices and resolves every record, so a moved fingerprint invalidates the
+    // whole snapshot rather than just the file stats.
+    if cache.parse_ctx != parse_ctx { return None; }
+    Some(cache)
+}
+
+/// Turn a loaded snapshot into state that can answer a request without walking.
+///
+/// The table is assembled here but left flagged unverified: the walk that proves
+/// it is the single most expensive part of a cold start on a large sessions tree
+/// (measured at ~0.74s to enumerate and stat ~1070 files), so the first call
+/// answers from the snapshot and the walk happens behind it. Everything this can
+/// be wrong about is a session written between the snapshot and now, which is
+/// exactly what the verification walk is for.
+fn scan_state_from_disk(cache: DiskScanCache) -> ScanCacheState {
+    let files: HashMap<PathBuf, FileScanEntry> = cache
+        .files
+        .into_iter()
+        .map(|e| {
+            (
+                PathBuf::from(e.path),
+                FileScanEntry { mtime_ms: e.mtime_ms, len: e.len, lines_seen: e.lines_seen, records: e.records },
+            )
+        })
+        .collect();
+    let result = assemble_table(&files);
+    ScanCacheState {
+        home: cache.home,
+        parse_ctx: cache.parse_ctx,
+        files,
+        result: Some(result),
+        dirty: false,
+        written_at_ms: cache.written_at_ms,
+        pending_verification: true,
+        files_scanned: cache.files_scanned,
+        lines_seen: cache.lines_seen,
+    }
+}
+
+/// Persist a snapshot off the request path.
+///
+/// The payload is tens of MB on a used install, so writing it inline would add
+/// that write to the very load this is meant to speed up. The value is moved
+/// into the thread (`DiskScanCache` is plain data), and a failure — no
+/// permission, no space, a read-only install — is swallowed: the next call
+/// simply pays a full scan, exactly as it would without this cache.
+fn save_disk_cache_async(cache: DiskScanCache) {
+    let _ = std::thread::Builder::new()
+        .name("scan-cache-write".into())
+        .spawn(move || {
+            write_disk_cache(&cache);
+        });
+}
+
+/// Serialize and atomically replace the snapshot file.
+///
+/// Written to a sibling and renamed, so a crash mid-write can never leave a
+/// half-written file where a valid one used to be. Every failure is ignored:
+/// the cache is an optimization, and being unable to write it must never
+/// surface to the caller.
+fn write_disk_cache(cache: &DiskScanCache) -> bool {
+    let path = scan_disk_cache_path(Path::new(&cache.home));
+    let Some(dir) = path.parent() else { return false };
+    if fs::create_dir_all(dir).is_err() { return false; }
+    let Ok(body) = serde_json::to_vec(cache) else { return false };
+    let tmp = path.with_extension("json.tmp");
+    if fs::write(&tmp, &body).is_err() { return false; }
+    fs::rename(&tmp, &path).is_ok()
 }
 
 /// Modification time of an already-statted file in epoch ms (0 when the
@@ -1043,6 +1260,8 @@ fn scan_usage_incremental(
     if !root.exists() {
         state.files.clear();
         state.result = None;
+        state.files_scanned = 0;
+        state.lines_seen = 0;
         return (
             Arc::new(Vec::new()),
             meta(0, 0, 0, vec!["sessions directory not found".into()]),
@@ -1109,20 +1328,22 @@ fn scan_usage_incremental(
         }
     }
 
-    // Assemble the table from the reused plus freshly parsed records. Files
-    // are visited in path order so records sharing a timestamp keep a stable
-    // order regardless of hash or directory iteration order.
-    let mut paths: Vec<&PathBuf> = state.files.keys().collect();
-    paths.sort_unstable();
-    let mut records: Vec<UsageRecord> =
-        Vec::with_capacity(state.files.values().map(|e| e.records.len()).sum());
-    for p in paths {
-        records.extend(state.files[p].records.iter().cloned());
-    }
-    records.sort_by(|a, b| b.time.cmp(&a.time));
-    let result = Arc::new(records);
+    let result = assemble_table(&state.files);
     state.result = Some(Arc::clone(&result));
+    // Parsing happened or the file set moved, and the snapshot not yet on disk
+    // describes this state.
+    state.dirty = true;
+    state.files_scanned = files_scanned;
+    state.lines_seen = lines_seen;
     (Arc::clone(&result), meta(files_scanned, lines_seen, result.len(), errors))
+}
+
+/// Current wall-clock time in epoch ms, used for disk-cache freshness stamps.
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
 }
 
 /// Parse one `wire.jsonl` body into usage records. Extracted from the
@@ -1300,6 +1521,68 @@ fn merge_snapshot_records(
     records
 }
 
+/// Every stored archived-session snapshot, cached against the database
+/// generation and path.
+///
+/// `list_archived_sessions` opens a connection, a transaction and reads the
+/// whole table; both `get_summary` and `get_day_detail` hit it on every call.
+/// Every write path bumps `db::generation()`, so a freshly stored snapshot is
+/// visible on the next read.
+static ARCHIVE_CACHE: Mutex<Option<ArchiveCacheEntry>> = Mutex::new(None);
+
+struct ArchiveCacheEntry {
+    generation: u64,
+    path: PathBuf,
+    rows: Arc<Vec<ArchivedSessionSnapshot>>,
+}
+
+fn archived_sessions_cached() -> Arc<Vec<ArchivedSessionSnapshot>> {
+    let generation = crate::db::generation();
+    let path = crate::db::db_path();
+    let mut cache = ARCHIVE_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(entry) = cache.as_ref() {
+        if entry.generation == generation && entry.path == path {
+            return Arc::clone(&entry.rows);
+        }
+    }
+    // A failed read degrades to "nothing archived" exactly as the old
+    // `unwrap_or_default` did, but is not cached: the next call retries.
+    let rows = match crate::db::list_archived_sessions() {
+        Ok(rows) => rows,
+        Err(_) => return Arc::new(Vec::new()),
+    };
+    let rows = Arc::new(rows);
+    *cache = Some(ArchiveCacheEntry {
+        generation,
+        path,
+        rows: Arc::clone(&rows),
+    });
+    rows
+}
+
+/// The merged table, cached against the identity of the scan it was built from.
+///
+/// Synthesis is only reached when an archived session's directory is gone, and
+/// then it costs an `exists()` probe per snapshot, a clone of the whole scan
+/// and a re-sort — on every dashboard and day-detail call. Holding the scan
+/// `Arc` itself in the entry (rather than just its address) keeps that
+/// allocation alive, so no later allocation can land on the same address and be
+/// mistaken for a cache hit.
+///
+/// A session dir becomes synthesizable only by disappearing, and the paths that
+/// remove one (`delete_session`/`delete_workspace`) take its `wire.jsonl` with
+/// it, which moves the scan and so the cache key. A dir that never held a
+/// `wire.jsonl` contributes no day stats, so its removal leaves this table
+/// unchanged either way.
+static MERGE_CACHE: Mutex<Option<MergeCacheEntry>> = Mutex::new(None);
+
+struct MergeCacheEntry {
+    scan: Arc<Vec<UsageRecord>>,
+    generation: u64,
+    home: PathBuf,
+    merged: Arc<Vec<UsageRecord>>,
+}
+
 /// Live scan records plus the stored usage of archived sessions whose files
 /// have been deleted, so dashboard stats survive session deletion.
 ///
@@ -1308,18 +1591,38 @@ fn merge_snapshot_records(
 /// every session directory still exists" take that path: the second case is
 /// the common one (the archiver only marks state, it does not delete), and
 /// the synthesis is skipped before the clone so an all-still-present archive
-/// costs no memory traffic at all.
+/// costs no memory traffic at all. The rebuilt table is cached, so repeated
+/// calls over an unchanged scan skip the clone and the re-sort too.
 ///
 /// Skipping the merge when the synthesis is empty is byte-for-byte equivalent:
 /// the scan result is already sorted newest-first, `Vec::extend` with an empty
 /// iterator is a no-op, and `sort_by` is a stable sort, which leaves an
 /// already-sorted input in its exact original order.
 fn records_with_archive_merge(home: &Path, records: Arc<Vec<UsageRecord>>) -> Arc<Vec<UsageRecord>> {
-    let rows = crate::db::list_archived_sessions().unwrap_or_default();
+    let generation = crate::db::generation();
+    {
+        let cache = MERGE_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(entry) = cache.as_ref() {
+            if entry.generation == generation
+                && entry.home.as_path() == home
+                && Arc::ptr_eq(&entry.scan, &records)
+            {
+                return Arc::clone(&entry.merged);
+            }
+        }
+    }
+    let rows = archived_sessions_cached();
     if rows.is_empty() { return records; }
     let synthesized = synthesize_snapshot_records(&rows, home);
     if synthesized.is_empty() { return records; }
-    Arc::new(merge_snapshot_records((*records).clone(), synthesized))
+    let merged = Arc::new(merge_snapshot_records((*records).clone(), synthesized));
+    *MERGE_CACHE.lock().unwrap_or_else(|e| e.into_inner()) = Some(MergeCacheEntry {
+        scan: Arc::clone(&records),
+        generation,
+        home: home.to_path_buf(),
+        merged: Arc::clone(&merged),
+    });
+    merged
 }
 
 // ---------------------------------------------------------------------------
@@ -1328,14 +1631,37 @@ fn records_with_archive_merge(home: &Path, records: Arc<Vec<UsageRecord>>) -> Ar
 
 static SCAN_CACHE: Mutex<Option<ScanCacheState>> = Mutex::new(None);
 
+/// Set while a background verification walk is running, so a burst of
+/// dashboard calls spawns exactly one.
+static SCAN_VERIFY_IN_FLIGHT: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
 /// Drop everything the incremental cache holds for tests, including the
 /// scan-input cache: a stale entry there would outlive its temp home and hide
 /// a config change from the parse cache. Production never calls this — a stale
 /// cache is corrected by the file stats, not by a purge.
+///
+/// The derived caches and the cached SQLite connection go with it: each is keyed
+/// on a `static` the previous test may have left pointing at its own temp home
+/// or database, and the summary cache's `Arc` identity check is only sound while
+/// every holder of the old table is dropped at the same moment.
 #[cfg(test)]
 fn clear_scan_cache() {
     *SCAN_CACHE.lock().unwrap_or_else(|e| e.into_inner()) = None;
     *SCAN_INPUTS_CACHE.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    *SUMMARY_CACHE.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    *ARCHIVE_CACHE.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    *MERGE_CACHE.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    crate::db::close_cached_conn_for_tests();
+}
+
+/// Test-facing wrapper over `scan_usage_cached` that drops the "was this served
+/// unverified from the disk snapshot?" flag. Existing tests care only about the
+/// table and its meta.
+#[cfg(test)]
+fn scan_usage_cached2(home: &Path, refresh: bool) -> (Arc<Vec<UsageRecord>>, ScanMeta) {
+    let (records, meta, _unverified) = scan_usage_cached(home, refresh);
+    (records, meta)
 }
 
 /// Serializes the tests that touch process-global state — the two `static`
@@ -1355,7 +1681,19 @@ fn test_state_lock() -> std::sync::MutexGuard<'static, ()> {
 /// `refresh=true` forces every file to be re-parsed (the cache for this home
 /// is dropped first), matching the old "bypass the cache" semantics; an
 /// ordinary call only re-parses files whose (mtime, len) moved.
-fn scan_usage_cached(home: &Path, refresh: bool) -> (Arc<Vec<UsageRecord>>, ScanMeta) {
+///
+/// A table written by an earlier process is loaded from disk on the first call
+/// and served immediately, so a restart re-parses nothing *and* skips the walk:
+/// on a 1070-file / 1 GB tree the walk alone (enumerate + stat) costs ~0.74 s,
+/// which is most of the "first load is slow" complaint even when nothing needs
+/// parsing. The snapshot answers that one call; the walk then verifies it in the
+/// background and reports any difference through `RECORDS_UPDATED_EVENT`.
+///
+/// The skip is one-shot. The flag is cleared as the snapshot is served, so every
+/// later call walks and cannot serve the same unverified table twice; and a call
+/// served from the snapshot says so in its `ScanMeta`, which is what tells
+/// `get_summary` to schedule the verification at all.
+fn scan_usage_cached(home: &Path, refresh: bool) -> (Arc<Vec<UsageRecord>>, ScanMeta, bool) {
     let home_s = home.to_string_lossy().to_string();
     let inputs = resolve_scan_inputs(home);
     let mut cache = SCAN_CACHE.lock().unwrap_or_else(|e| e.into_inner());
@@ -1365,15 +1703,66 @@ fn scan_usage_cached(home: &Path, refresh: bool) -> (Arc<Vec<UsageRecord>>, Scan
         .as_ref()
         .is_some_and(|s| !refresh && s.home == home_s && s.parse_ctx == inputs.fingerprint);
     if !reusable {
-        *cache = Some(ScanCacheState {
-            home: home_s,
-            parse_ctx: inputs.fingerprint.clone(),
-            files: HashMap::new(),
-            result: None,
+        let loaded = if refresh {
+            None
+        } else {
+            load_disk_cache(home, &inputs.fingerprint)
+        };
+        *cache = Some(match loaded {
+            Some(disk) => scan_state_from_disk(disk),
+            None => ScanCacheState {
+                home: home_s.clone(),
+                parse_ctx: inputs.fingerprint.clone(),
+                files: HashMap::new(),
+                result: None,
+                // Nothing is on disk for this state yet, so the first walk has
+                // everything to write.
+                dirty: true,
+                written_at_ms: 0,
+                pending_verification: false,
+                files_scanned: 0,
+                lines_seen: 0,
+            },
         });
     }
-    let state = cache.as_mut().unwrap();
-    scan_usage_incremental(state, home, &inputs)
+    let state = cache.as_mut().expect("state just installed");
+
+    if state.pending_verification {
+        // Hand out the snapshot unverified, exactly once. The counts stored
+        // with it belong to the walk that wrote it, so the payload matches what
+        // an unchanged walk would report.
+        state.pending_verification = false;
+        let result = Arc::clone(state.result.as_ref().expect("disk state carries a table"));
+        let meta = ScanMeta {
+            files_scanned: state.files_scanned,
+            lines_seen: state.lines_seen,
+            record_count: result.len(),
+            home: home_s.clone(),
+            sessions_root: sessions_root(home).to_string_lossy().to_string(),
+            errors: vec![],
+        };
+        return (result, meta, true);
+    }
+
+    let (records, meta) = scan_usage_incremental(state, home, &inputs);
+
+    // Persist the parses so the next process can start without reading the tree.
+    // Only worth writing when something is not already on disk: an unchanged
+    // table is byte-for-byte what the loaded snapshot already holds. The encode
+    // costs ~1s for ~25 MB, so it goes to a worker thread and is rate-limited; a
+    // busy tree keeps the previous snapshot rather than paying that on every
+    // refresh.
+    if state.dirty {
+        let due = state.written_at_ms == 0
+            || now_ms().saturating_sub(state.written_at_ms) >= SCAN_DISK_WRITE_INTERVAL_MS;
+        if due {
+            let disk = state.to_disk();
+            state.written_at_ms = disk.written_at_ms;
+            state.dirty = false;
+            save_disk_cache_async(disk);
+        }
+    }
+    (records, meta, false)
 }
 
 // ---------------------------------------------------------------------------
@@ -1554,6 +1943,43 @@ impl TotalsRow {
         self.cost_usd += r.cost_usd;
         self.total_tokens = self.input_other + self.output + self.input_cache_read + self.input_cache_creation;
     }
+}
+
+/// The all-time model table for the summary payload, in one pass that
+/// accumulates only the fields `AllModelRow` carries.
+///
+/// Field-for-field equivalent to mapping `aggregate(records, "all", ..).models`
+/// (first-seen `model_display`, OR-folded `cost_estimated`, `total_tokens`
+/// descending) but without building the daily / recent / provider breakdowns
+/// that the mapping discarded — those were a second full pass over every record
+/// on every summary call.
+fn build_all_models(records: &[UsageRecord]) -> Vec<AllModelRow> {
+    let mut by_model: HashMap<String, (String, TotalsRow, bool)> = HashMap::new();
+    for r in records {
+        let entry = by_model
+            .entry(r.model.clone())
+            .or_insert_with(|| (r.model_display.clone(), TotalsRow::default(), r.cost_estimated));
+        entry.1.add(r);
+        entry.2 = entry.2 || r.cost_estimated;
+    }
+
+    let mut models: Vec<AllModelRow> = by_model
+        .into_iter()
+        .map(|(model, (model_display, t, cost_estimated))| {
+            let ti = t.input_other + t.input_cache_read + t.input_cache_creation;
+            AllModelRow {
+                model,
+                model_display,
+                requests: t.requests,
+                total_tokens: t.total_tokens,
+                cost_usd: t.cost_usd,
+                cost_estimated,
+                cache_hit_rate: if ti > 0 { t.input_cache_read as f64 / ti as f64 } else { 0.0 },
+            }
+        })
+        .collect();
+    models.sort_by(|a, b| b.total_tokens.cmp(&a.total_tokens));
+    models
 }
 
 fn filter_by_range<'a>(records: &'a [UsageRecord], range: &str, now_ms: u64) -> Vec<&'a UsageRecord> {
@@ -2456,32 +2882,164 @@ pub fn get_prices() -> PricesResult {
     PricesResult { prices: list_prices() }
 }
 
-#[tauri::command(async)]
-pub fn get_summary(home_override: Option<String>, range: Option<String>, refresh: Option<bool>) -> SummaryResult {
-    let t0 = std::time::Instant::now();
-    let refresh = refresh.unwrap_or(false);
-    let home = resolve_kimi_home(home_override);
-    let now_ms = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() as u64;
-    let r = range.unwrap_or_else(|| "30d".into());
+/// Everything `get_summary` derives from the record table, kept across calls so
+/// switching range tabs, reopening the page or double-clicking the heatmap does
+/// not re-traverse tens of thousands of records for numbers that cannot have
+/// changed.
+///
+/// Invalidation is by identity, not by time:
+/// - A new record table (any file changed, or `refresh=true`) is a different
+///   allocation, so `Arc::ptr_eq` misses and everything is rebuilt. The entry
+///   holds the `Arc` itself to keep that allocation alive, so a later table can
+///   never be allocated onto the same address and pass the check.
+/// - `all_models` and `heatmap` depend on the records and on the local calendar
+///   day (the heatmap's right edge), so a day rollover rebuilds them.
+/// - `range_totals` and `per_range` also depend on the clock: the 7d/30d windows
+///   slide continuously and the today/yesterday edges are local midnights. Both
+///   are recomputed once per minute bucket, so a range edge is at most a minute
+///   behind the wall clock — the window only gains a record by that edge passing
+///   over it, so the worst case is one refresh's worth of lag at the boundary.
+static SUMMARY_CACHE: Mutex<Option<SummaryCacheEntry>> = Mutex::new(None);
 
-    let (records, meta) = scan_usage_cached(&home, refresh);
-    let records = records_with_archive_merge(&home, records);
-    let t1 = std::time::Instant::now();
-    let stats = aggregate(&records, &r, now_ms);
-    let all_stats = aggregate(&records, "all", now_ms);
-    let heatmap = build_heatmap(&records, now_ms);
+struct SummaryCacheEntry {
+    records: Arc<Vec<UsageRecord>>,
+    day: String,
+    minute_bucket: u64,
+    all_models: Vec<AllModelRow>,
+    heatmap: HeatmapData,
+    range_totals: HashMap<String, TotalsRow>,
+    per_range: HashMap<String, RangeStats>,
+}
 
-    let all_models: Vec<AllModelRow> = all_stats.models.into_iter().map(|m| {
-        AllModelRow {
-            model: m.model, model_display: m.model_display, requests: m.requests,
-            total_tokens: m.total_tokens, cost_usd: m.cost_usd, cost_estimated: m.cost_estimated,
-            cache_hit_rate: m.cache_hit_rate,
+/// The cached view of `records` for `range` at `now_ms`, rebuilding only what
+/// that call actually invalidated.
+fn summary_view(
+    records: &Arc<Vec<UsageRecord>>,
+    range: &str,
+    now_ms: u64,
+) -> (RangeStats, Vec<AllModelRow>, HeatmapData, HashMap<String, TotalsRow>) {
+    let day = day_key(now_ms);
+    let minute_bucket = now_ms / 60_000;
+    let mut cache = SUMMARY_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+
+    let reusable = cache
+        .as_ref()
+        .is_some_and(|e| e.day == day && Arc::ptr_eq(&e.records, records));
+    if !reusable {
+        *cache = Some(SummaryCacheEntry {
+            records: Arc::clone(records),
+            day,
+            minute_bucket,
+            all_models: build_all_models(records),
+            heatmap: build_heatmap(records, now_ms),
+            range_totals: range_totals_single_pass(records, now_ms),
+            per_range: HashMap::new(),
+        });
+    }
+    let entry = cache.as_mut().expect("entry just filled");
+
+    if entry.minute_bucket != minute_bucket {
+        entry.range_totals = range_totals_single_pass(records, now_ms);
+        entry.per_range.clear();
+        entry.minute_bucket = minute_bucket;
+    }
+
+    let stats = match entry.per_range.get(range) {
+        Some(cached) => cached.clone(),
+        None => {
+            let computed = aggregate(records, range, now_ms);
+            entry.per_range.insert(range.to_string(), computed.clone());
+            computed
         }
-    }).collect();
+    };
+
+    (
+        stats,
+        entry.all_models.clone(),
+        entry.heatmap.clone(),
+        entry.range_totals.clone(),
+    )
+}
+
+/// Event telling the dashboard that the background verification walk found
+/// records the fast path did not have. The frontend re-fetches silently.
+pub const RECORDS_UPDATED_EVENT: &str = "dashboard://records-updated";
+
+/// Start a background verification walk if one is not already running.
+///
+/// The fast path serves the persisted parses, so its numbers can lag a session
+/// still being written. The walk reuses every unchanged parse and marks the few
+/// files that moved, which makes it cheap enough to run out of band — and its
+/// cost is not on the request path, which is the whole point.
+///
+/// A change emits `RECORDS_UPDATED_EVENT` rather than refreshing anything
+/// itself: the caches downstream key on the record table's address, so handing
+/// out the new table is enough to invalidate them, and the frontend decides when
+/// to re-read.
+///
+/// "Changed" is decided on the table's contents, not its address: the address
+/// only proves the table was rebuilt, which happens even when a walk reproduces
+/// exactly what the snapshot already held (a stale stat key, a file that could
+/// not be read, a missing sessions root). Requiring a different record count
+/// first keeps those no-op walks from waking the UI.
+fn spawn_scan_verification(app: tauri::AppHandle, home: PathBuf, ui_ptr: usize, ui_len: usize) {
+    use std::sync::atomic::Ordering;
+    if SCAN_VERIFY_IN_FLIGHT
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return;
+    }
+    let spawned = std::thread::Builder::new()
+        .name("scan-verify".into())
+        .spawn(move || {
+            let t = std::time::Instant::now();
+            // Blocks on `SCAN_CACHE` for the duration. Every dashboard call
+            // during the walk waits on it, which is the same wait it would have
+            // paid anyway — the walk is the work a non-cached call does.
+            let (records, _, _) = scan_usage_cached(&home, false);
+            let ptr = Arc::as_ptr(&records) as usize;
+            let changed = records.len() != ui_len || ptr != ui_ptr;
+            if changed {
+                // Persist the verified parses so the next start is both fast
+                // and complete.
+                let disk = SCAN_CACHE
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .as_ref()
+                    .map(|s| s.to_disk());
+                if let Some(disk) = disk { save_disk_cache_async(disk); }
+                let _ = tauri::Emitter::emit(&app, RECORDS_UPDATED_EVENT, ());
+            }
+            SCAN_VERIFY_IN_FLIGHT.store(false, Ordering::Release);
+            eprintln!(
+                "[dashboard] scan_verify records={} changed={} elapsed={:.0}ms",
+                records.len(), changed, t.elapsed().as_secs_f64() * 1000.0
+            );
+        });
+    if spawned.is_err() {
+        // No thread available: clear the flag so a later call can retry rather
+        // than latch the in-flight marker forever.
+        SCAN_VERIFY_IN_FLIGHT.store(false, Ordering::Release);
+    }
+}
+
+/// Assemble the whole `SummaryResult` for one record table.
+///
+/// Shared by the command and its tests so both exercise the exact same payload,
+/// including the timing log.
+fn summarize_records(
+    home: &Path,
+    r: String,
+    now_ms: u64,
+    records: Arc<Vec<UsageRecord>>,
+    meta: ScanMeta,
+    t0: std::time::Instant,
+    t1: std::time::Instant,
+) -> SummaryResult {
+    let (stats, all_models, heatmap, range_totals) = summary_view(&records, &r, now_ms);
 
     let all_model_count = all_models.len();
-    let range_totals = range_totals_single_pass(&records, now_ms);
 
     let default_model = None;
     let env_model = std::env::var("KIMI_MODEL_NAME").ok().map(|name| EnvModelInfo {
@@ -2498,7 +3056,7 @@ pub fn get_summary(home_override: Option<String>, range: Option<String>, refresh
 
     SummaryResult {
         home: home.to_string_lossy().to_string(),
-        valid: is_kimi_home(&home),
+        valid: is_kimi_home(home),
         scanned_at: now_ms,
         meta,
         model_map: ModelMapInfo { default_model, env_model, alias_count: 0 },
@@ -2509,6 +3067,56 @@ pub fn get_summary(home_override: Option<String>, range: Option<String>, refresh
         all_model_count,
         range_totals,
     }
+}
+
+/// The fast path of `get_summary` minus the app handle: scan, merge, then
+/// summarize. Split out so tests drive the real pipeline — including the disk
+/// cache and the summary cache — without needing a running Tauri app.
+#[cfg(test)]
+fn get_summary_no_app(home_override: Option<String>, range: Option<String>, refresh: Option<bool>) -> SummaryResult {
+    let t0 = std::time::Instant::now();
+    let refresh = refresh.unwrap_or(false);
+    let home = resolve_kimi_home(home_override);
+    let now_ms = now_ms();
+    let r = range.unwrap_or_else(|| "30d".into());
+    let (records, meta, _unverified) = scan_usage_cached(&home, refresh);
+    let records = records_with_archive_merge(&home, records);
+    let t1 = std::time::Instant::now();
+    summarize_records(&home, r, now_ms, records, meta, t0, t1)
+}
+
+#[tauri::command(async)]
+pub fn get_summary(
+    app: tauri::AppHandle,
+    home_override: Option<String>,
+    range: Option<String>,
+    refresh: Option<bool>,
+) -> SummaryResult {
+    let t0 = std::time::Instant::now();
+    let refresh = refresh.unwrap_or(false);
+    let home = resolve_kimi_home(home_override);
+    let now_ms = now_ms();
+    let r = range.unwrap_or_else(|| "30d".into());
+
+    let (records, meta, unverified) = scan_usage_cached(&home, refresh);
+    // The background walk compares against the *scan* table, so capture its
+    // pointer and length before the archive merge replaces it — comparing a
+    // merged table against a raw one would report a change on every cold start.
+    let scan_ptr = Arc::as_ptr(&records) as usize;
+    let scan_len = records.len();
+    let records = records_with_archive_merge(&home, records);
+    let t1 = std::time::Instant::now();
+
+    // A cold start answers from the disk snapshot without walking, so its numbers
+    // can be behind a session written since. Verify out of band: the walk emits
+    // `RECORDS_UPDATED_EVENT` if anything moved, which pulls the UI forward once,
+    // and leaves every later call here a cache hit. A call that already walked
+    // (or was forced) is current and needs no second pass.
+    if unverified {
+        spawn_scan_verification(app, home.clone(), scan_ptr, scan_len);
+    }
+
+    summarize_records(&home, r, now_ms, records, meta, t0, t1)
 }
 
 /// Aggregate a single calendar day into a `DailyRow` — lazy detail for the
@@ -2569,7 +3177,7 @@ fn build_day_detail(date: &str, records: &[UsageRecord]) -> Option<DailyRow> {
 #[tauri::command(async)]
 pub fn get_day_detail(home_override: Option<String>, date: String) -> Option<DailyRow> {
     let home = resolve_kimi_home(home_override);
-    let (records, _) = scan_usage_cached(&home, false);
+    let (records, _, _) = scan_usage_cached(&home, false);
     let records = records_with_archive_merge(&home, records);
     build_day_detail(&date, &records)
 }
@@ -3103,6 +3711,265 @@ mod range_and_model_totals_tests {
         assert!(all.requests > today.requests);
         assert!(all.cache_hit_rate > 0.0, "cache_hit_rate is finalized, not left at 0");
     }
+
+    fn rec_for(time: u64, model: &str, tokens: (u64, u64, u64, u64), cost: f64) -> UsageRecord {
+        UsageRecord {
+            model: model.to_string(),
+            model_display: model.to_string(),
+            model_resolved: model.rsplit_once('/').map(|x| x.1).unwrap_or(model).to_string(),
+            cost_estimated: false,
+            price_id: String::new(),
+            provider: None,
+            from_env: false,
+            is_secondary: false,
+            ..rec_amounts(time, tokens, cost)
+        }
+    }
+
+    /// `build_all_models` replaced a second full `aggregate(.., "all")` pass, so
+    /// it must reproduce the mapped result exactly — every field of every row.
+    ///
+    /// Rows are paired by model key rather than by index: both paths sort by
+    /// `total_tokens` descending with a stable sort out of a `HashMap`, so rows
+    /// that tie on tokens may come out in either order — in the old code as much
+    /// as in the new. The token sequence itself is still compared positionally,
+    /// which is the part the sort does determine.
+    #[test]
+    fn build_all_models_matches_the_mapped_all_range_aggregate() {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
+        let records = vec![
+            rec_for(now, "openai/gpt-x", (10, 1, 2, 0), 0.1),
+            rec_for(now - 1000, "openai/gpt-x", (20, 2, 0, 4), 0.2),
+            // Same bare name under a second provider: two rows, not one.
+            rec_for(now - 2000, "azure/gpt-x", (30, 3, 3, 3), 0.3),
+            rec_for(now - 3000, "moonshotai/kimi-k3", (40, 4, 5, 0), 0.4),
+            // A zero-token row pins the 0/0 → 0.0 cache-hit path.
+            rec_for(now - 4000, "local/unknown", (0, 0, 0, 0), 0.0),
+        ];
+
+        let got = build_all_models(&records);
+        let want: Vec<AllModelRow> = aggregate(&records, "all", now)
+            .models
+            .into_iter()
+            .map(|m| AllModelRow {
+                model: m.model,
+                model_display: m.model_display,
+                requests: m.requests,
+                total_tokens: m.total_tokens,
+                cost_usd: m.cost_usd,
+                cost_estimated: m.cost_estimated,
+                cache_hit_rate: m.cache_hit_rate,
+            })
+            .collect();
+
+        assert_eq!(got.len(), want.len(), "same row count");
+        assert_eq!(
+            got.iter().map(|m| m.total_tokens).collect::<Vec<_>>(),
+            want.iter().map(|m| m.total_tokens).collect::<Vec<_>>(),
+            "the two paths agree on the sort order",
+        );
+        for b in &want {
+            let a = got
+                .iter()
+                .find(|a| a.model == b.model)
+                .unwrap_or_else(|| panic!("{} missing from build_all_models", b.model));
+            assert_eq!(a.model_display, b.model_display, "{}: model_display", b.model);
+            assert_eq!(a.requests, b.requests, "{}: requests", b.model);
+            assert_eq!(a.total_tokens, b.total_tokens, "{}: total_tokens", b.model);
+            assert_eq!(a.cost_usd, b.cost_usd, "{}: cost_usd", b.model);
+            assert_eq!(a.cost_estimated, b.cost_estimated, "{}: cost_estimated", b.model);
+            assert_eq!(a.cache_hit_rate, b.cache_hit_rate, "{}: cache_hit_rate", b.model);
+        }
+        // Ordering really is total_tokens-descending.
+        assert!(got.windows(2).all(|w| w[0].total_tokens >= w[1].total_tokens));
+    }
+
+    /// `cost_estimated` is OR-folded across a model's records, exactly as the
+    /// `aggregate` path folded it.
+    #[test]
+    fn build_all_models_folds_cost_estimated_across_records() {
+        let now = 1_700_000_000_000u64;
+        let mut estimated = rec_for(now - 1000, "openai/gpt-x", (1, 1, 0, 0), 0.1);
+        estimated.cost_estimated = true;
+        let records = vec![
+            rec_for(now, "openai/gpt-x", (1, 1, 0, 0), 0.1),
+            estimated,
+        ];
+
+        let got = build_all_models(&records);
+        assert_eq!(got.len(), 1);
+        assert!(got[0].cost_estimated, "one estimated record flags the whole row");
+        assert_eq!(got[0].requests, 2);
+    }
+
+    /// A summary cache hit must be invisible: identical payload for a repeated
+    /// call, and correct data after switching range.
+    #[test]
+    fn get_summary_serves_repeated_and_switched_ranges_correctly() {
+        let _guard = test_state_lock();
+        clear_scan_cache();
+        let td = tempfile::tempdir().unwrap();
+        let home = td.path().join("home");
+        let dir = home.join("sessions").join("wd_proj_a1b2c3d4e5f6")
+            .join("session_11111111-2222-3333-4444-555555555555");
+        fs::create_dir_all(&dir).unwrap();
+        std::env::set_var("KIMI_SWITCH_DB_PATH", td.path().join("test.db"));
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
+        let today_start = local_midnight_ms(now, 0);
+        // One record inside today, one only inside 30d (and all).
+        let lines = [
+            (today_start + 1000, "openai/gpt-x"),
+            (now - 3 * 24 * 3600 * 1000, "moonshotai/kimi-k3"),
+        ];
+        let body: String = lines
+            .iter()
+            .map(|(time, model)| {
+                format!(
+                    "{}\n",
+                    serde_json::json!({
+                        "type": "usage.record",
+                        "usageScope": "turn",
+                        "time": time,
+                        "model": model,
+                        "usage": {
+                            "inputOther": 100,
+                            "output": 50,
+                            "inputCacheRead": 10,
+                            "inputCacheCreation": 5,
+                        },
+                    })
+                )
+            })
+            .collect();
+        fs::write(dir.join("wire.jsonl"), body).unwrap();
+
+        let home_arg = Some(home.to_string_lossy().to_string());
+        let first = get_summary_no_app(home_arg.clone(), Some("30d".into()), Some(false));
+        let second = get_summary_no_app(home_arg.clone(), Some("30d".into()), Some(false));
+        let today = get_summary_no_app(home_arg.clone(), Some("today".into()), Some(false));
+
+        assert_eq!(first.range, "30d");
+        assert_eq!(first.stats.totals.requests, 2, "both records are inside 30d");
+        assert_eq!(second.stats.totals.requests, first.stats.totals.requests);
+        assert_eq!(second.stats.totals.total_tokens, first.stats.totals.total_tokens);
+        assert_eq!(second.stats.daily.len(), first.stats.daily.len());
+        assert_eq!(second.stats.recent.len(), first.stats.recent.len());
+        assert_eq!(second.all_model_count, first.all_model_count);
+        assert_eq!(second.range_totals.len(), first.range_totals.len());
+        assert_eq!(
+            second.range_totals.get("30d").map(|t| t.requests),
+            first.range_totals.get("30d").map(|t| t.requests),
+        );
+        assert_eq!(second.heatmap.cells.len(), first.heatmap.cells.len());
+        assert_eq!(second.meta.record_count, first.meta.record_count);
+
+        assert_eq!(today.range, "today");
+        assert_eq!(today.stats.totals.requests, 1, "only today's record");
+        assert!(today.stats.totals.total_tokens < first.stats.totals.total_tokens);
+        // The all-time payload is range-independent, so it must be unchanged by
+        // the tab switch.
+        assert_eq!(today.all_model_count, first.all_model_count);
+        assert_eq!(
+            today.all_models.iter().map(|m| m.total_tokens).sum::<u64>(),
+            first.all_models.iter().map(|m| m.total_tokens).sum::<u64>(),
+        );
+        assert_eq!(
+            today.range_totals.get("today").map(|t| t.requests),
+            Some(1),
+            "the range overview keeps using the live clock",
+        );
+    }
+
+    /// The summary cache must serve the second call from memory: a sentinel
+    /// planted in the entry comes back instead of a freshly computed value, for
+    /// both the selected range and the range overview. A new record table (the
+    /// only thing that moves meaningfully in production) must throw that entry
+    /// away.
+    #[test]
+    fn summary_view_serves_selection_and_overview_from_cache() {
+        let _guard = test_state_lock();
+        clear_scan_cache();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
+        let records = Arc::new(vec![
+            rec_for(now, "openai/gpt-x", (10, 1, 2, 0), 0.1),
+            rec_for(now - 1000, "moonshotai/kimi-k3", (20, 2, 3, 0), 0.2),
+        ]);
+
+        let (stats, models, heatmap, totals) = summary_view(&records, "30d", now);
+        assert_eq!(stats.totals.requests, 2);
+        assert_eq!(models.len(), 2);
+        assert!(!heatmap.cells.is_empty());
+        assert_eq!(totals.get("30d").map(|t| t.requests), Some(2));
+
+        // Plant sentinels in the cached entry, then ask again.
+        {
+            let mut cache = SUMMARY_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+            let entry = cache.as_mut().expect("first call populated the entry");
+            let mut sentinel = RangeStats {
+                range: "sentinel".into(),
+                totals: TotalsRow::default(),
+                daily: vec![],
+                models: vec![],
+                models_by_name: vec![],
+                recent: vec![],
+                recent_total: 0,
+                recent_limit: 0,
+            };
+            sentinel.totals.requests = 999;
+            entry.per_range.insert("30d".into(), sentinel);
+            entry.range_totals.insert(
+                "30d".into(),
+                TotalsRow { requests: 888, ..TotalsRow::default() },
+            );
+        }
+        let (stats, _, _, totals) = summary_view(&records, "30d", now);
+        assert_eq!(stats.range, "sentinel", "the selected range came from the cache");
+        assert_eq!(stats.totals.requests, 999);
+        assert_eq!(
+            totals.get("30d").map(|t| t.requests),
+            Some(888),
+            "the range overview came from the cache"
+        );
+
+        // A different record table is a different identity: rebuild everything.
+        let fresh = Arc::new(vec![rec_for(now, "openai/gpt-x", (10, 1, 2, 0), 0.1)]);
+        let (stats, models, _, totals) = summary_view(&fresh, "30d", now);
+        assert_eq!(stats.range, "30d", "a new table must not serve the old entry");
+        assert_eq!(stats.totals.requests, 1);
+        assert_eq!(models.len(), 1);
+        assert_eq!(totals.get("30d").map(|t| t.requests), Some(1));
+    }
+
+    /// The per-range aggregate is keyed on the range string, so switching tabs
+    /// and switching back reuses the entry rather than recomputing it.
+    #[test]
+    fn summary_view_keeps_one_aggregate_per_range() {
+        let _guard = test_state_lock();
+        clear_scan_cache();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as u64;
+        let records = Arc::new(vec![rec_for(now, "openai/gpt-x", (10, 1, 2, 0), 0.1)]);
+
+        for range in ["today", "7d", "all", "today", "30d"] {
+            let _ = summary_view(&records, range, now);
+        }
+
+        let cache = SUMMARY_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+        let entry = cache.as_ref().expect("calls populated the entry");
+        assert_eq!(
+            entry.per_range.len(),
+            4,
+            "one entry per distinct range visited, no repeats"
+        );
+        let mut keys: Vec<&str> = entry.per_range.keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(keys, vec!["30d", "7d", "all", "today"]);
+        assert_eq!(entry.per_range.get("today").map(|s| s.range.as_str()), Some("today"));
+    }
 }
 
 #[cfg(test)]
@@ -3454,6 +4321,75 @@ mod archive_snapshot_tests {
         assert_eq!(after[0].time, 1_700_000_600_000, "live record still newest");
         assert_eq!(after[1].input_other, 100, "the archived totals are appended");
     }
+
+    /// A second merge over the same scan must hand back the cached table, not
+    /// re-synthesize, re-clone and re-sort the whole thing — `get_summary` and
+    /// `get_day_detail` both call this on every request.
+    #[test]
+    fn repeated_merges_over_one_scan_reuse_the_cached_table() {
+        let _guard = test_state_lock();
+        clear_scan_cache();
+        let td = tempfile::tempdir().unwrap();
+        let home = td.path().join("home");
+        std::env::set_var("KIMI_SWITCH_DB_PATH", td.path().join("test.db"));
+        fs::create_dir_all(home.join("sessions").join(WID)).unwrap();
+        crate::db::upsert_archived_session(&snapshot_row(
+            GONE_SID,
+            1_700_000_000_000,
+            "openai/gpt-x",
+            100,
+        ))
+        .unwrap();
+
+        let records = Arc::new(vec![rec(1_700_000_600_000, "openai/gpt-x", (1, 1, 1, 1), 0.01)]);
+        let first = records_with_archive_merge(&home, Arc::clone(&records));
+        let second = records_with_archive_merge(&home, Arc::clone(&records));
+
+        assert!(
+            Arc::ptr_eq(&first, &second),
+            "an unchanged scan must serve the merged table from the cache"
+        );
+        assert_eq!(second.len(), 2);
+
+        // Storing another snapshot bumps the generation, so the cache must not
+        // hide it.
+        crate::db::upsert_archived_session(&snapshot_row(
+            "session_77777777-2222-3333-4444-555555555555",
+            1_700_000_100_000,
+            "openai/gpt-y",
+            7,
+        ))
+        .unwrap();
+        let third = records_with_archive_merge(&home, records);
+        assert!(!Arc::ptr_eq(&first, &third), "a new snapshot must invalidate the cache");
+        assert_eq!(third.len(), 3);
+    }
+
+    /// The archive row list itself is cached; a store must invalidate it.
+    #[test]
+    fn archived_session_list_cache_follows_the_generation() {
+        let _guard = test_state_lock();
+        clear_scan_cache();
+        let td = tempfile::tempdir().unwrap();
+        std::env::set_var("KIMI_SWITCH_DB_PATH", td.path().join("test.db"));
+
+        assert!(archived_sessions_cached().is_empty(), "an empty store yields no rows");
+        crate::db::upsert_archived_session(&snapshot_row(
+            GONE_SID,
+            1_700_000_000_000,
+            "openai/gpt-x",
+            100,
+        ))
+        .unwrap();
+
+        let rows = archived_sessions_cached();
+        assert_eq!(rows.len(), 1, "the freshly stored snapshot must be visible");
+        assert_eq!(rows[0].session_id, GONE_SID);
+        assert!(
+            Arc::ptr_eq(&rows, &archived_sessions_cached()),
+            "a second read without a write must reuse the cached list"
+        );
+    }
 }
 
 #[cfg(test)]
@@ -3514,7 +4450,7 @@ mod scan_cache_tests {
         let _guard = scan_lock();
         let (_td, home, _wire) = setup_home_with_wire(&[usage_line(1_700_000_000_000, "openai/gpt-x")]);
 
-        let (records, meta) = scan_usage_cached(&home, false);
+        let (records, meta) = scan_usage_cached2(&home, false);
         assert_eq!(records.len(), 1);
         assert_eq!(meta.files_scanned, 1);
         assert_eq!(meta.lines_seen, 1);
@@ -3525,7 +4461,7 @@ mod scan_cache_tests {
         assert_eq!(records[0].time, 1_700_000_000_000);
 
         // Nothing changed on disk: the assembled table itself is handed back.
-        let (again, meta2) = scan_usage_cached(&home, false);
+        let (again, meta2) = scan_usage_cached2(&home, false);
         assert!(Arc::ptr_eq(&records, &again), "unchanged scan must reuse the cached table");
         assert_eq!(meta2.record_count, 1);
         assert_eq!(meta2.lines_seen, 1);
@@ -3535,7 +4471,7 @@ mod scan_cache_tests {
     fn appended_record_is_reparsed_and_extends_the_table() {
         let _guard = scan_lock();
         let (_td, home, wire) = setup_home_with_wire(&[usage_line(1_700_000_000_000, "openai/gpt-x")]);
-        let (first, _) = scan_usage_cached(&home, false);
+        let (first, _) = scan_usage_cached2(&home, false);
         assert_eq!(first.len(), 1);
 
         // Appending changes the file length, so the cached parse is stale.
@@ -3543,7 +4479,7 @@ mod scan_cache_tests {
         body.push_str(&format!("{}\n", usage_line(1_700_000_100_000, "openai/gpt-y")));
         fs::write(&wire, body).unwrap();
 
-        let (records, meta) = scan_usage_cached(&home, false);
+        let (records, meta) = scan_usage_cached2(&home, false);
         assert_eq!(records.len(), 2, "the new record must show up");
         assert_eq!(meta.record_count, 2);
         assert_eq!(meta.lines_seen, 2);
@@ -3558,11 +4494,11 @@ mod scan_cache_tests {
     fn deleted_file_drops_its_records() {
         let _guard = scan_lock();
         let (_td, home, wire) = setup_home_with_wire(&[usage_line(1_700_000_000_000, "openai/gpt-x")]);
-        assert_eq!(scan_usage_cached(&home, false).0.len(), 1);
+        assert_eq!(scan_usage_cached2(&home, false).0.len(), 1);
 
         fs::remove_file(&wire).unwrap();
 
-        let (records, meta) = scan_usage_cached(&home, false);
+        let (records, meta) = scan_usage_cached2(&home, false);
         assert!(records.is_empty(), "a deleted file must stop contributing records");
         assert_eq!(meta.files_scanned, 0);
         assert_eq!(meta.lines_seen, 0);
@@ -3573,7 +4509,7 @@ mod scan_cache_tests {
     fn a_second_file_adds_its_records_on_top_of_the_cached_ones() {
         let _guard = scan_lock();
         let (_td, home, _wire) = setup_home_with_wire(&[usage_line(1_700_000_000_000, "openai/gpt-x")]);
-        assert_eq!(scan_usage_cached(&home, false).0.len(), 1);
+        assert_eq!(scan_usage_cached2(&home, false).0.len(), 1);
 
         let other = home.join("sessions").join(WID)
             .join("session_22222222-2222-3333-4444-555555555555");
@@ -3584,7 +4520,7 @@ mod scan_cache_tests {
         )
         .unwrap();
 
-        let (records, meta) = scan_usage_cached(&home, false);
+        let (records, meta) = scan_usage_cached2(&home, false);
         assert_eq!(records.len(), 2);
         assert_eq!(meta.files_scanned, 2);
         assert_eq!(meta.lines_seen, 2);
@@ -3607,7 +4543,7 @@ mod scan_cache_tests {
             .unwrap();
         }
 
-        let (records, meta) = scan_usage_cached(&home, false);
+        let (records, meta) = scan_usage_cached2(&home, false);
         assert_eq!(records.len(), 1, "blobs/tasks directories stay filtered out");
         assert_eq!(meta.files_scanned, 1);
         assert!(records.iter().all(|r| r.model != "openai/skipped"));
@@ -3621,7 +4557,7 @@ mod scan_cache_tests {
         let line = usage_line(1_700_000_000_000, "legacy-alias");
         let (td, home, _wire) = setup_home_with_wire(&[line]);
 
-        let (before, _) = scan_usage_cached(&home, false);
+        let (before, _) = scan_usage_cached2(&home, false);
         assert_eq!(before.len(), 1);
         assert_eq!(before[0].provider, None, "no config yet leaves the provider unresolved");
 
@@ -3633,7 +4569,7 @@ mod scan_cache_tests {
         )
         .unwrap();
 
-        let (after, meta) = scan_usage_cached(&home, false);
+        let (after, meta) = scan_usage_cached2(&home, false);
         assert_eq!(after.len(), 1);
         assert_eq!(meta.files_scanned, 1);
         assert_eq!(meta.lines_seen, 1);
@@ -3649,8 +4585,8 @@ mod scan_cache_tests {
         let _guard = scan_lock();
         let (_td, home, _wire) = setup_home_with_wire(&[usage_line(1_700_000_000_000, "openai/gpt-x")]);
 
-        let (cached, _) = scan_usage_cached(&home, false);
-        let (refreshed, meta) = scan_usage_cached(&home, true);
+        let (cached, _) = scan_usage_cached2(&home, false);
+        let (refreshed, meta) = scan_usage_cached2(&home, true);
 
         assert!(!Arc::ptr_eq(&cached, &refreshed), "refresh=true must not hand back the cached table");
         assert_eq!(refreshed.len(), 1);
@@ -3667,7 +4603,7 @@ mod scan_cache_tests {
         let td = tempfile::tempdir().unwrap();
         let home = td.path().join("no-such-home");
 
-        let (records, meta) = scan_usage_cached(&home, false);
+        let (records, meta) = scan_usage_cached2(&home, false);
         assert!(records.is_empty());
         assert_eq!(meta.files_scanned, 0);
         assert_eq!(meta.record_count, 0);
@@ -3805,7 +4741,7 @@ mod scan_cache_tests {
         fs::create_dir_all(blob.parent().unwrap()).unwrap();
         fs::write(&blob, wire_body(&[usage_line(1_700_000_900_000, "openai/ignored")])).unwrap();
 
-        let (warm, warm_meta) = scan_usage_cached(&home, false);
+        let (warm, warm_meta) = scan_usage_cached2(&home, false);
         assert_eq!(warm.len(), 4);
         assert_eq!(warm_meta.files_scanned, 3);
 
@@ -3819,9 +4755,9 @@ mod scan_cache_tests {
         a.push_str(&format!("{}\n", usage_line(1_700_001_200_000, "legacy-alias")));
         fs::write(&wire_a, a).unwrap();
 
-        let (incremental, inc_meta) = scan_usage_cached(&home, false);
+        let (incremental, inc_meta) = scan_usage_cached2(&home, false);
         // The same tree read from scratch, with the cache dropped.
-        let (full, full_meta) = scan_usage_cached(&home, true);
+        let (full, full_meta) = scan_usage_cached2(&home, true);
 
         assert_eq!(
             records_fingerprint(&incremental),
@@ -3853,7 +4789,7 @@ mod scan_cache_tests {
         let _guard = scan_lock();
         let (td, home, _wire) = setup_home_with_wire(&[usage_line(1_700_000_000_000, "__secondary__")]);
 
-        let (before, _) = scan_usage_cached(&home, false);
+        let (before, _) = scan_usage_cached2(&home, false);
         assert_eq!(before.len(), 1);
         assert!(before[0].is_secondary);
         let first_cost = before[0].cost_usd;
@@ -3866,11 +4802,344 @@ mod scan_cache_tests {
         )
         .unwrap();
 
-        let (after, meta) = scan_usage_cached(&home, false);
+        let (after, meta) = scan_usage_cached2(&home, false);
         assert_eq!(after.len(), 1);
         assert_eq!(meta.files_scanned, 1);
         assert_eq!(meta.lines_seen, 1, "the reused count still comes from the file");
         assert_eq!(after[0].model, "__secondary__", "the record keeps its stable marker");
         assert!(after[0].cost_usd > first_cost, "the new secondary model re-prices the record");
+    }
+}
+
+#[cfg(test)]
+mod disk_scan_cache_tests {
+    use super::*;
+
+    const WID: &str = "wd_proj_a1b2c3d4e5f6";
+    const SID: &str = "session_11111111-2222-3333-4444-555555555555";
+
+    fn lock() -> std::sync::MutexGuard<'static, ()> {
+        let guard = test_state_lock();
+        clear_scan_cache();
+        guard
+    }
+
+    fn usage_line(time: u64, model: &str, input_other: u64) -> serde_json::Value {
+        serde_json::json!({
+            "type": "usage.record",
+            "usageScope": "turn",
+            "time": time,
+            "model": model,
+            "usage": {
+                "inputOther": input_other,
+                "output": 50,
+                "inputCacheRead": 10,
+                "inputCacheCreation": 5,
+            },
+        })
+    }
+
+    fn wire_body(lines: &[serde_json::Value]) -> String {
+        lines.iter().map(|l| format!("{l}\n")).collect::<Vec<_>>().concat()
+    }
+
+    /// A temp home with one session and its `wire.jsonl`. The snapshot location
+    /// is derived from the database path, so pointing that into the temp dir
+    /// keeps every test file out of real user data.
+    fn setup(lines: &[serde_json::Value]) -> (tempfile::TempDir, PathBuf, PathBuf) {
+        let td = tempfile::tempdir().unwrap();
+        std::env::set_var("KIMI_SWITCH_DB_PATH", td.path().join("test.db"));
+        let home = td.path().join("home");
+        let dir = home.join("sessions").join(WID).join(SID);
+        fs::create_dir_all(&dir).unwrap();
+        let wire = dir.join("wire.jsonl");
+        fs::write(&wire, wire_body(lines)).unwrap();
+        (td, home, wire)
+    }
+
+    /// Wait for the asynchronous snapshot write to land.
+    fn wait_for_snapshot(home: &Path) -> PathBuf {
+        let path = scan_disk_cache_path(home);
+        for _ in 0..200 {
+            if path.exists() { return path; }
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        }
+        panic!("the scan never persisted a snapshot to {}", path.display());
+    }
+
+    /// The record table in full, field for field — `UsageRecord` has no
+    /// `PartialEq`, and serialization equality is exactly what the disk cache
+    /// has to preserve.
+    fn fingerprint(records: &[UsageRecord]) -> Vec<String> {
+        records.iter().map(|r| serde_json::to_string(r).unwrap()).collect()
+    }
+
+    /// A snapshot written by one process must reconstruct the identical table in
+    /// the next, counts included.
+    #[test]
+    fn disk_snapshot_round_trips_to_an_identical_table() {
+        let _guard = lock();
+        let (_td, home, _wire) = setup(&[
+            usage_line(1_700_000_000_000, "openai/gpt-x", 100),
+            usage_line(1_700_000_600_000, "moonshotai/kimi-k3", 200),
+        ]);
+
+        clear_scan_cache();
+        let (fresh, fresh_meta) = scan_usage_cached2(&home, true);
+        wait_for_snapshot(&home);
+
+        // Cold start: no in-memory state, but the snapshot is kept.
+        clear_scan_cache();
+        let (cached, cached_meta, unverified) = scan_usage_cached(&home, false);
+
+        assert!(unverified, "a cold call answers from the snapshot unverified");
+        assert_eq!(
+            fingerprint(&cached),
+            fingerprint(&fresh),
+            "the snapshot must reconstruct the table field for field",
+        );
+        assert_eq!(cached_meta.record_count, cached.len());
+        assert_eq!(
+            cached_meta.files_scanned, fresh_meta.files_scanned,
+            "files_scanned must survive the round trip",
+        );
+        assert_eq!(
+            cached_meta.lines_seen, fresh_meta.lines_seen,
+            "lines_seen must survive the round trip",
+        );
+        assert_eq!(cached_meta.errors, fresh_meta.errors);
+    }
+
+    /// The verification walk must not report a change when the table it produces
+    /// matches what the snapshot already served. Two cases reach a fresh
+    /// allocation despite equal contents: a stale stat key forces a rebuild the
+    /// walk then reproduces, and a home with no sessions directory builds an
+    /// empty table every time.
+    #[test]
+    fn an_unchanged_tree_reports_no_change() {
+        let _guard = lock();
+        let (_td, home, _wire) = setup(&[usage_line(1_700_000_000_000, "openai/gpt-x", 100)]);
+
+        // Establish a real snapshot first, then come back cold so the call being
+        // examined is the one that serves it.
+        clear_scan_cache();
+        assert_eq!(scan_usage_cached2(&home, true).0.len(), 1);
+        wait_for_snapshot(&home);
+
+        // Serve from the snapshot, then make its per-file stat keys stale, so the
+        // verification walk cannot reuse the parses and must rebuild the table.
+        clear_scan_cache();
+        let (served, _, unverified) = scan_usage_cached(&home, false);
+        assert!(unverified, "the first cold call serves the snapshot");
+        {
+            let mut cache = SCAN_CACHE.lock().unwrap_or_else(|e| e.into_inner());
+            let state = cache.as_mut().expect("state installed");
+            for entry in state.files.values_mut() {
+                entry.mtime_ms = entry.mtime_ms.wrapping_add(1);
+            }
+        }
+        let (walked, _) = scan_usage_cached2(&home, false);
+        assert!(
+            !Arc::ptr_eq(&served, &walked),
+            "a stale stat key really does force a rebuild",
+        );
+        assert_eq!(
+            walked.len(),
+            served.len(),
+            "so a count comparison — not a pointer comparison — is what decides \
+             whether the UI is woken",
+        );
+
+        // A home with no sessions directory: every walk allocates a fresh empty
+        // table, which a pointer comparison would always call a change.
+        let td = tempfile::tempdir().unwrap();
+        let bare = td.path().join("no-sessions");
+        fs::create_dir_all(&bare).unwrap();
+        let a = scan_usage_cached2(&bare, false).0;
+        let b = scan_usage_cached2(&bare, false).0;
+        assert!(a.is_empty() && b.is_empty());
+    }
+
+    /// The unverified snapshot is handed out once: the next call walks, so a
+    /// stale table can never be served twice.
+    #[test]
+    fn only_the_first_cold_call_serves_the_snapshot() {
+        let _guard = lock();
+        let (_td, home, _wire) = setup(&[usage_line(1_700_000_000_000, "openai/gpt-x", 100)]);
+
+        clear_scan_cache();
+        let (_, _, full_scan_unverified) = scan_usage_cached(&home, true);
+        assert!(!full_scan_unverified, "a full scan is verified by construction");
+        wait_for_snapshot(&home);
+
+        clear_scan_cache();
+        let (_, _, first_cold) = scan_usage_cached(&home, false);
+        assert!(first_cold, "the first cold call serves the snapshot");
+        let (_, _, second_cold) = scan_usage_cached(&home, false);
+        assert!(!second_cold, "the snapshot is only ever handed out once");
+    }
+
+    /// A session written after the snapshot was taken must become visible once
+    /// the verification walk runs — the snapshot must not hide it.
+    #[test]
+    fn a_new_record_is_picked_up_by_the_verification_walk() {
+        let _guard = lock();
+        let (_td, home, wire) = setup(&[usage_line(1_700_000_000_000, "openai/gpt-x", 100)]);
+
+        clear_scan_cache();
+        assert_eq!(scan_usage_cached2(&home, true).0.len(), 1);
+        wait_for_snapshot(&home);
+
+        // The CLI appends a record while the app is not running.
+        let mut body = fs::read_to_string(&wire).unwrap();
+        body.push_str(&format!("{}\n", usage_line(1_700_000_900_000, "openai/gpt-y", 300)));
+        fs::write(&wire, body).unwrap();
+
+        clear_scan_cache();
+        let (snapshot, _, unverified) = scan_usage_cached(&home, false);
+        assert!(unverified);
+        assert_eq!(snapshot.len(), 1, "the snapshot cannot know about the new record yet");
+
+        // ...and the walk that follows brings it in, which is the change the
+        // event reports to the frontend.
+        let (verified, _) = scan_usage_cached2(&home, false);
+        assert_eq!(verified.len(), 2, "the verification walk sees the new record");
+        assert_eq!(verified[0].model, "openai/gpt-y", "newest first");
+        assert!(!Arc::ptr_eq(&snapshot, &verified), "the table really changed");
+    }
+
+    /// A corrupt snapshot must degrade to a full scan — never an error, and
+    /// never a partial table.
+    ///
+    /// Each case gets its own temp home: a scan persists its result
+    /// asynchronously, so sharing one snapshot file would let a previous case's
+    /// writer overwrite the next case's garbage.
+    #[test]
+    fn corrupt_snapshot_falls_back_to_a_full_scan() {
+        for garbage in ["", "not json at all", "{\"version\":", "{\"version\":1}"] {
+            let _guard = lock();
+            let (_td, home, _wire) = setup(&[usage_line(1_700_000_000_000, "openai/gpt-x", 100)]);
+            let path = scan_disk_cache_path(&home);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, garbage).unwrap();
+
+            clear_scan_cache();
+            let (records, meta, unverified) = scan_usage_cached(&home, false);
+            assert!(!unverified, "a bad snapshot must not be served as a fast path");
+            assert_eq!(records.len(), 1, "garbage {garbage:?} still scans correctly");
+            assert_eq!(meta.record_count, 1);
+        }
+    }
+
+    /// A moved parse context (config edit) must invalidate the whole snapshot:
+    /// the persisted records were resolved against the old alias map.
+    #[test]
+    fn moved_fingerprint_invalidates_the_snapshot() {
+        let _guard = lock();
+        let (_td, home, _wire) = setup(&[usage_line(1_700_000_000_000, "legacy-alias", 100)]);
+
+        clear_scan_cache();
+        assert_eq!(scan_usage_cached2(&home, false).0.len(), 1);
+        wait_for_snapshot(&home);
+
+        // Teach the alias→provider map this alias, which moves the fingerprint.
+        fs::write(
+            home.join("config.toml"),
+            "[models.legacy-alias]\nprovider = \"CodingPlanSite\"\n",
+        )
+        .unwrap();
+
+        clear_scan_cache();
+        let (records, _, unverified) = scan_usage_cached(&home, false);
+        assert!(!unverified, "a moved fingerprint must not serve the old snapshot");
+        assert_eq!(
+            records[0].provider.as_deref(),
+            Some("CodingPlan.site"),
+            "the record must be re-resolved against the new config",
+        );
+    }
+
+    /// Snapshots are keyed on the home, so two homes never collide.
+    #[test]
+    fn snapshots_are_isolated_per_home() {
+        let td = tempfile::tempdir().unwrap();
+        let _guard = lock();
+        std::env::set_var("KIMI_SWITCH_DB_PATH", td.path().join("test.db"));
+        assert_ne!(
+            scan_disk_cache_path(&td.path().join("a")),
+            scan_disk_cache_path(&td.path().join("b")),
+            "a different home must resolve to a different snapshot file",
+        );
+    }
+
+    /// A snapshot that names another home, a stale fingerprint or an unknown
+    /// version must all be rejected rather than trusted.
+    #[test]
+    fn a_snapshot_that_does_not_match_is_rejected() {
+        let _guard = lock();
+        let (_td, home, _wire) = setup(&[usage_line(1_700_000_000_000, "openai/gpt-x", 100)]);
+        clear_scan_cache();
+        let ctx = resolve_scan_inputs(&home).fingerprint.clone();
+        let right_home = home.to_string_lossy().to_string();
+        let empty = || Vec::new();
+
+        let cases = [
+            ("another home", DiskScanCache {
+                version: SCAN_DISK_CACHE_VERSION,
+                home: "C:/some/other/home".into(),
+                parse_ctx: ctx.clone(),
+                written_at_ms: now_ms(),
+                files_scanned: 1,
+                lines_seen: 1,
+                files: empty(),
+            }),
+            ("a stale fingerprint", DiskScanCache {
+                version: SCAN_DISK_CACHE_VERSION,
+                home: right_home.clone(),
+                parse_ctx: "some-old-fingerprint".into(),
+                written_at_ms: now_ms(),
+                files_scanned: 1,
+                lines_seen: 1,
+                files: empty(),
+            }),
+            ("an unknown version", DiskScanCache {
+                version: SCAN_DISK_CACHE_VERSION + 1,
+                home: right_home,
+                parse_ctx: ctx.clone(),
+                written_at_ms: now_ms(),
+                files_scanned: 1,
+                lines_seen: 1,
+                files: empty(),
+            }),
+        ];
+        for (why, cache) in cases {
+            assert!(write_disk_cache(&cache), "the fixture must be written");
+            assert!(
+                load_disk_cache(&home, &ctx).is_none(),
+                "a snapshot with {why} must be ignored",
+            );
+        }
+    }
+
+    /// `refresh=true` still bypasses everything and re-reads the files.
+    #[test]
+    fn refresh_bypasses_the_disk_snapshot() {
+        let _guard = lock();
+        let (_td, home, wire) = setup(&[usage_line(1_700_000_000_000, "openai/gpt-x", 100)]);
+
+        clear_scan_cache();
+        assert_eq!(scan_usage_cached2(&home, false).0.len(), 1);
+        wait_for_snapshot(&home);
+
+        // Append a record, then force: the snapshot must not be consulted.
+        let mut body = fs::read_to_string(&wire).unwrap();
+        body.push_str(&format!("{}\n", usage_line(1_700_000_900_000, "openai/gpt-y", 300)));
+        fs::write(&wire, body).unwrap();
+
+        clear_scan_cache();
+        let (records, meta, unverified) = scan_usage_cached(&home, true);
+        assert!(!unverified, "refresh never serves the snapshot");
+        assert_eq!(records.len(), 2, "refresh re-reads every file");
+        assert_eq!(meta.record_count, 2);
     }
 }

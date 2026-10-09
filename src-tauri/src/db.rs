@@ -6,6 +6,8 @@
 //! a provider.
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 
 use anyhow::Context;
 use indexmap::IndexMap;
@@ -16,6 +18,51 @@ use serde_json::Value;
 use crate::models::{Agent, Config, Model, Provider, ProviderType};
 
 pub type DbResult<T> = anyhow::Result<T>;
+
+/// Process-wide cached connection, keyed by the resolved db path. Opening a
+/// SQLite connection plus running the DDL migrations costs several ms; before
+/// this cache every public helper paid that cost on every call (a usage-card
+/// wall could open 200+ connections per refresh). `Connection` is `Send` but
+/// not `Sync`, so a `Mutex` is the correct `static` wrapper — all db access is
+/// serialized, which is fine for a single-user desktop app.
+static DB_CONN: Mutex<Option<(PathBuf, Connection)>> = Mutex::new(None);
+
+/// Monotonic generation counter, bumped by every write path. Read-side caches
+/// (config cache, archived-session cache) key on this to detect staleness.
+static DB_GEN: AtomicU64 = AtomicU64::new(0);
+
+pub(crate) fn generation() -> u64 {
+    DB_GEN.load(Ordering::Relaxed)
+}
+
+pub(crate) fn bump_generation() {
+    DB_GEN.fetch_add(1, Ordering::Relaxed);
+}
+
+/// Run `f` against the cached connection for the current `db_path()`, opening
+/// (and migrating) it on first use or whenever the path changed (tests point
+/// `KIMI_SWITCH_DB_PATH` at per-test temp dirs).
+fn with_conn<T>(f: impl FnOnce(&mut Connection) -> DbResult<T>) -> DbResult<T> {
+    let mut guard = DB_CONN.lock().unwrap_or_else(|e| e.into_inner());
+    let path = db_path();
+    let needs_open = match guard.as_ref() {
+        Some((cached_path, _)) => cached_path != &path,
+        None => true,
+    };
+    if needs_open {
+        *guard = Some((path, init_db()?));
+    }
+    let (_, conn) = guard.as_mut().expect("connection just opened");
+    f(conn)
+}
+
+/// Drop the cached connection so tests that switch `KIMI_SWITCH_DB_PATH`
+/// between temp dirs never observe cross-test state.
+#[cfg(test)]
+pub(crate) fn close_cached_conn_for_tests() {
+    let mut guard = DB_CONN.lock().unwrap_or_else(|e| e.into_inner());
+    *guard = None;
+}
 
 pub fn kimi_switch_data_dir() -> PathBuf {
     dirs::home_dir()
@@ -158,7 +205,10 @@ pub fn init_db() -> DbResult<Connection> {
 }
 
 pub fn load_config(agent: &Agent) -> DbResult<Config> {
-    let mut conn = init_db()?;
+    with_conn(|conn| load_config_inner(conn, agent))
+}
+
+fn load_config_inner(conn: &mut Connection, agent: &Agent) -> DbResult<Config> {
     let tx = conn.transaction()?;
 
     let default_model = get_setting_tx(&tx, &default_model_key(agent))?;
@@ -249,7 +299,12 @@ pub fn load_config(agent: &Agent) -> DbResult<Config> {
 }
 
 pub fn save_config(agent: &Agent, config: &Config) -> DbResult<()> {
-    let mut conn = init_db()?;
+    with_conn(|conn| save_config_inner(conn, agent, config))?;
+    bump_generation();
+    Ok(())
+}
+
+fn save_config_inner(conn: &mut Connection, agent: &Agent, config: &Config) -> DbResult<()> {
     let tx = conn.transaction()?;
 
     tx.execute("DELETE FROM providers WHERE agent = ?1", params![agent.as_str()])?;
@@ -340,29 +395,36 @@ fn set_setting_tx(tx: &rusqlite::Transaction, key: &str, value: &str) -> DbResul
 
 /// Public helper: read a single setting without an explicit transaction.
 pub fn get_setting_pub(key: &str) -> DbResult<Option<String>> {
-    let conn = init_db()?;
-    let mut stmt = conn.prepare("SELECT value FROM settings WHERE key = ?1")?;
-    let mut rows = stmt.query(params![key])?;
-    if let Some(row) = rows.next()? {
-        Ok(Some(row.get(0)?))
-    } else {
-        Ok(None)
-    }
+    with_conn(|conn| {
+        let mut stmt = conn.prepare("SELECT value FROM settings WHERE key = ?1")?;
+        let mut rows = stmt.query(params![key])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some(row.get(0)?))
+        } else {
+            Ok(None)
+        }
+    })
 }
 
 /// Public helper: write a single setting in its own transaction.
 pub fn set_setting_pub(key: &str, value: &str) -> DbResult<()> {
-    let mut conn = init_db()?;
-    let tx = conn.transaction()?;
-    set_setting_tx(&tx, key, value)?;
-    tx.commit()?;
+    with_conn(|conn| {
+        let tx = conn.transaction()?;
+        set_setting_tx(&tx, key, value)?;
+        tx.commit()?;
+        Ok(())
+    })?;
+    bump_generation();
     Ok(())
 }
 
 /// Public helper: delete a single setting (no-op if the key does not exist).
 pub fn delete_setting_pub(key: &str) -> DbResult<()> {
-    let conn = init_db()?;
-    conn.execute("DELETE FROM settings WHERE key = ?1", params![key])?;
+    with_conn(|conn| {
+        conn.execute("DELETE FROM settings WHERE key = ?1", params![key])?;
+        Ok(())
+    })?;
+    bump_generation();
     Ok(())
 }
 
@@ -413,55 +475,59 @@ pub struct ArchivedSessionSnapshot {
 /// Insert or replace one archived-session snapshot (keyed by session id, which
 /// is a UUID and never reused).
 pub fn upsert_archived_session(row: &ArchivedSessionSnapshot) -> DbResult<()> {
-    let conn = init_db()?;
-    let day_stats = serde_json::to_string(&row.day_stats)?;
-    conn.execute(
-        "INSERT OR REPLACE INTO archived_sessions
-         (session_id, workspace_id, title, archived_at_ms, updated_at_ms, created_at_ms, total_tokens, total_cost_usd, day_stats)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-        params![
-            row.session_id,
-            row.workspace_id,
-            row.title,
-            row.archived_at_ms as i64,
-            row.updated_at_ms.map(|v| v as i64),
-            row.created_at_ms.map(|v| v as i64),
-            row.total_tokens as i64,
-            row.total_cost_usd,
-            day_stats,
-        ],
-    )?;
+    with_conn(|conn| {
+        let day_stats = serde_json::to_string(&row.day_stats)?;
+        conn.execute(
+            "INSERT OR REPLACE INTO archived_sessions
+             (session_id, workspace_id, title, archived_at_ms, updated_at_ms, created_at_ms, total_tokens, total_cost_usd, day_stats)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![
+                row.session_id,
+                row.workspace_id,
+                row.title,
+                row.archived_at_ms as i64,
+                row.updated_at_ms.map(|v| v as i64),
+                row.created_at_ms.map(|v| v as i64),
+                row.total_tokens as i64,
+                row.total_cost_usd,
+                day_stats,
+            ],
+        )?;
+        Ok(())
+    })?;
+    bump_generation();
     Ok(())
 }
 
 /// Every stored archived-session snapshot. Unreadable `day_stats` JSON degrades
 /// to an empty breakdown instead of failing the whole list.
 pub fn list_archived_sessions() -> DbResult<Vec<ArchivedSessionSnapshot>> {
-    let conn = init_db()?;
-    let mut stmt = conn.prepare(
-        "SELECT session_id, workspace_id, title, archived_at_ms, updated_at_ms, created_at_ms,
-                total_tokens, total_cost_usd, day_stats
-         FROM archived_sessions",
-    )?;
-    let rows = stmt.query_map([], |row| {
-        let day_stats_json: String = row.get(8)?;
-        Ok(ArchivedSessionSnapshot {
-            session_id: row.get(0)?,
-            workspace_id: row.get(1)?,
-            title: row.get(2)?,
-            archived_at_ms: row.get::<_, i64>(3)? as u64,
-            updated_at_ms: row.get::<_, Option<i64>>(4)?.map(|v| v as u64),
-            created_at_ms: row.get::<_, Option<i64>>(5)?.map(|v| v as u64),
-            total_tokens: row.get::<_, i64>(6)? as u64,
-            total_cost_usd: row.get(7)?,
-            day_stats: serde_json::from_str(&day_stats_json).unwrap_or_default(),
-        })
-    })?;
-    let mut out = Vec::new();
-    for row in rows {
-        out.push(row?);
-    }
-    Ok(out)
+    with_conn(|conn| {
+        let mut stmt = conn.prepare(
+            "SELECT session_id, workspace_id, title, archived_at_ms, updated_at_ms, created_at_ms,
+                    total_tokens, total_cost_usd, day_stats
+             FROM archived_sessions",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let day_stats_json: String = row.get(8)?;
+            Ok(ArchivedSessionSnapshot {
+                session_id: row.get(0)?,
+                workspace_id: row.get(1)?,
+                title: row.get(2)?,
+                archived_at_ms: row.get::<_, i64>(3)? as u64,
+                updated_at_ms: row.get::<_, Option<i64>>(4)?.map(|v| v as u64),
+                created_at_ms: row.get::<_, Option<i64>>(5)?.map(|v| v as u64),
+                total_tokens: row.get::<_, i64>(6)? as u64,
+                total_cost_usd: row.get(7)?,
+                day_stats: serde_json::from_str(&day_stats_json).unwrap_or_default(),
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    })
 }
 
 fn provider_type_for_str(s: &str) -> ProviderType {
