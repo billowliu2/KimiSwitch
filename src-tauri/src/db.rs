@@ -428,6 +428,33 @@ pub fn delete_setting_pub(key: &str) -> DbResult<()> {
     Ok(())
 }
 
+/// Delete `usage_kinds:<name>` / `usage_config:<name>` settings rows whose
+/// provider no longer exists in any agent's config, so deleting a provider in
+/// the UI also clears its usage-query settings instead of leaving orphan rows
+/// that outlive every rename of that provider.
+pub fn prune_orphan_usage_settings(
+    live_providers: &std::collections::HashSet<String>,
+) -> DbResult<()> {
+    with_conn(|conn| {
+        let keys: Vec<String> = {
+            let mut stmt = conn.prepare(
+                "SELECT key FROM settings WHERE key LIKE 'usage_kinds:%' OR key LIKE 'usage_config:%'",
+            )?;
+            let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+            rows.collect::<Result<Vec<_>, _>>()?
+        };
+        for key in keys {
+            let name = key.split_once(':').map(|(_, n)| n).unwrap_or("");
+            if !live_providers.contains(name) {
+                conn.execute("DELETE FROM settings WHERE key = ?1", params![key])?;
+            }
+        }
+        Ok(())
+    })?;
+    bump_generation();
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Archived-session usage snapshots
 // ---------------------------------------------------------------------------

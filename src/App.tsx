@@ -20,6 +20,14 @@ import {
   type ProviderPreset,
 } from "./config/providerPresets";
 import { validateProviders } from "./lib/validation";
+import {
+  copyModelsOnProviderDuplicate,
+  rekeyModelsOnProviderRename,
+} from "./lib/providerRename";
+import {
+  purgeSubagentPoolAliases,
+  rekeySubagentPoolAliases,
+} from "./lib/referenceCleanup";
 import type { Agent, Model, Provider, UsageConfig } from "./types";
 
 const AGENT_STORAGE_KEY = "kimi-switch-agent";
@@ -153,9 +161,6 @@ export default function App() {
   //      provider being switched to — only that one needs to be
   //      complete; sibling providers being merely listed in the config
   //      must not block the switch.
-  //   3. Programmatic auto-saves (duplicate) call `save` directly with
-  //      no validation — duplicates inherit completeness from their
-  //      source.
   // Returns `true` when the config was actually persisted, `false` when
   // the user cancelled the validation confirm (callers can react to this
   // to roll back in-memory mutations made before the save).
@@ -287,15 +292,30 @@ export default function App() {
       );
       if (oldEntry && oldEntry[0] !== provider.name) {
         delete providers[oldEntry[0]];
-        const models = { ...cfg.models };
-        for (const key of Object.keys(models)) {
-          if (models[key].provider === editingProvider) {
-            models[key] = { ...models[key], provider: provider.name };
-          }
+        // Re-key this provider's model aliases so the `<provider>/<model>`
+        // prefix tracks the new name (see rekeyModelsOnProviderRename).
+        const { models, aliasMap } = rekeyModelsOnProviderRename(
+          cfg.models,
+          editingProvider,
+          provider.name
+        );
+        // The provider's remembered default model and the global default
+        // model are stored as aliases and must follow the re-key.
+        const remembered = getProviderDefaultModel(provider);
+        providers[provider.name] =
+          remembered && aliasMap[remembered]
+            ? setProviderDefaultModel(provider, aliasMap[remembered])
+            : provider;
+        let default_model = cfg.default_model;
+        if (default_model && aliasMap[default_model]) {
+          default_model = aliasMap[default_model];
         }
-        providers[provider.name] = provider;
+        // The subagent pool references model aliases as its keys and
+        // defaults; they must follow the re-key or they turn into zombie
+        // pool entries.
+        const raw_other = rekeySubagentPoolAliases(cfg.raw_other, aliasMap);
         setEditingProvider(provider.name);
-        return { ...cfg, providers, models };
+        return { ...cfg, providers, models, default_model, raw_other };
       }
       providers[provider.name] = provider;
       return { ...cfg, providers };
@@ -308,12 +328,21 @@ export default function App() {
       const providers = { ...cfg.providers };
       delete providers[name];
       const models = { ...cfg.models };
+      const removedAliases: string[] = [];
       for (const key of Object.keys(models)) {
         if (models[key].provider === name) {
+          removedAliases.push(key);
           delete models[key];
         }
       }
-      return { ...cfg, providers, models };
+      // Everything keyed on the deleted aliases must go with them: the
+      // global default model and the subagent pool entries / pool default.
+      const default_model =
+        cfg.default_model && removedAliases.includes(cfg.default_model)
+          ? null
+          : cfg.default_model;
+      const raw_other = purgeSubagentPoolAliases(cfg.raw_other, removedAliases);
+      return { ...cfg, providers, models, default_model, raw_other };
     });
     if (editingProvider === name) {
       setEditingProvider("");
@@ -356,29 +385,14 @@ export default function App() {
         null
       );
       const providers = { ...cfg.providers, [newName]: copied };
-      // Re-key this provider's models to the new provider name so the copy
-      // has its own independent model set.
-      const models = { ...cfg.models };
-      for (const [alias, m] of Object.entries(cfg.models)) {
-        if (m.provider === name) {
-          // The model belongs to this provider by `m.provider === name`. To
-          // re-key it under the new provider, we want a `newName/...`
-          // alias. The original code assumed `alias` is exactly
-          // `${name}/${modelId}` and used `alias.slice(name.length)`; that
-          // breaks for legacy / non-standard aliases (e.g. `kimi-k3` from
-          // pre-v0.6 data) which would produce `newName-k3` — missing the
-          // `/` separator and pointing at the wrong model. Use an explicit
-          // prefix check and fall back to a full re-prefix.
-          const prefix = `${name}/`;
-          const newAlias = alias.startsWith(prefix)
-            ? newName + alias.slice(name.length)
-            : `${newName}/${alias}`;
-          models[newAlias] = { ...m, alias: newAlias, provider: newName };
-        }
-      }
+      // Clone the provider's models under the duplicate's name — COPY
+      // semantics: the source keeps its models (a rekey would move them).
+      const models = copyModelsOnProviderDuplicate(cfg.models, name, newName);
       return { ...cfg, providers, models };
     });
-    await save();
+    // No immediate save: the copy lives in memory only, like every other
+    // edit. Abandoning (back → discard) must leave the config unchanged;
+    // the copy persists when the user saves (Ctrl+S / footer / switch).
     setSwitchMessage(t("copiedProvider", { name: `${name}-copy` }));
     setTimeout(() => setSwitchMessage(null), 3000);
   };
@@ -529,6 +543,14 @@ export default function App() {
         default_model = null;
       }
 
+      // Pool entries pointing at aliases that disappeared in this apply
+      // (provider renamed, models dropped) must not survive as zombies.
+      const removedAliases = Object.keys(cfg.models).filter(
+        (key) =>
+          cfg.models[key].provider === oldName && !(key in updatedModels)
+      );
+      const raw_other = purgeSubagentPoolAliases(cfg.raw_other, removedAliases);
+
       // Remember this provider's default model preference so it survives
       // provider switches.
       const updatedProvider = providers[provider.name];
@@ -536,7 +558,7 @@ export default function App() {
         providers[provider.name] = setProviderDefaultModel(updatedProvider, default_model);
       }
 
-      return { ...cfg, providers, models: updatedModels, default_model };
+      return { ...cfg, providers, models: updatedModels, default_model, raw_other };
     });
     if (provider.name !== editingProvider) {
       setEditingProvider(provider.name);
@@ -744,16 +766,26 @@ export default function App() {
                 if (default_model === oldKey) default_model = effective.alias;
                 else if (effective !== model && default_model === model.alias)
                   default_model = effective.alias;
-                return { ...cfg, models, default_model };
+                // Pool entries keyed on the discarded alias (placeholder or
+                // replaced old key) must follow the rename or they dangle.
+                const poolAliasMap: Record<string, string> = {};
+                if (effective !== model) poolAliasMap[model.alias] = effective.alias;
+                if (oldKey && oldKey !== effective.alias)
+                  poolAliasMap[oldKey] = effective.alias;
+                const raw_other = rekeySubagentPoolAliases(cfg.raw_other, poolAliasMap);
+                return { ...cfg, models, default_model, raw_other };
               });
             }}
             onModelDelete={(alias) => {
               updateConfig((cfg) => {
                 const models = { ...cfg.models };
                 delete models[alias];
+                // Pool entries keyed on the deleted alias must not survive.
+                const raw_other = purgeSubagentPoolAliases(cfg.raw_other, [alias]);
                 return {
                   ...cfg,
                   models,
+                  raw_other,
                   default_model:
                     cfg.default_model === alias ? null : cfg.default_model,
                 };

@@ -1670,8 +1670,7 @@ fn scan_usage_cached2(home: &Path, refresh: bool) -> (Arc<Vec<UsageRecord>>, Sca
 /// home, redirected database or purged cache.
 #[cfg(test)]
 fn test_state_lock() -> std::sync::MutexGuard<'static, ()> {
-    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    crate::test_state::lock()
 }
 
 /// The record table is shared behind an `Arc` so the unchanged path hands out

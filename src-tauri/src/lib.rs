@@ -10,6 +10,20 @@ pub mod pi_io;
 pub mod plugins;
 pub mod services;
 
+/// Process-global state guard for tests that redirect shared environment
+/// (`KIMI_CODE_HOME`, `KIMI_SWITCH_DB_PATH`) or in-memory caches (scan cache,
+/// cached DB connection). Every env-mutating test must hold this lock so a
+/// parallel test can never observe another one's temp home or redirected
+/// database.
+#[cfg(test)]
+pub(crate) mod test_state {
+    static STATE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    pub(crate) fn lock() -> std::sync::MutexGuard<'static, ()> {
+        STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
+}
+
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder};
 use tauri::Manager;

@@ -175,11 +175,18 @@ fn load_agent_config_uncached(agent: Agent) -> Result<Config, String> {
                 }
                 // Migration safety: include providers/models that exist in
                 // SQLite but not in config.toml (e.g. after upgrading from the
-                // old single-provider-write behaviour).
+                // old single-provider-write behaviour). Models whose provider
+                // no longer exists anywhere are skipped — they can never be
+                // shown or selected in the UI, and merging them back would
+                // resurrect zombie `[models."old-name/..."]` entries into
+                // config.toml on the next save.
                 for (name, p) in &db.providers {
                     config.providers.entry(name.clone()).or_insert_with(|| p.clone());
                 }
                 for (alias, m) in &db.models {
+                    if !config.providers.contains_key(&m.provider) {
+                        continue;
+                    }
                     config.models.entry(alias.clone()).or_insert_with(|| m.clone());
                 }
             }
@@ -229,6 +236,25 @@ pub fn save_agent_config_command(agent: Agent, config: Config) -> Result<(), Str
             }
             None => db::delete_setting_pub(&cfg_key).map_err(fmt_anyhow)?,
         }
+    }
+    // Prune usage settings of providers that no longer exist (deleted in the
+    // UI). The keys are agent-agnostic, so the live set includes the other
+    // agent's providers too. If the other agent's config cannot be read we
+    // skip this round entirely — pruning against an incomplete live set
+    // could delete the other agent's still-live settings.
+    {
+        let other_agent = match agent {
+            Agent::KimiCode => Agent::Pi,
+            Agent::Pi => Agent::KimiCode,
+        };
+        let other_cfg = match db::load_config(&other_agent) {
+            Ok(cfg) => cfg,
+            Err(_) => return Ok(()),
+        };
+        let mut live: std::collections::HashSet<String> =
+            config.providers.keys().cloned().collect();
+        live.extend(other_cfg.providers.keys().cloned());
+        db::prune_orphan_usage_settings(&live).map_err(fmt_anyhow)?;
     }
     Ok(())
 }
@@ -2365,5 +2391,274 @@ mod usage_key_tests {
 
         let p = provider(None, None, IndexMap::new());
         assert_eq!(resolve_usage_api_key(&p).unwrap(), None);
+    }
+}
+
+/// End-to-end persistence tests for the Kimi Code agent: a UI edit followed
+/// by save_agent_config_command must land in BOTH stores (config.toml and
+/// SQLite) and must not resurrect deleted models on the next load.
+#[cfg(test)]
+mod config_persistence_tests {
+    use super::*;
+
+    /// Serialize env mutation with every other env-mutating test in the
+    /// binary (shared crate-level lock; see lib.rs `test_state`).
+    fn with_env_homes<T>(f: impl FnOnce(&std::path::Path) -> T) -> T {
+        let _guard = crate::test_state::lock();
+        let home = tempfile::tempdir().unwrap();
+        let db_dir = tempfile::tempdir().unwrap();
+        std::env::set_var("KIMI_CODE_HOME", home.path());
+        std::env::set_var("KIMI_SWITCH_DB_PATH", db_dir.path().join("test.db"));
+        db::close_cached_conn_for_tests();
+        let out = f(home.path());
+        db::close_cached_conn_for_tests();
+        std::env::remove_var("KIMI_CODE_HOME");
+        std::env::remove_var("KIMI_SWITCH_DB_PATH");
+        out
+    }
+
+    const TOML_WITH_STALE_MODELS: &str = r#"
+default_model = "opencode-go/longcat-2.5-preview-free"
+
+[providers.opencode-go]
+type = "openai"
+base_url = "https://opencode.ai/zen/go/v1"
+api_key = "sk-test"
+
+[models."opencode-go-copy/deepseek-v4-flash"]
+provider = "opencode-go"
+model = "deepseek-v4-flash"
+max_context_size = 512000
+
+[models."opencode-go-1/space-bunny-free"]
+provider = "opencode-go"
+model = "space-bunny-free"
+max_context_size = 512000
+
+[models."opencode-go/longcat-2.5-preview-free"]
+provider = "opencode-go"
+model = "longcat-2.5-preview-free"
+max_context_size = 1000000
+"#;
+
+    #[test]
+    fn ui_delete_then_save_persists_to_both_stores_and_never_resurrects() {
+        with_env_homes(|home| {
+            std::fs::write(home.join("config.toml"), TOML_WITH_STALE_MODELS).unwrap();
+
+            // Load from the seeded config.toml, then mirror it into SQLite to
+            // reproduce the user's real state: stale aliases in BOTH stores.
+            let mut config = load_agent_config_uncached(Agent::KimiCode).unwrap();
+            assert!(config.models.contains_key("opencode-go-copy/deepseek-v4-flash"));
+            assert!(config.models.contains_key("opencode-go-1/space-bunny-free"));
+            db::save_config(&Agent::KimiCode, &config).unwrap();
+
+            // Simulate the UI's model delete (onModelDelete): drop the stale
+            // aliases from the in-memory config, then save.
+            config.models.retain(|alias, _| {
+                !alias.starts_with("opencode-go-copy/") && !alias.starts_with("opencode-go-1/")
+            });
+            save_agent_config_command(Agent::KimiCode, config).unwrap();
+
+            // config.toml: stale sections gone, live model kept.
+            let toml_text = std::fs::read_to_string(home.join("config.toml")).unwrap();
+            assert!(!toml_text.contains("opencode-go-copy"));
+            assert!(!toml_text.contains("opencode-go-1"));
+            assert!(toml_text.contains("opencode-go/longcat-2.5-preview-free"));
+
+            // SQLite mirror: stale rows gone.
+            let db_config = db::load_config(&Agent::KimiCode).unwrap();
+            assert!(!db_config.models.contains_key("opencode-go-copy/deepseek-v4-flash"));
+            assert!(!db_config.models.contains_key("opencode-go-1/space-bunny-free"));
+
+            // Reload through the real load path: no resurrection from SQLite.
+            let reloaded = load_agent_config_uncached(Agent::KimiCode).unwrap();
+            assert!(!reloaded.models.contains_key("opencode-go-copy/deepseek-v4-flash"));
+            assert!(!reloaded.models.contains_key("opencode-go-1/space-bunny-free"));
+            assert!(reloaded.models.contains_key("opencode-go/longcat-2.5-preview-free"));
+        });
+    }
+
+    #[test]
+    fn sqlite_models_whose_provider_was_deleted_do_not_resurrect() {
+        with_env_homes(|home| {
+            // config.toml already clean: only the live provider + model.
+            let toml = r#"
+default_model = "opencode-go/longcat-2.5-preview-free"
+
+[providers.opencode-go]
+type = "openai"
+base_url = "https://opencode.ai/zen/go/v1"
+api_key = "sk-test"
+
+[models."opencode-go/longcat-2.5-preview-free"]
+provider = "opencode-go"
+model = "longcat-2.5-preview-free"
+max_context_size = 1000000
+"#;
+            std::fs::write(home.join("config.toml"), toml).unwrap();
+
+            // Seed SQLite with a zombie model whose provider no longer exists
+            // (left behind by an old rename-then-delete).
+            let mut providers = IndexMap::new();
+            providers.insert(
+                "opencode-go".to_string(),
+                Provider {
+                    name: "opencode-go".to_string(),
+                    provider_type: ProviderType::Openai,
+                    base_url: Some("https://opencode.ai/zen/go/v1".to_string()),
+                    api_key: Some("sk-test".to_string()),
+                    api_key_env: None,
+                    env: IndexMap::new(),
+                    note: None,
+                    official_url: None,
+                    managed: false,
+                    enabled: true,
+                    active: true,
+                    icon: None,
+                    icon_color: None,
+                    raw_other: serde_json::Value::Null,
+                    usage_kinds: None,
+                    usage_config: None,
+                },
+            );
+            let mut models = IndexMap::new();
+            models.insert(
+                "opencode-go-copy/deepseek-v4-flash".to_string(),
+                Model {
+                    alias: "opencode-go-copy/deepseek-v4-flash".to_string(),
+                    provider: "opencode-go-copy".to_string(),
+                    model: "deepseek-v4-flash".to_string(),
+                    max_context_size: 512_000,
+                    display_name: None,
+                    supports_1m: false,
+                    capabilities: vec![],
+                    raw_other: serde_json::Value::Null,
+                },
+            );
+            let seeded = Config {
+                default_model: Some("opencode-go/longcat-2.5-preview-free".to_string()),
+                providers,
+                models,
+                raw_other: serde_json::Value::Null,
+                imported_section_keys: vec![],
+            };
+            db::save_config(&Agent::KimiCode, &seeded).unwrap();
+
+            // Loading must NOT merge the zombie back: its provider is gone,
+            // so it can never be shown or selected, and merging it would
+            // rewrite it into config.toml on the next save.
+            let loaded = load_agent_config_uncached(Agent::KimiCode).unwrap();
+            assert!(!loaded.models.contains_key("opencode-go-copy/deepseek-v4-flash"));
+            assert!(loaded.models.contains_key("opencode-go/longcat-2.5-preview-free"));
+
+            // And a save after that load must keep config.toml clean.
+            save_agent_config_command(Agent::KimiCode, loaded).unwrap();
+            let toml_text = std::fs::read_to_string(home.join("config.toml")).unwrap();
+            assert!(!toml_text.contains("opencode-go-copy"));
+        });
+    }
+
+    fn plain_provider(name: &str) -> Provider {
+        Provider {
+            name: name.to_string(),
+            provider_type: ProviderType::Openai,
+            base_url: Some("https://opencode.ai/zen/go/v1".to_string()),
+            api_key: Some("sk-test".to_string()),
+            api_key_env: None,
+            env: IndexMap::new(),
+            note: None,
+            official_url: None,
+            managed: false,
+            enabled: true,
+            active: true,
+            icon: None,
+            icon_color: None,
+            raw_other: serde_json::Value::Null,
+            usage_kinds: None,
+            usage_config: None,
+        }
+    }
+
+    #[test]
+    fn deleting_a_provider_prunes_its_orphan_usage_settings() {
+        with_env_homes(|home| {
+            std::fs::write(home.join("config.toml"), TOML_WITH_STALE_MODELS).unwrap();
+            let mut config = load_agent_config_uncached(Agent::KimiCode).unwrap();
+
+            // Provider present: its usage settings survive the save.
+            config.providers.get_mut("opencode-go").unwrap().usage_kinds =
+                Some(vec!["plan:opencode_go".to_string()]);
+            save_agent_config_command(Agent::KimiCode, config.clone()).unwrap();
+            assert_eq!(
+                db::get_setting_pub("usage_kinds:opencode-go").unwrap().as_deref(),
+                Some(r#"["plan:opencode_go"]"#)
+            );
+
+            // Seed orphans the way history did (renamed/deleted providers).
+            db::set_setting_pub("usage_kinds:opencode-go-copy", r#"["plan:opencode_go"]"#)
+                .unwrap();
+            db::set_setting_pub("usage_config:opencode-go-1", "{}").unwrap();
+            // Non-usage settings must never be touched by the prune.
+            db::set_setting_pub("app.language", "zh").unwrap();
+
+            // Delete the provider (UI semantics) and save.
+            config.providers.shift_remove("opencode-go");
+            config.models.retain(|_, m| m.provider != "opencode-go");
+            config.default_model = None;
+            save_agent_config_command(Agent::KimiCode, config).unwrap();
+
+            // The provider's own settings and the historical orphans are gone.
+            assert_eq!(db::get_setting_pub("usage_kinds:opencode-go").unwrap(), None);
+            assert_eq!(db::get_setting_pub("usage_kinds:opencode-go-copy").unwrap(), None);
+            assert_eq!(db::get_setting_pub("usage_config:opencode-go-1").unwrap(), None);
+            assert_eq!(db::get_setting_pub("app.language").unwrap().as_deref(), Some("zh"));
+
+            // Re-adding a provider with the same name starts clean (no
+            // resurrection of the pruned rows).
+            let mut config = load_agent_config_uncached(Agent::KimiCode).unwrap();
+            config
+                .providers
+                .insert("opencode-go".to_string(), plain_provider("opencode-go"));
+            save_agent_config_command(Agent::KimiCode, config).unwrap();
+            assert_eq!(db::get_setting_pub("usage_kinds:opencode-go").unwrap(), None);
+            assert_eq!(db::get_setting_pub("app.language").unwrap().as_deref(), Some("zh"));
+        });
+    }
+
+    #[test]
+    fn pruning_never_touches_the_other_agents_usage_settings() {
+        with_env_homes(|home| {
+            std::fs::write(home.join("config.toml"), TOML_WITH_STALE_MODELS).unwrap();
+
+            // Pi (the other agent) has its own provider with usage settings.
+            let mut pi_providers = IndexMap::new();
+            pi_providers.insert("pi-provider".to_string(), plain_provider("pi-provider"));
+            db::save_config(
+                &Agent::Pi,
+                &Config {
+                    default_model: None,
+                    providers: pi_providers,
+                    models: IndexMap::new(),
+                    raw_other: serde_json::Value::Null,
+                    imported_section_keys: vec![],
+                },
+            )
+            .unwrap();
+            db::set_setting_pub("usage_kinds:pi-provider", r#"["balance:deepseek"]"#)
+                .unwrap();
+            db::set_setting_pub("usage_config:pi-provider", "{}").unwrap();
+
+            // Save the Kimi Code config (which has no `pi-provider`).
+            let config = load_agent_config_uncached(Agent::KimiCode).unwrap();
+            save_agent_config_command(Agent::KimiCode, config).unwrap();
+
+            // The other agent's settings survive the prune.
+            assert_eq!(
+                db::get_setting_pub("usage_kinds:pi-provider").unwrap().as_deref(),
+                Some(r#"["balance:deepseek"]"#)
+            );
+            assert_eq!(db::get_setting_pub("usage_config:pi-provider").unwrap().as_deref(), Some("{}"));
+        });
     }
 }

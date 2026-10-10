@@ -925,8 +925,7 @@ mod tests {
     /// dir). A process-wide mutex serializes env mutation so parallel tests in
     /// this binary can't observe a stale override.
     fn with_kimi_code_home<T>(f: impl FnOnce(&std::path::Path) -> T) -> T {
-        static LOCK: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
-        let _guard = LOCK.get_or_init(|| std::sync::Mutex::new(())).lock().unwrap();
+        let _guard = crate::test_state::lock();
         let home = tempfile::tempdir().unwrap();
         std::env::set_var("KIMI_CODE_HOME", home.path());
         let out = f(home.path());

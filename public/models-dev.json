@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-10-09",
+  "last_updated": "2026-10-10",
   "deepinfra/tencent/Hy3": {
     "name": "Hy3",
     "context": 262144,
@@ -271,6 +271,18 @@
       "input": 2.5,
       "output": 7.5,
       "cache_read": 0.5
+    }
+  },
+  "deepinfra/Qwen/Qwen3-VL-30B-A3B-Instruct": {
+    "name": "Qwen3 VL 30B A3B Instruct",
+    "context": 262144,
+    "output": 32768,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "cost": {
+      "input": 0.15,
+      "output": 0.6
     }
   },
   "deepinfra/Qwen/Qwen3.8-Max": {
@@ -3289,19 +3301,6 @@
       "cache_read": 2
     }
   },
-  "empiriolabs/deepseek-v3-2": {
-    "name": "DeepSeek V3.2",
-    "context": 128000,
-    "output": 32768,
-    "reasoning": true,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.57,
-      "output": 1.71,
-      "cache_read": 0.57
-    }
-  },
   "empiriolabs/minimax-m2-7-highspeed": {
     "name": "MiniMax M2.7 Highspeed",
     "context": 200000,
@@ -3326,19 +3325,6 @@
       "input": 2.175,
       "output": 4.35,
       "cache_read": 0.018
-    }
-  },
-  "empiriolabs/qwen3-max": {
-    "name": "Qwen3 Max",
-    "context": 256000,
-    "output": 65536,
-    "reasoning": true,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 1.08,
-      "output": 5.52,
-      "cache_read": 1.08
     }
   },
   "empiriolabs/seed-2-0-pro": {
@@ -3914,19 +3900,6 @@
       "cache_read": 1
     }
   },
-  "empiriolabs/qwen3-6-max-preview": {
-    "name": "Qwen3.6 Max Preview",
-    "context": 256000,
-    "output": 65536,
-    "reasoning": true,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 1.31,
-      "output": 7.88,
-      "cache_read": 1.31
-    }
-  },
   "empiriolabs/step-3-7-flash": {
     "name": "Step 3.7 Flash",
     "context": 256000,
@@ -3982,19 +3955,6 @@
       "input": 0.05,
       "output": 0.29,
       "cache_read": 0.025
-    }
-  },
-  "empiriolabs/deepseek-v4-flash": {
-    "name": "DeepSeek V4 Flash",
-    "context": 1000000,
-    "output": 393216,
-    "reasoning": true,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.14,
-      "output": 0.28,
-      "cache_read": 0.14
     }
   },
   "sensenova/kimi-k3": {
@@ -4653,6 +4613,17 @@
       "input": 1.4,
       "output": 4.4,
       "cache_read": 0.26
+    }
+  },
+  "cloudflare-workers-ai/@cf/cloudflare/clef-omni": {
+    "name": "Clef Omni",
+    "context": 65536,
+    "output": 65536,
+    "structured_output": true,
+    "image": true,
+    "cost": {
+      "input": 0.15,
+      "output": 0
     }
   },
   "cloudflare-workers-ai/@cf/nvidia/nemotron-3-120b-a12b": {
@@ -5386,9 +5357,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.7,
+      "input": 0.6,
       "output": 2.2,
-      "cache_read": 0.13
+      "cache_read": 0.2
     }
   },
   "nano-gpt/gemma-4-26b-a4b-it-shadowsiren": {
@@ -5423,9 +5394,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.7,
+      "input": 0.6,
       "output": 2.2,
-      "cache_read": 0.13
+      "cache_read": 0.2
     }
   },
   "nano-gpt/deepseek-chat": {
@@ -5461,9 +5432,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.7,
+      "input": 0.6,
       "output": 2.2,
-      "cache_read": 0.13,
+      "cache_read": 0.2,
       "cache_write": 0.08333
     }
   },
@@ -5495,9 +5466,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.7,
+      "input": 0.6,
       "output": 2.2,
-      "cache_read": 0.13,
+      "cache_read": 0.2,
       "cache_write": 0.08333
     }
   },
@@ -5561,9 +5532,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.7,
+      "input": 0.6,
       "output": 2.2,
-      "cache_read": 0.13
+      "cache_read": 0.2
     }
   },
   "nano-gpt/gemini-2.5-flash-preview-05-20": {
@@ -6152,9 +6123,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.7,
+      "input": 0.6,
       "output": 2.2,
-      "cache_read": 0.13
+      "cache_read": 0.2
     }
   },
   "nano-gpt/Gemma-4-31B-DarkIdol": {
@@ -7031,9 +7002,9 @@
     "structured_output": true,
     "image": true,
     "cost": {
-      "input": 0.44,
-      "output": 1.32,
-      "cache_read": 0.014
+      "input": 0.22,
+      "output": 0.66,
+      "cache_read": 0.007
     }
   },
   "nano-gpt/deepseek/deepseek-v3.2:thinking": {
@@ -7635,9 +7606,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.7,
+      "input": 0.6,
       "output": 2.2,
-      "cache_read": 0.13
+      "cache_read": 0.2
     }
   },
   "nano-gpt/z-ai/glm-5": {
@@ -7948,9 +7919,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.7,
+      "input": 0.6,
       "output": 2.2,
-      "cache_read": 0.13
+      "cache_read": 0.2
     }
   },
   "nano-gpt/z-ai/glm-5.3-flash-cybersecurity": {
@@ -7974,9 +7945,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.7,
+      "input": 0.6,
       "output": 2.2,
-      "cache_read": 0.13
+      "cache_read": 0.2
     }
   },
   "nano-gpt/inference-net/schematron-v2-small": {
@@ -10874,9 +10845,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.2,
-      "output": 1.5,
-      "cache_read": 0.1
+      "input": 0.250251,
+      "output": 0.80293,
+      "cache_read": 0.079764
     }
   },
   "nano-gpt/qwen/qwen3-coder": {
@@ -11106,8 +11077,8 @@
     "structured_output": true,
     "image": true,
     "cost": {
-      "input": 0.15,
-      "output": 1.2,
+      "input": 0.75,
+      "output": 2.5,
       "cache_read": 0.125
     }
   },
@@ -11157,8 +11128,8 @@
     "structured_output": true,
     "image": true,
     "cost": {
-      "input": 0.15,
-      "output": 1.2,
+      "input": 0.75,
+      "output": 2.5,
       "cache_read": 0.125
     }
   },
@@ -13159,21 +13130,6 @@
     "cost": {
       "input": 0.15,
       "output": 0.6
-    }
-  },
-  "tinfoil/glm-5-3-flash": {
-    "name": "GLM-5.3-Flash",
-    "context": 1048576,
-    "output": 131072,
-    "reasoning": true,
-    "tool_call": true,
-    "structured_output": true,
-    "image": true,
-    "video": true,
-    "cost": {
-      "input": 0.4,
-      "output": 1.25,
-      "cache_read": 0.1
     }
   },
   "tinfoil/kimi-k3": {
@@ -19836,16 +19792,6 @@
       "cache_write": 3.125
     }
   },
-  "llmgateway-providers/alibaba/qwen-coder-plus": {
-    "name": "Qwen Coder Plus (Alibaba Cloud)",
-    "context": 131072,
-    "output": 8192,
-    "tool_call": true,
-    "cost": {
-      "input": 0.502,
-      "output": 1.004
-    }
-  },
   "llmgateway-providers/alibaba/qwen3-vl-plus": {
     "name": "Qwen3 VL Plus (Alibaba Cloud)",
     "context": 262144,
@@ -19962,31 +19908,6 @@
       "cache_write": 0.0375
     }
   },
-  "llmgateway-providers/alibaba/qwen3-max": {
-    "name": "Qwen3 Max (Alibaba Cloud)",
-    "context": 256000,
-    "output": 32800,
-    "reasoning": true,
-    "tool_call": true,
-    "cost": {
-      "input": 1.2,
-      "output": 6,
-      "cache_read": 0.24,
-      "cache_write": 1.5
-    }
-  },
-  "llmgateway-providers/alibaba/qwen3-vl-flash": {
-    "name": "Qwen3 VL Flash (Alibaba Cloud)",
-    "context": 262144,
-    "output": 32768,
-    "tool_call": true,
-    "image": true,
-    "cost": {
-      "input": 0.05,
-      "output": 0.4,
-      "cache_read": 0.01
-    }
-  },
   "llmgateway-providers/alibaba/qwen3.5-122b-a10b": {
     "name": "Qwen3.5 122B A10B (Alibaba Cloud)",
     "context": 262144,
@@ -20053,18 +19974,6 @@
       "cache_write": 0.375
     }
   },
-  "llmgateway-providers/alibaba/qwen3-coder-plus": {
-    "name": "Qwen3 Coder Plus (Alibaba Cloud)",
-    "context": 1000000,
-    "output": 66000,
-    "tool_call": true,
-    "cost": {
-      "input": 1,
-      "output": 5,
-      "cache_read": 0.2,
-      "cache_write": 1.25
-    }
-  },
   "llmgateway-providers/alibaba/qwen3.8-flash": {
     "name": "Qwen3.8 Flash (Alibaba Cloud)",
     "context": 983616,
@@ -20106,18 +20015,6 @@
       "output": 2
     }
   },
-  "llmgateway-providers/alibaba/qwen3.6-max-preview": {
-    "name": "Qwen3.6 Max Preview (Alibaba Cloud)",
-    "context": 262144,
-    "output": 65536,
-    "reasoning": true,
-    "tool_call": true,
-    "cost": {
-      "input": 1.3,
-      "output": 7.8,
-      "cache_read": 0.13
-    }
-  },
   "llmgateway-providers/alibaba/glm-5.2": {
     "name": "GLM-5.2 (Alibaba Cloud)",
     "context": 1000000,
@@ -20128,17 +20025,6 @@
       "input": 1.4,
       "output": 4.4,
       "cache_read": 0.28
-    }
-  },
-  "llmgateway-providers/alibaba/qwen-omni-turbo": {
-    "name": "Qwen Omni Turbo (Alibaba Cloud)",
-    "context": 32768,
-    "output": 8192,
-    "image": true,
-    "video": true,
-    "cost": {
-      "input": 0.2,
-      "output": 0.8
     }
   },
   "llmgateway-providers/alibaba/deepseek-v4-pro": {
@@ -20354,6 +20240,87 @@
       "input": 0.065,
       "output": 0.116,
       "cache_read": 0.012
+    }
+  },
+  "llmgateway-providers/reka-ai/reka-edge-2603": {
+    "name": "Reka Edge 2603 (reka-ai)",
+    "context": 16384,
+    "output": 16384,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "cost": {
+      "input": 0.1,
+      "output": 0.1
+    }
+  },
+  "llmgateway-providers/reka-ai/qwen3.8-27b": {
+    "name": "Qwen3.8 27B (reka-ai)",
+    "context": 262144,
+    "output": 262144,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "video": true,
+    "cost": {
+      "input": 0.2,
+      "output": 2.5,
+      "cache_read": 0.05
+    }
+  },
+  "llmgateway-providers/reka-ai/glm-5.3-flash": {
+    "name": "GLM-5.3 Flash (reka-ai)",
+    "context": 262144,
+    "output": 262144,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "video": true,
+    "cost": {
+      "input": 0.15,
+      "output": 0.5,
+      "cache_read": 0.015
+    }
+  },
+  "llmgateway-providers/reka-ai/deepseek-v4-pro": {
+    "name": "DeepSeek V4 Pro (reka-ai)",
+    "context": 1048576,
+    "output": 393216,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 1.2,
+      "output": 3.3,
+      "cache_read": 0.13
+    }
+  },
+  "llmgateway-providers/reka-ai/glm-5.3": {
+    "name": "GLM-5.3 (reka-ai)",
+    "context": 1048576,
+    "output": 262144,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 1.17,
+      "output": 3.96,
+      "cache_read": 0.234
+    }
+  },
+  "llmgateway-providers/reka-ai/deepseek-v4-flash": {
+    "name": "DeepSeek V4 Flash (reka-ai)",
+    "context": 262144,
+    "output": 131072,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 0.11,
+      "output": 0.66,
+      "cache_read": 0.007
     }
   },
   "llmgateway-providers/bytedance/seed-1-6-flash-250715": {
@@ -21557,7 +21524,8 @@
     "cost": {
       "input": 1,
       "output": 5,
-      "cache_read": 0.1
+      "cache_read": 0.1,
+      "cache_write": 1.25
     }
   },
   "llmgateway-providers/vertex-anthropic/claude-sonnet-4-5": {
@@ -21571,7 +21539,8 @@
     "cost": {
       "input": 3,
       "output": 15,
-      "cache_read": 0.3
+      "cache_read": 0.3,
+      "cache_write": 3.75
     }
   },
   "llmgateway-providers/vertex-anthropic/claude-opus-4-5-20251101": {
@@ -21585,7 +21554,8 @@
     "cost": {
       "input": 5,
       "output": 25,
-      "cache_read": 0.5
+      "cache_read": 0.5,
+      "cache_write": 6.25
     }
   },
   "llmgateway-providers/vertex-anthropic/claude-sonnet-5": {
@@ -21614,7 +21584,8 @@
     "cost": {
       "input": 5,
       "output": 25,
-      "cache_read": 0.5
+      "cache_read": 0.5,
+      "cache_write": 6.25
     }
   },
   "llmgateway-providers/vertex-anthropic/claude-sonnet-4-6": {
@@ -21628,7 +21599,8 @@
     "cost": {
       "input": 3,
       "output": 15,
-      "cache_read": 0.3
+      "cache_read": 0.3,
+      "cache_write": 3.75
     }
   },
   "llmgateway-providers/vertex-anthropic/claude-opus-4-7": {
@@ -21642,7 +21614,8 @@
     "cost": {
       "input": 5,
       "output": 25,
-      "cache_read": 0.5
+      "cache_read": 0.5,
+      "cache_write": 6.25
     }
   },
   "llmgateway-providers/vertex-openai/qwen3-235b-a22b-instruct-2507": {
@@ -22870,8 +22843,8 @@
     "image": true,
     "video": true,
     "cost": {
-      "input": 0.49,
-      "output": 13,
+      "input": 0.33,
+      "output": 14.89,
       "cache_read": 0.3
     }
   },
@@ -23406,7 +23379,7 @@
     }
   },
   "kilo/deepseek/deepseek-r1-0528": {
-    "name": "DeepSeek: R1 0528",
+    "name": "DeepSeek R1 0528",
     "context": 163840,
     "output": 32768,
     "reasoning": true,
@@ -23427,8 +23400,8 @@
     "structured_output": true,
     "cost": {
       "input": 0.259,
-      "output": 0.42,
-      "cache_read": 0.135
+      "output": 0.8,
+      "cache_read": 0.14
     }
   },
   "kilo/deepseek/deepseek-v4-flash": {
@@ -23439,9 +23412,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.14,
-      "output": 0.28,
-      "cache_read": 0.028
+      "input": 0.0182,
+      "output": 1.28,
+      "cache_read": 0.0182
     }
   },
   "kilo/unbiased/pareto-26.10-preview": {
@@ -23614,7 +23587,7 @@
     }
   },
   "kilo/meta-llama/llama-3.2-1b-instruct": {
-    "name": "Meta: Llama 3.2 1B Instruct",
+    "name": "Llama 3.2 1B Instruct",
     "context": 60000,
     "output": 54000,
     "cost": {
@@ -23771,15 +23744,15 @@
   },
   "kilo/z-ai/glm-4.6": {
     "name": "GLM-4.6",
-    "context": 198000,
-    "output": 16384,
+    "context": 202752,
+    "output": 131072,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.43,
-      "output": 1.75,
-      "cache_read": 0.08
+      "input": 0.5,
+      "output": 2,
+      "cache_read": 0.1
     }
   },
   "kilo/z-ai/glm-5": {
@@ -24201,29 +24174,29 @@
   "kilo/~z-ai/glm-flash-latest": {
     "name": "Z.ai: GLM Flash Latest",
     "context": 1048576,
-    "output": 943718,
+    "output": 131072,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
     "image": true,
     "video": true,
     "cost": {
-      "input": 0.032,
-      "output": 1.428579,
-      "cache_read": 0.02
+      "input": 0.04,
+      "output": 0.5,
+      "cache_read": 0.0125
     }
   },
   "kilo/~z-ai/glm-latest": {
     "name": "Z.ai: GLM Latest",
     "context": 1048576,
-    "output": 131072,
+    "output": 943718,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.0312,
-      "output": 4.4,
-      "cache_read": 0.029
+      "input": 0.039,
+      "output": 4.8,
+      "cache_read": 0.038
     }
   },
   "kilo/arcee-ai/trinity-large-thinking": {
@@ -24558,22 +24531,22 @@
     "structured_output": true,
     "image": true,
     "cost": {
-      "input": 0.016,
-      "output": 1.2,
-      "cache_read": 0.01
+      "input": 0.0001,
+      "output": 0.6,
+      "cache_read": 0.005
     }
   },
   "kilo/~deepseek/deepseek-pro-latest": {
     "name": "DeepSeek: DeepSeek Pro Latest",
     "context": 1048576,
-    "output": 393216,
+    "output": 943718,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.198,
-      "output": 8,
-      "cache_read": 0.2
+      "input": 0.3,
+      "output": 5,
+      "cache_read": 0.219
     }
   },
   "kilo/~deepseek/deepseek-v4-flash-latest": {
@@ -24584,9 +24557,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.00368,
-      "output": 0.134075,
-      "cache_read": 0.00368
+      "input": 0.0099,
+      "output": 1.28,
+      "cache_read": 0.0099
     }
   },
   "kilo/~x-ai/grok-latest": {
@@ -25399,7 +25372,7 @@
     }
   },
   "kilo/inclusionai/ling-3.1-flash": {
-    "name": "inclusionAI: Ling 3.1 Flash (new)",
+    "name": "inclusionAI: Ling 3.1 Flash",
     "context": 262144,
     "output": 32768,
     "reasoning": true,
@@ -25442,7 +25415,6 @@
     "output": 32768,
     "reasoning": true,
     "tool_call": true,
-    "structured_output": true,
     "cost": {
       "input": 0.075,
       "output": 0.22,
@@ -25476,19 +25448,20 @@
     "cost": {
       "input": 0.465,
       "output": 2.45,
-      "cache_read": 0.0975
+      "cache_read": 0.0875
     }
   },
   "kilo/moonshotai/kimi-k2-thinking": {
     "name": "Kimi K2 Thinking",
     "context": 262144,
-    "output": 235929,
+    "output": 98304,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
     "cost": {
       "input": 0.6,
-      "output": 2.5
+      "output": 2.5,
+      "cache_read": 0.15
     }
   },
   "kilo/moonshotai/kimi-k2.5": {
@@ -25505,7 +25478,7 @@
     }
   },
   "kilo/moonshotai/kimi-k2-0905": {
-    "name": "MoonshotAI: Kimi K2 0905",
+    "name": "Kimi K2 Instruct 0905",
     "context": 262144,
     "output": 98304,
     "tool_call": true,
@@ -25657,7 +25630,7 @@
   "kilo/nvidia/nemotron-3.5-lightning": {
     "name": "Nemotron 3.5 Lightning 30B A3B",
     "context": 262144,
-    "output": 131072,
+    "output": 235929,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
@@ -26192,8 +26165,8 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.1495,
-      "output": 0.598
+      "input": 0.09,
+      "output": 0.55
     }
   },
   "kilo/qwen/qwen3-vl-235b-a22b-instruct": {
@@ -26204,8 +26177,9 @@
     "structured_output": true,
     "image": true,
     "cost": {
-      "input": 0.26,
-      "output": 1.04
+      "input": 0.21,
+      "output": 1.9,
+      "cache_read": 0.1
     }
   },
   "kilo/qwen/qwen3.7-max": {
@@ -26238,19 +26212,6 @@
       "cache_write": 0.53125
     }
   },
-  "kilo/qwen/qwen3-vl-235b-a22b-thinking": {
-    "name": "Qwen3 VL 235B A22B Thinking",
-    "context": 131072,
-    "output": 32768,
-    "reasoning": true,
-    "tool_call": true,
-    "structured_output": true,
-    "image": true,
-    "cost": {
-      "input": 0.4,
-      "output": 4
-    }
-  },
   "kilo/qwen/qwen3.8-2.4t-a95b": {
     "name": "Qwen3.8 2.4T A95B",
     "context": 1048576,
@@ -26281,8 +26242,8 @@
   },
   "kilo/qwen/qwen3-next-80b-a3b-thinking": {
     "name": "Qwen3-Next 80B-A3B (Thinking)",
-    "context": 131072,
-    "output": 32768,
+    "context": 262144,
+    "output": 235929,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
@@ -26298,8 +26259,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.3,
-      "output": 1.5
+      "input": 0.12,
+      "output": 0.8,
+      "cache_read": 0.07
     }
   },
   "kilo/qwen/qwen3-coder": {
@@ -26309,8 +26271,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.975,
-      "output": 4.875
+      "input": 0.3,
+      "output": 1,
+      "cache_read": 0.1
     }
   },
   "kilo/qwen/qwen3-32b": {
@@ -26353,19 +26316,6 @@
       "cache_write": 0.038
     }
   },
-  "kilo/qwen/qwen3-max": {
-    "name": "Qwen3 Max",
-    "context": 262144,
-    "output": 65536,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.78,
-      "output": 3.9,
-      "cache_read": 0.156,
-      "cache_write": 0.975
-    }
-  },
   "kilo/qwen/qwen3-coder-30b-a3b-instruct": {
     "name": "Qwen3-Coder 30B-A3B Instruct",
     "context": 262144,
@@ -26373,8 +26323,8 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.2925,
-      "output": 1.4625
+      "input": 0.07,
+      "output": 0.28
     }
   },
   "kilo/qwen/qwen3.8-omni-flash": {
@@ -26393,37 +26343,26 @@
     }
   },
   "kilo/qwen/qwen3-vl-30b-a3b-instruct": {
-    "name": "Qwen: Qwen3 VL 30B A3B Instruct",
+    "name": "Qwen3 VL 30B A3B Instruct",
     "context": 262144,
     "output": 16384,
     "tool_call": true,
     "structured_output": true,
     "image": true,
     "cost": {
-      "input": 0.13,
-      "output": 0.52
+      "input": 0.15,
+      "output": 0.6
     }
   },
   "kilo/qwen/qwen3-235b-a22b-thinking-2507": {
-    "name": "Qwen: Qwen3 235B A22B Thinking 2507 (retires Oct 9)",
-    "context": 131072,
-    "output": 117964,
+    "name": "Qwen: Qwen3 235B A22B Thinking 2507",
+    "context": 128000,
+    "output": 16384,
     "reasoning": true,
     "tool_call": true,
     "cost": {
-      "input": 0.23,
-      "output": 2.3
-    }
-  },
-  "kilo/qwen/qwen3-235b-a22b": {
-    "name": "Qwen3 235B-A22B",
-    "context": 131072,
-    "output": 8192,
-    "reasoning": true,
-    "tool_call": true,
-    "cost": {
-      "input": 0.455,
-      "output": 1.82
+      "input": 0.45,
+      "output": 3.5
     }
   },
   "kilo/qwen/qwen3.5-122b-a10b": {
@@ -26438,17 +26377,6 @@
     "cost": {
       "input": 0.26,
       "output": 2.08
-    }
-  },
-  "kilo/qwen/qwen-plus-2025-07-28": {
-    "name": "Qwen: Qwen Plus 0728 (retires Oct 9)",
-    "context": 1000000,
-    "output": 32768,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.26,
-      "output": 0.78
     }
   },
   "kilo/qwen/qwen3.6-35b-a3b": {
@@ -26473,21 +26401,22 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.0975,
-      "output": 0.78
+      "input": 0.1,
+      "output": 1.1,
+      "cache_read": 0.07
     }
   },
   "kilo/qwen/qwen3-vl-30b-a3b-thinking": {
-    "name": "Qwen: Qwen3 VL 30B A3B Thinking (retires Oct 9)",
-    "context": 131072,
-    "output": 32768,
+    "name": "Qwen: Qwen3 VL 30B A3B Thinking",
+    "context": 262144,
+    "output": 235929,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
     "image": true,
     "cost": {
-      "input": 0.2,
-      "output": 2.4
+      "input": 0.29,
+      "output": 1
     }
   },
   "kilo/qwen/qwen3.6-flash": {
@@ -26538,31 +26467,6 @@
     "cost": {
       "input": 0.065,
       "output": 0.26
-    }
-  },
-  "kilo/qwen/qwen3-max-thinking": {
-    "name": "Qwen: Qwen3 Max Thinking (retires Oct 9)",
-    "context": 262144,
-    "output": 65536,
-    "reasoning": true,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.78,
-      "output": 3.9
-    }
-  },
-  "kilo/qwen/qwen3-coder-plus": {
-    "name": "Qwen3 Coder Plus",
-    "context": 1000000,
-    "output": 65536,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.65,
-      "output": 3.25,
-      "cache_read": 0.13,
-      "cache_write": 0.8125
     }
   },
   "kilo/qwen/qwen3.5-9b": {
@@ -26639,19 +26543,6 @@
       "output": 1.3
     }
   },
-  "kilo/qwen/qwen3.6-max-preview": {
-    "name": "Qwen3.6 Max Preview",
-    "context": 262144,
-    "output": 65536,
-    "reasoning": true,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 1.027,
-      "output": 6.162,
-      "cache_write": 1.28375
-    }
-  },
   "kilo/qwen/qwen3-30b-a3b": {
     "name": "Qwen3 30B A3B",
     "context": 40960,
@@ -26660,8 +26551,8 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.13,
-      "output": 0.52
+      "input": 0.12,
+      "output": 0.5
     }
   },
   "kilo/qwen/qwen3.5-397b-a17b": {
@@ -26678,39 +26569,17 @@
       "output": 2.34
     }
   },
-  "kilo/qwen/qwen3-8b": {
-    "name": "Qwen: Qwen3 8B (retires Oct 9)",
-    "context": 131072,
-    "output": 8192,
-    "reasoning": true,
-    "tool_call": true,
-    "cost": {
-      "input": 0.117,
-      "output": 0.455
-    }
-  },
-  "kilo/qwen/qwen3-vl-32b-instruct": {
-    "name": "Qwen: Qwen3 VL 32B Instruct (retires Oct 9)",
-    "context": 131072,
-    "output": 32768,
-    "tool_call": true,
-    "structured_output": true,
-    "image": true,
-    "cost": {
-      "input": 0.104,
-      "output": 0.416
-    }
-  },
   "kilo/qwen/qwen3-vl-8b-instruct": {
-    "name": "Qwen: Qwen3 VL 8B Instruct (retires Oct 9)",
-    "context": 131072,
-    "output": 32768,
+    "name": "Qwen: Qwen3 VL 8B Instruct",
+    "context": 262144,
+    "output": 235929,
     "tool_call": true,
     "structured_output": true,
     "image": true,
     "cost": {
-      "input": 0.117,
-      "output": 0.455
+      "input": 0.25,
+      "output": 0.75,
+      "cache_read": 0.12
     }
   },
   "kilo/qwen/qwen3-30b-a3b-instruct-2507": {
@@ -26720,8 +26589,8 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.13,
-      "output": 0.52
+      "input": 0.1,
+      "output": 0.3
     }
   },
   "kilo/qwen/qwen2.5-vl-72b-instruct": {
@@ -26772,21 +26641,10 @@
       "output": 0.4
     }
   },
-  "kilo/qwen/qwen3-30b-a3b-thinking-2507": {
-    "name": "Qwen: Qwen3 30B A3B Thinking 2507 (retires Oct 9)",
-    "context": 81920,
-    "output": 32768,
-    "reasoning": true,
-    "tool_call": true,
-    "cost": {
-      "input": 0.2,
-      "output": 2.4
-    }
-  },
   "kilo/qwen/qwen3.6-27b": {
     "name": "Qwen3.6 27B",
     "context": 262144,
-    "output": 65536,
+    "output": 81920,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
@@ -26820,21 +26678,8 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.2275,
-      "output": 0.91
-    }
-  },
-  "kilo/qwen/qwen3-vl-8b-thinking": {
-    "name": "Qwen: Qwen3 VL 8B Thinking (retires Oct 9)",
-    "context": 131072,
-    "output": 32768,
-    "reasoning": true,
-    "tool_call": true,
-    "structured_output": true,
-    "image": true,
-    "cost": {
-      "input": 0.18,
-      "output": 2.1
+      "input": 0.12,
+      "output": 0.24
     }
   },
   "kilo/qwen/qwen3.7-plus": {
@@ -27672,7 +27517,7 @@
     "structured_output": true,
     "cost": {
       "input": 0.03,
-      "output": 0.17,
+      "output": 0.15,
       "cache_read": 0.03
     }
   },
@@ -28385,6 +28230,21 @@
       "input": 0.06,
       "output": 0.4,
       "cache_read": 0.01
+    }
+  },
+  "venice/openai-gpt-61-sol-ultrafast": {
+    "name": "GPT-6.1 Sol Ultrafast",
+    "context": 1050000,
+    "output": 128000,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "cost": {
+      "input": 15,
+      "output": 75,
+      "cache_read": 0.75,
+      "cache_write": 18.75
     }
   },
   "venice/claude-opus-5": {
@@ -29776,6 +29636,110 @@
     "cost": {
       "input": 0.2,
       "output": 0.4
+    }
+  },
+  "lowrouter/auto/mistralai/ministral-8b-2512": {
+    "name": "Ministral 3 8B",
+    "context": 262144,
+    "output": 262144,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "cost": {
+      "input": 0.1569,
+      "output": 0.1569,
+      "cache_read": 0.0157
+    }
+  },
+  "lowrouter/auto/mistralai/mistral-large-4": {
+    "name": "Mistral Large 4",
+    "context": 524288,
+    "output": 262144,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "cost": {
+      "input": 0.7112,
+      "output": 2.1859,
+      "cache_read": 0.0732
+    }
+  },
+  "lowrouter/auto/mistralai/mistral-medium-3.5": {
+    "name": "Mistral Medium 3.5",
+    "context": 262144,
+    "output": 262144,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "cost": {
+      "input": 1.5688,
+      "output": 7.8442,
+      "cache_read": 0.1569
+    }
+  },
+  "lowrouter/auto/mistralai/mistral-small-2603": {
+    "name": "Mistral Small 4",
+    "context": 256000,
+    "output": 256000,
+    "reasoning": true,
+    "tool_call": true,
+    "image": true,
+    "cost": {
+      "input": 0.1569,
+      "output": 0.6275,
+      "cache_read": 0.0157
+    }
+  },
+  "lowrouter/auto/mistralai/mistral-large-2512": {
+    "name": "Mistral Large 3",
+    "context": 262144,
+    "output": 262144,
+    "tool_call": true,
+    "image": true,
+    "cost": {
+      "input": 0.5229,
+      "output": 1.5688,
+      "cache_read": 0.0523
+    }
+  },
+  "lowrouter/auto/mistralai/ministral-14b-2512": {
+    "name": "Ministral 3 14B",
+    "context": 262144,
+    "output": 262144,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "cost": {
+      "input": 0.2092,
+      "output": 0.2092,
+      "cache_read": 0.0209
+    }
+  },
+  "lowrouter/auto/mistralai/ministral-3b-2512": {
+    "name": "Ministral 3 3B",
+    "context": 262144,
+    "output": 262144,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "cost": {
+      "input": 0.1046,
+      "output": 0.1046,
+      "cache_read": 0.0105
+    }
+  },
+  "lowrouter/auto/mistralai/codestral-2508": {
+    "name": "Codestral 25.08",
+    "context": 128000,
+    "output": 8192,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 0.3138,
+      "output": 0.9413,
+      "cache_read": 0.0314
     }
   },
   "inference/meta/llama-3.1-8b-instruct": {
@@ -32029,67 +31993,47 @@
       "output": 0.44
     }
   },
-  "novita-ai/kwaipilot/kat-coder-pro": {
-    "name": "Kat Coder Pro",
-    "context": 256000,
-    "output": 128000,
+  "novita-ai/baai/bge-m3": {
+    "name": "BGE M3",
+    "context": 8192,
+    "cost": {
+      "input": 0.01,
+      "output": 0
+    }
+  },
+  "novita-ai/baai/bge-reranker-v2-m3": {
+    "name": "BGE Reranker V2 M3",
+    "context": 8000,
+    "cost": {
+      "input": 0.01,
+      "output": 0
+    }
+  },
+  "novita-ai/deepseek/deepseek-v4-flash-0731": {
+    "name": "DeepSeek V4 Flash 0731",
+    "context": 1048576,
+    "output": 393216,
+    "reasoning": true,
     "tool_call": true,
     "structured_output": true,
+    "cost": {
+      "input": 0.44,
+      "output": 1.32,
+      "cache_read": 0.028
+    }
+  },
+  "novita-ai/deepseek/deepseek-v4.1-flash": {
+    "name": "DeepSeek V4.1 Flash",
+    "context": 1048576,
+    "output": 393216,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
     "cost": {
       "input": 0.3,
       "output": 1.2,
-      "cache_read": 0.06
-    }
-  },
-  "novita-ai/deepseek/deepseek-prover-v2-671b": {
-    "name": "Deepseek Prover V2 671B",
-    "context": 160000,
-    "output": 160000,
-    "cost": {
-      "input": 0.7,
-      "output": 2.5
-    }
-  },
-  "novita-ai/deepseek/deepseek-r1-distill-qwen-14b": {
-    "name": "DeepSeek R1 Distill Qwen 14B",
-    "context": 32768,
-    "output": 16384,
-    "cost": {
-      "input": 0.15,
-      "output": 0.15
-    }
-  },
-  "novita-ai/deepseek/deepseek-v3-0324": {
-    "name": "DeepSeek V3 0324",
-    "context": 163840,
-    "output": 163840,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.27,
-      "output": 1.12,
-      "cache_read": 0.135
-    }
-  },
-  "novita-ai/deepseek/deepseek-r1-distill-llama-70b": {
-    "name": "DeepSeek R1 Distill LLama 70B",
-    "context": 8192,
-    "output": 8192,
-    "reasoning": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.8,
-      "output": 0.8
-    }
-  },
-  "novita-ai/deepseek/deepseek-v3-turbo": {
-    "name": "DeepSeek V3 (Turbo)\t",
-    "context": 64000,
-    "output": 16000,
-    "tool_call": true,
-    "cost": {
-      "input": 0.4,
-      "output": 1.3
+      "cache_read": 0.006
     }
   },
   "novita-ai/deepseek/deepseek-r1-0528-qwen3-8b": {
@@ -32102,34 +32046,10 @@
       "output": 0.09
     }
   },
-  "novita-ai/deepseek/deepseek-v3.1-terminus": {
-    "name": "Deepseek V3.1 Terminus",
-    "context": 131072,
-    "output": 32768,
-    "reasoning": true,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.27,
-      "output": 1,
-      "cache_read": 0.135
-    }
-  },
   "novita-ai/deepseek/deepseek-ocr-2": {
-    "name": "deepseek/deepseek-ocr-2",
+    "name": "DeepSeek OCR 2",
     "context": 8192,
     "output": 8192,
-    "image": true,
-    "cost": {
-      "input": 0.03,
-      "output": 0.03
-    }
-  },
-  "novita-ai/deepseek/deepseek-ocr": {
-    "name": "DeepSeek-OCR",
-    "context": 8192,
-    "output": 8192,
-    "structured_output": true,
     "image": true,
     "cost": {
       "input": 0.03,
@@ -32137,48 +32057,38 @@
     }
   },
   "novita-ai/deepseek/deepseek-r1-turbo": {
-    "name": "DeepSeek R1 (Turbo)\t",
+    "name": "DeepSeek R1 (Turbo)",
     "context": 64000,
     "output": 16000,
     "reasoning": true,
     "tool_call": true,
+    "structured_output": true,
     "cost": {
       "input": 0.7,
       "output": 2.5
     }
   },
-  "novita-ai/deepseek/deepseek-v3.2-exp": {
-    "name": "Deepseek V3.2 Exp",
-    "context": 163840,
-    "output": 65536,
+  "novita-ai/deepseek/deepseek-v4-pro-0813": {
+    "name": "DeepSeek V4 Pro 0813",
+    "context": 1048576,
+    "output": 393216,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.27,
-      "output": 0.41
+      "input": 1.32,
+      "output": 3.96,
+      "cache_read": 0.044
     }
   },
-  "novita-ai/deepseek/deepseek-r1-distill-qwen-32b": {
-    "name": "DeepSeek R1 Distill Qwen 32B",
+  "novita-ai/deepseek/deepseek_v3": {
+    "name": "DeepSeek-V3",
     "context": 64000,
-    "output": 32000,
-    "cost": {
-      "input": 0.3,
-      "output": 0.3
-    }
-  },
-  "novita-ai/deepseek/deepseek-v3.1": {
-    "name": "DeepSeek V3.1",
-    "context": 131072,
-    "output": 32768,
-    "reasoning": true,
+    "output": 16000,
     "tool_call": true,
-    "structured_output": true,
     "cost": {
-      "input": 0.27,
-      "output": 1,
-      "cache_read": 0.135
+      "input": 0.89,
+      "output": 0.89
     }
   },
   "novita-ai/deepseek/deepseek-v4-pro": {
@@ -32207,133 +32117,127 @@
       "cache_read": 0.35
     }
   },
-  "novita-ai/deepseek/deepseek-v3.2": {
-    "name": "Deepseek V3.2",
-    "context": 163840,
-    "output": 65536,
-    "reasoning": true,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.269,
-      "output": 0.4,
-      "cache_read": 0.1345
-    }
-  },
-  "novita-ai/deepseek/deepseek-v4-flash": {
-    "name": "DeepSeek V4 Flash",
-    "context": 1048576,
-    "output": 393216,
+  "novita-ai/tencent/hy3": {
+    "name": "Hy3",
+    "context": 262144,
+    "output": 262144,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
     "cost": {
       "input": 0.14,
-      "output": 0.28,
-      "cache_read": 0.028
+      "output": 0.58,
+      "cache_read": 0.035
+    }
+  },
+  "novita-ai/tencent/hy4-preview": {
+    "name": "Hy4 preview",
+    "context": 1000000,
+    "output": 64000,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 0.834,
+      "output": 2.501,
+      "cache_read": 0.042
     }
   },
   "novita-ai/meta-llama/llama-4-maverick-17b-128e-instruct-fp8": {
-    "name": "Llama 4 Maverick Instruct",
+    "name": "Llama 4 Maverick 17B Instruct",
     "context": 1048576,
     "output": 8192,
+    "tool_call": true,
+    "structured_output": true,
     "image": true,
     "cost": {
       "input": 0.27,
       "output": 0.85
     }
   },
-  "novita-ai/meta-llama/llama-3-70b-instruct": {
-    "name": "Llama3 70B Instruct",
-    "context": 8192,
-    "output": 8000,
-    "structured_output": true,
-    "cost": {
-      "input": 0.51,
-      "output": 0.74
-    }
-  },
   "novita-ai/meta-llama/llama-3.3-70b-instruct": {
-    "name": "Llama 3.3 70B Instruct",
-    "context": 131072,
-    "output": 120000,
+    "name": "Llama-3.3-70B-Instruct",
+    "context": 12288,
+    "output": 12288,
     "tool_call": true,
+    "structured_output": true,
     "cost": {
       "input": 0.135,
       "output": 0.4
     }
   },
   "novita-ai/meta-llama/llama-3.1-8b-instruct": {
-    "name": "Llama 3.1 8B Instruct",
+    "name": "Llama-3.1-8B-Instruct",
     "context": 16384,
     "output": 16384,
+    "tool_call": true,
+    "structured_output": true,
     "cost": {
       "input": 0.02,
       "output": 0.05
     }
   },
+  "novita-ai/meta-llama/llama-3.2-1b-instruct": {
+    "name": "Llama 3.2 1B Instruct",
+    "context": 131000,
+    "output": 32000,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 0.02,
+      "output": 0.02
+    }
+  },
   "novita-ai/meta-llama/llama-4-scout-17b-16e-instruct": {
-    "name": "Llama 4 Scout Instruct",
+    "name": "Llama 4 Scout 17B Instruct",
     "context": 131072,
     "output": 131072,
+    "tool_call": true,
     "image": true,
     "cost": {
       "input": 0.18,
       "output": 0.59
     }
   },
-  "novita-ai/meta-llama/llama-3.2-3b-instruct": {
-    "name": "Llama 3.2 3B Instruct",
-    "context": 32768,
-    "output": 32000,
-    "cost": {
-      "input": 0.03,
-      "output": 0.05
-    }
-  },
-  "novita-ai/meta-llama/llama-3-8b-instruct": {
-    "name": "Llama 3 8B Instruct",
-    "context": 8192,
-    "output": 8192,
-    "cost": {
-      "input": 0.04,
-      "output": 0.04
-    }
-  },
   "novita-ai/nousresearch/hermes-2-pro-llama-3-8b": {
     "name": "Hermes 2 Pro Llama 3 8B",
     "context": 8192,
     "output": 8192,
+    "tool_call": true,
     "structured_output": true,
     "cost": {
       "input": 0.14,
       "output": 0.14
     }
   },
-  "novita-ai/xiaomimimo/mimo-v2-flash": {
-    "name": "XiaomiMiMo/MiMo-V2-Flash",
-    "context": 262144,
-    "output": 32000,
-    "reasoning": true,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.1,
-      "output": 0.3,
-      "cache_read": 0.3
-    }
-  },
-  "novita-ai/xiaomimimo/mimo-v2-pro": {
-    "name": "MiMo-V2-Pro",
+  "novita-ai/xiaomimimo/mimo-v2.6-pro": {
+    "name": "MiMo-V2.6-Pro",
     "context": 1048576,
     "output": 131072,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
+    "image": true,
+    "video": true,
     "cost": {
-      "input": 2,
-      "output": 6,
-      "cache_read": 0.4
+      "input": 0.435,
+      "output": 0.87,
+      "cache_read": 0.0036
+    }
+  },
+  "novita-ai/xiaomimimo/mimo-v2.5": {
+    "name": "MiMo-V2.5",
+    "context": 1048576,
+    "output": 131072,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "video": true,
+    "cost": {
+      "input": 0.168,
+      "output": 0.336,
+      "cache_read": 0.0034
     }
   },
   "novita-ai/xiaomimimo/mimo-v2.5-pro": {
@@ -32349,40 +32253,19 @@
       "cache_read": 0.0043
     }
   },
-  "novita-ai/baidu/ernie-4.5-vl-28b-a3b": {
-    "name": "ERNIE 4.5 VL 28B A3B",
-    "context": 30000,
-    "output": 8000,
-    "reasoning": true,
-    "tool_call": true,
-    "image": true,
-    "cost": {
-      "input": 0.14,
-      "output": 0.56
-    }
-  },
-  "novita-ai/baidu/ernie-4.5-vl-28b-a3b-thinking": {
-    "name": "ERNIE-4.5-VL-28B-A3B-Thinking",
-    "context": 131072,
-    "output": 65536,
+  "novita-ai/xiaomimimo/mimo-v2.6-flash": {
+    "name": "MiMo-V2.6-Flash",
+    "context": 1048576,
+    "output": 131072,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
     "image": true,
     "video": true,
     "cost": {
-      "input": 0.39,
-      "output": 0.39
-    }
-  },
-  "novita-ai/baidu/ernie-4.5-21B-a3b-thinking": {
-    "name": "ERNIE-4.5-21B-A3B-Thinking",
-    "context": 131072,
-    "output": 65536,
-    "reasoning": true,
-    "cost": {
-      "input": 0.07,
-      "output": 0.28
+      "input": 0.14,
+      "output": 0.28,
+      "cache_read": 0.0028
     }
   },
   "novita-ai/baidu/ernie-4.5-21B-a3b": {
@@ -32395,29 +32278,20 @@
       "output": 0.28
     }
   },
-  "novita-ai/baidu/ernie-4.5-vl-424b-a47b": {
-    "name": "ERNIE 4.5 VL 424B A47B",
-    "context": 123000,
-    "output": 16000,
+  "novita-ai/baidu/cobuddy": {
+    "name": "CoBuddy",
+    "context": 131072,
+    "output": 65536,
     "reasoning": true,
-    "image": true,
-    "cost": {
-      "input": 0.42,
-      "output": 1.25
-    }
-  },
-  "novita-ai/baidu/ernie-4.5-300b-a47b-paddle": {
-    "name": "ERNIE 4.5 300B A47B",
-    "context": 123000,
-    "output": 12000,
-    "structured_output": true,
+    "tool_call": true,
     "cost": {
       "input": 0.28,
-      "output": 1.1
+      "output": 1.13,
+      "cache_read": 0.07
     }
   },
   "novita-ai/google/gemma-4-31b-it": {
-    "name": "Gemma 4 31B",
+    "name": "Gemma 4 31B IT",
     "context": 262144,
     "output": 131072,
     "reasoning": true,
@@ -32430,9 +32304,10 @@
     }
   },
   "novita-ai/google/gemma-3-27b-it": {
-    "name": "Gemma 3 27B",
+    "name": "Gemma 3 27B IT",
     "context": 98304,
     "output": 16384,
+    "tool_call": true,
     "image": true,
     "cost": {
       "input": 0.119,
@@ -32440,7 +32315,7 @@
     }
   },
   "novita-ai/google/gemma-4-26b-a4b-it": {
-    "name": "Gemma 4 26B A4B",
+    "name": "Gemma 4 26B A4B IT",
     "context": 262144,
     "output": 131072,
     "reasoning": true,
@@ -32453,9 +32328,10 @@
     }
   },
   "novita-ai/google/gemma-3-12b-it": {
-    "name": "Gemma 3 12B",
+    "name": "Gemma 3 12B IT",
     "context": 131072,
     "output": 8192,
+    "tool_call": true,
     "image": true,
     "cost": {
       "input": 0.05,
@@ -32463,61 +32339,76 @@
     }
   },
   "novita-ai/minimaxai/minimax-m1-80k": {
-    "name": "MiniMax M1",
+    "name": "MiniMax M1 80K",
     "context": 1000000,
     "output": 40000,
     "reasoning": true,
     "tool_call": true,
+    "structured_output": true,
     "cost": {
       "input": 0.55,
       "output": 2.2
     }
   },
-  "novita-ai/mistralai/mistral-nemo": {
-    "name": "Mistral Nemo",
-    "context": 60288,
-    "output": 16000,
-    "structured_output": true,
-    "cost": {
-      "input": 0.04,
-      "output": 0.17
-    }
-  },
-  "novita-ai/inclusionai/ring-2.6-1t": {
-    "name": "Ring-2.6-1T",
+  "novita-ai/inclusionai/ling-3.0-flash": {
+    "name": "Ling 3.0 Flash",
     "context": 262144,
-    "output": 65536,
+    "output": 32768,
     "reasoning": true,
     "tool_call": true,
-    "structured_output": true,
     "cost": {
-      "input": 0.3,
-      "output": 2.5,
-      "cache_read": 0.06
+      "input": 0.06,
+      "output": 0.18,
+      "cache_read": 0.012
     }
   },
-  "novita-ai/inclusionai/ling-2.6-1t": {
-    "name": "Ling-2.6-1T",
+  "novita-ai/inclusionai/ling-3.1-flash": {
+    "name": "Ling 3.1 Flash",
     "context": 262144,
     "output": 32768,
+    "reasoning": true,
     "tool_call": true,
-    "structured_output": true,
     "cost": {
-      "input": 0.3,
-      "output": 2.5,
-      "cache_read": 0.06
+      "input": 0,
+      "output": 0
     }
   },
-  "novita-ai/inclusionai/ling-2.6-flash": {
-    "name": "Ling-2.6-flash",
+  "novita-ai/inclusionai/ling-3.0-flash-sante": {
+    "name": "Ling 3.0 Flash Sante",
     "context": 262144,
     "output": 32768,
+    "reasoning": true,
     "tool_call": true,
-    "structured_output": true,
     "cost": {
-      "input": 0.1,
-      "output": 0.3,
-      "cache_read": 0.02
+      "input": 0.075,
+      "output": 0.22,
+      "cache_read": 0.015
+    }
+  },
+  "novita-ai/inclusionai/ling-3.0-flash-vl": {
+    "name": "Ling 3.0 Flash VL",
+    "context": 262144,
+    "output": 32768,
+    "reasoning": true,
+    "tool_call": true,
+    "image": true,
+    "video": true,
+    "cost": {
+      "input": 0.075,
+      "output": 0.22,
+      "cache_read": 0.015
+    }
+  },
+  "novita-ai/inclusionai/ling-3.0-flash-fin": {
+    "name": "Ling 3.0 Flash Fin",
+    "context": 262144,
+    "output": 32768,
+    "reasoning": true,
+    "tool_call": true,
+    "cost": {
+      "input": 0.075,
+      "output": 0.22,
+      "cache_read": 0.015
     }
   },
   "novita-ai/moonshotai/kimi-k3": {
@@ -32581,7 +32472,7 @@
   "novita-ai/moonshotai/kimi-k2-instruct": {
     "name": "Kimi K2 Instruct",
     "context": 131072,
-    "output": 32768,
+    "output": 98304,
     "tool_call": true,
     "cost": {
       "input": 0.57,
@@ -32589,7 +32480,7 @@
     }
   },
   "novita-ai/moonshotai/kimi-k2-0905": {
-    "name": "Kimi K2 0905",
+    "name": "Kimi K2 Instruct 0905",
     "context": 262144,
     "output": 98304,
     "tool_call": true,
@@ -32615,7 +32506,7 @@
     }
   },
   "novita-ai/zai-org/glm-4.6v": {
-    "name": "GLM 4.6V",
+    "name": "GLM-4.6V",
     "context": 131072,
     "output": 32768,
     "reasoning": true,
@@ -32629,20 +32520,23 @@
       "cache_read": 0.055
     }
   },
-  "novita-ai/zai-org/glm-4.5": {
-    "name": "GLM-4.5",
-    "context": 131072,
-    "output": 98304,
+  "novita-ai/zai-org/glm-5.3-flash": {
+    "name": "GLM-5.3-Flash",
+    "context": 1048576,
+    "output": 131072,
     "reasoning": true,
     "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "video": true,
     "cost": {
-      "input": 0.6,
-      "output": 2.2,
-      "cache_read": 0.11
+      "input": 0.15,
+      "output": 0.5,
+      "cache_read": 0.03
     }
   },
   "novita-ai/zai-org/glm-4.6": {
-    "name": "GLM 4.6",
+    "name": "GLM-4.6",
     "context": 204800,
     "output": 131072,
     "reasoning": true,
@@ -32668,7 +32562,7 @@
     }
   },
   "novita-ai/zai-org/glm-4.5v": {
-    "name": "GLM 4.5V",
+    "name": "GLM-4.5V",
     "context": 65536,
     "output": 16384,
     "reasoning": true,
@@ -32735,7 +32629,7 @@
     }
   },
   "novita-ai/zai-org/autoglm-phone-9b-multilingual": {
-    "name": "AutoGLM-Phone-9B-Multilingual",
+    "name": "AutoGLM Phone 9B Multilingual",
     "context": 65536,
     "output": 65536,
     "image": true,
@@ -32745,7 +32639,7 @@
     }
   },
   "novita-ai/zai-org/glm-4.5-air": {
-    "name": "GLM 4.5 Air",
+    "name": "GLM-4.5-Air",
     "context": 131072,
     "output": 98304,
     "reasoning": true,
@@ -32756,8 +32650,45 @@
       "cache_read": 0.025
     }
   },
+  "novita-ai/zai-org/glm-5.3": {
+    "name": "GLM-5.3",
+    "context": 1048576,
+    "output": 131072,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 1.4,
+      "output": 4.4,
+      "cache_read": 0.26
+    }
+  },
+  "novita-ai/apodex/apodex-1.1-mini": {
+    "name": "Apodex 1.1 Mini",
+    "context": 262144,
+    "output": 262144,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 0,
+      "output": 0
+    }
+  },
+  "novita-ai/nvidia/nemotron-3-nano-30b-a3b": {
+    "name": "Nemotron 3 Nano 30B A3B",
+    "context": 262144,
+    "output": 32768,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 0.05,
+      "output": 0.2
+    }
+  },
   "novita-ai/gryphe/mythomax-l2-13b": {
-    "name": "Mythomax L2 13B",
+    "name": "MythoMax L2 13B",
     "context": 4096,
     "output": 3200,
     "cost": {
@@ -32766,9 +32697,9 @@
     }
   },
   "novita-ai/minimax/minimax-m2.5": {
-    "name": "MiniMax M2.5",
+    "name": "MiniMax-M2.5",
     "context": 204800,
-    "output": 131072,
+    "output": 131100,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
@@ -32779,12 +32710,27 @@
     }
   },
   "novita-ai/minimax/minimax-m2.7": {
-    "name": "MiniMax M2.7",
+    "name": "MiniMax-M2.7",
     "context": 204800,
     "output": 131072,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
+    "cost": {
+      "input": 0.3,
+      "output": 1.2,
+      "cache_read": 0.06
+    }
+  },
+  "novita-ai/minimax/minimax-m3": {
+    "name": "MiniMax-M3",
+    "context": 1000000,
+    "output": 131072,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "video": true,
     "cost": {
       "input": 0.3,
       "output": 1.2,
@@ -32805,45 +32751,8 @@
       "cache_write": 0.375
     }
   },
-  "novita-ai/minimax/minimax-m2.5-highspeed": {
-    "name": "MiniMax M2.5 Highspeed",
-    "context": 204800,
-    "output": 131072,
-    "reasoning": true,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.6,
-      "output": 2.4,
-      "cache_read": 0.03
-    }
-  },
-  "novita-ai/minimax/minimax-m2.1": {
-    "name": "Minimax M2.1",
-    "context": 204800,
-    "output": 131072,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.3,
-      "output": 1.2,
-      "cache_read": 0.03
-    }
-  },
-  "novita-ai/minimax/minimax-m2": {
-    "name": "MiniMax-M2",
-    "context": 204800,
-    "output": 131072,
-    "reasoning": true,
-    "tool_call": true,
-    "cost": {
-      "input": 0.3,
-      "output": 1.2,
-      "cache_read": 0.03
-    }
-  },
   "novita-ai/paddlepaddle/paddleocr-vl": {
-    "name": "PaddleOCR-VL",
+    "name": "PaddleOCR VL",
     "context": 16384,
     "output": 16384,
     "image": true,
@@ -32852,21 +32761,47 @@
       "output": 0.02
     }
   },
-  "novita-ai/qwen/qwen3-vl-235b-a22b-instruct": {
-    "name": "Qwen3 VL 235B A22B Instruct",
-    "context": 131072,
-    "output": 32768,
+  "novita-ai/stepfun/step-3.7-flash": {
+    "name": "Step 3.7 Flash",
+    "context": 262144,
+    "output": 256000,
+    "reasoning": true,
     "tool_call": true,
     "structured_output": true,
     "image": true,
     "video": true,
     "cost": {
-      "input": 0.3,
-      "output": 1.5
+      "input": 0.2,
+      "output": 1.15,
+      "cache_read": 0.04
+    }
+  },
+  "novita-ai/mindai/macaron-v1-tall": {
+    "name": "Macaron V1 Tall",
+    "context": 262144,
+    "output": 32768,
+    "reasoning": true,
+    "tool_call": true,
+    "cost": {
+      "input": 0.2475,
+      "output": 1.43,
+      "cache_read": 0.044
+    }
+  },
+  "novita-ai/mindai/macaron-v1-venti": {
+    "name": "Macaron V1 Venti",
+    "context": 1048576,
+    "output": 131072,
+    "reasoning": true,
+    "tool_call": true,
+    "cost": {
+      "input": 0.825,
+      "output": 2.475,
+      "cache_read": 0.165
     }
   },
   "novita-ai/qwen/qwen3.7-max": {
-    "name": "Qwen3.7-Max",
+    "name": "Qwen3.7 Max",
     "context": 1000000,
     "output": 65536,
     "reasoning": true,
@@ -32875,24 +32810,39 @@
     "cost": {
       "input": 1.25,
       "output": 3.75,
-      "cache_read": 0.25,
-      "cache_write": 1.5625
+      "cache_read": 0.25
     }
   },
-  "novita-ai/qwen/qwen3-vl-235b-a22b-thinking": {
-    "name": "Qwen3 VL 235B A22B Thinking",
-    "context": 131072,
-    "output": 32768,
+  "novita-ai/qwen/qwen3.8-27b": {
+    "name": "Qwen3.8 27B",
+    "context": 1000000,
+    "output": 131072,
     "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
     "image": true,
     "video": true,
     "cost": {
-      "input": 0.98,
-      "output": 3.95
+      "input": 0.42,
+      "output": 3,
+      "cache_read": 0.085
+    }
+  },
+  "novita-ai/qwen/qwen3.8-2.4t-a95b": {
+    "name": "Qwen3.8 2.4T A95B",
+    "context": 1000000,
+    "output": 131072,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 2,
+      "output": 6,
+      "cache_read": 0.25
     }
   },
   "novita-ai/qwen/qwen3.5-27b": {
-    "name": "Qwen3.5-27B",
+    "name": "Qwen3.5 27B",
     "context": 262144,
     "output": 65536,
     "reasoning": true,
@@ -32905,51 +32855,19 @@
       "output": 2.4
     }
   },
-  "novita-ai/qwen/qwen3-235b-a22b-instruct-2507": {
-    "name": "Qwen3 235B A22B Instruct 2507",
-    "context": 131072,
-    "output": 16384,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.09,
-      "output": 0.58
-    }
-  },
-  "novita-ai/qwen/qwen3-next-80b-a3b-thinking": {
-    "name": "Qwen3 Next 80B A3B Thinking",
-    "context": 131072,
-    "output": 32768,
+  "novita-ai/qwen/qwen3.8-max": {
+    "name": "Qwen3.8 Max",
+    "context": 1000000,
+    "output": 131072,
     "reasoning": true,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.15,
-      "output": 1.5
-    }
-  },
-  "novita-ai/qwen/qwen3-coder-next": {
-    "name": "Qwen3 Coder Next",
-    "context": 262144,
-    "output": 65536,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.2,
-      "output": 1.5
-    }
-  },
-  "novita-ai/qwen/qwen3-omni-30b-a3b-instruct": {
-    "name": "Qwen3 Omni 30B A3B Instruct",
-    "context": 65536,
-    "output": 16384,
     "tool_call": true,
     "structured_output": true,
     "image": true,
     "video": true,
     "cost": {
-      "input": 0.25,
-      "output": 0.97
+      "input": 2,
+      "output": 6,
+      "cache_read": 0.25
     }
   },
   "novita-ai/qwen/qwen3-omni-30b-a3b-thinking": {
@@ -32966,51 +32884,16 @@
       "output": 0.97
     }
   },
-  "novita-ai/qwen/qwen3-max": {
-    "name": "Qwen3 Max",
-    "context": 262144,
-    "output": 65536,
-    "tool_call": true,
-    "structured_output": true,
+  "novita-ai/qwen/qwen3-reranker-8b": {
+    "name": "Qwen3 Reranker 8B",
+    "context": 32768,
     "cost": {
-      "input": 2.11,
-      "output": 8.45
-    }
-  },
-  "novita-ai/qwen/qwen3-235b-a22b-fp8": {
-    "name": "Qwen3 235B A22B",
-    "context": 40960,
-    "output": 20000,
-    "reasoning": true,
-    "cost": {
-      "input": 0.2,
-      "output": 0.8
-    }
-  },
-  "novita-ai/qwen/qwen3-coder-480b-a35b-instruct": {
-    "name": "Qwen3 Coder 480B A35B Instruct",
-    "context": 262144,
-    "output": 65536,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.38,
-      "output": 1.55
-    }
-  },
-  "novita-ai/qwen/qwen3-coder-30b-a3b-instruct": {
-    "name": "Qwen3 Coder 30b A3B Instruct",
-    "context": 160000,
-    "output": 32768,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.07,
-      "output": 0.27
+      "input": 0.05,
+      "output": 0
     }
   },
   "novita-ai/qwen/qwen3-vl-30b-a3b-instruct": {
-    "name": "qwen/qwen3-vl-30b-a3b-instruct",
+    "name": "Qwen3 VL 30B A3B Instruct",
     "context": 131072,
     "output": 32768,
     "tool_call": true,
@@ -33022,30 +32905,8 @@
       "output": 0.7
     }
   },
-  "novita-ai/qwen/qwen3-235b-a22b-thinking-2507": {
-    "name": "Qwen3 235B A22b Thinking 2507",
-    "context": 131072,
-    "output": 32768,
-    "reasoning": true,
-    "tool_call": true,
-    "cost": {
-      "input": 0.3,
-      "output": 3
-    }
-  },
-  "novita-ai/qwen/qwen2.5-7b-instruct": {
-    "name": "Qwen2.5 7B Instruct",
-    "context": 32000,
-    "output": 32000,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.07,
-      "output": 0.07
-    }
-  },
   "novita-ai/qwen/qwen3.5-122b-a10b": {
-    "name": "Qwen3.5-122B-A10B",
+    "name": "Qwen3.5 122B-A10B",
     "context": 262144,
     "output": 65536,
     "reasoning": true,
@@ -33058,38 +32919,18 @@
       "output": 3.2
     }
   },
-  "novita-ai/qwen/qwen3-30b-a3b-fp8": {
-    "name": "Qwen3 30B A3B",
-    "context": 40960,
-    "output": 20000,
+  "novita-ai/qwen/qwen3.6-35b-a3b": {
+    "name": "Qwen3.6 35B-A3B",
+    "context": 262144,
+    "output": 65536,
     "reasoning": true,
-    "cost": {
-      "input": 0.09,
-      "output": 0.45
-    }
-  },
-  "novita-ai/qwen/qwen3-next-80b-a3b-instruct": {
-    "name": "Qwen3 Next 80B A3B Instruct",
-    "context": 131072,
-    "output": 32768,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.15,
-      "output": 1.5
-    }
-  },
-  "novita-ai/qwen/qwen3-vl-30b-a3b-thinking": {
-    "name": "qwen/qwen3-vl-30b-a3b-thinking",
-    "context": 131072,
-    "output": 32768,
     "tool_call": true,
     "structured_output": true,
     "image": true,
     "video": true,
     "cost": {
-      "input": 0.2,
-      "output": 1
+      "input": 0.248,
+      "output": 1.485
     }
   },
   "novita-ai/qwen/qwen-mt-plus": {
@@ -33101,28 +32942,31 @@
       "output": 0.75
     }
   },
-  "novita-ai/qwen/qwen3-32b-fp8": {
-    "name": "Qwen3 32B",
-    "context": 40960,
-    "output": 20000,
+  "novita-ai/qwen/qwen3.8-flash": {
+    "name": "Qwen3.8 Flash",
+    "context": 1000000,
+    "output": 131072,
     "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "video": true,
     "cost": {
-      "input": 0.1,
-      "output": 0.45
+      "input": 0.15,
+      "output": 0.47,
+      "cache_read": 0.016
     }
   },
-  "novita-ai/qwen/qwen3-8b-fp8": {
-    "name": "Qwen3 8B",
-    "context": 128000,
-    "output": 20000,
-    "reasoning": true,
+  "novita-ai/qwen/qwen3-embedding-8b": {
+    "name": "Qwen3 Embedding 8B",
+    "context": 32768,
     "cost": {
-      "input": 0.035,
-      "output": 0.138
+      "input": 0.07,
+      "output": 0
     }
   },
   "novita-ai/qwen/qwen3.5-35b-a3b": {
-    "name": "Qwen3.5-35B-A3B",
+    "name": "Qwen3.5 35B-A3B",
     "context": 262144,
     "output": 65536,
     "reasoning": true,
@@ -33136,9 +32980,9 @@
     }
   },
   "novita-ai/qwen/qwen3.5-397b-a17b": {
-    "name": "Qwen3.5-397B-A17B",
+    "name": "Qwen3.5 397B-A17B",
     "context": 262144,
-    "output": 64000,
+    "output": 65536,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
@@ -33149,132 +32993,50 @@
       "output": 3.6
     }
   },
-  "novita-ai/qwen/qwen3-vl-8b-instruct": {
-    "name": "qwen/qwen3-vl-8b-instruct",
-    "context": 131072,
-    "output": 32768,
-    "tool_call": true,
-    "structured_output": true,
-    "image": true,
-    "video": true,
-    "cost": {
-      "input": 0.08,
-      "output": 0.5
-    }
-  },
-  "novita-ai/qwen/qwen2.5-vl-72b-instruct": {
-    "name": "Qwen2.5 VL 72B Instruct",
-    "context": 32768,
-    "output": 32768,
-    "image": true,
-    "video": true,
-    "cost": {
-      "input": 0.8,
-      "output": 0.8
-    }
-  },
-  "novita-ai/qwen/qwen-2.5-72b-instruct": {
-    "name": "Qwen 2.5 72B Instruct",
-    "context": 32000,
-    "output": 8192,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.38,
-      "output": 0.4
-    }
-  },
-  "novita-ai/qwen/qwen3-4b-fp8": {
-    "name": "Qwen3 4B",
-    "context": 128000,
-    "output": 20000,
+  "novita-ai/qwen/qwen3.6-27b": {
+    "name": "Qwen3.6 27B",
+    "context": 262144,
+    "output": 65536,
     "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "video": true,
     "cost": {
-      "input": 0.03,
-      "output": 0.03
+      "input": 0.6,
+      "output": 3.6
     }
   },
   "novita-ai/baichuan/baichuan-m2-32b": {
-    "name": "baichuan-m2-32b",
+    "name": "Baichuan M2 32B",
     "context": 131072,
     "output": 131072,
+    "reasoning": true,
     "cost": {
       "input": 0.07,
       "output": 0.07
     }
   },
-  "novita-ai/openai/gpt-oss-20b": {
-    "name": "OpenAI: GPT OSS 20B",
-    "context": 131072,
-    "output": 32768,
-    "reasoning": true,
-    "structured_output": true,
-    "image": true,
-    "cost": {
-      "input": 0.04,
-      "output": 0.15
-    }
-  },
   "novita-ai/openai/gpt-oss-120b": {
-    "name": "OpenAI GPT OSS 120B",
+    "name": "GPT OSS 120B",
     "context": 131072,
     "output": 32768,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
-    "image": true,
     "cost": {
       "input": 0.05,
       "output": 0.25
     }
   },
   "novita-ai/microsoft/wizardlm-2-8x22b": {
-    "name": "Wizardlm 2 8x22B",
+    "name": "WizardLM 2 8x22B",
     "context": 65535,
     "output": 8000,
+    "structured_output": true,
     "cost": {
       "input": 0.62,
       "output": 0.62
-    }
-  },
-  "novita-ai/sao10K/l3-70b-euryale-v2.1": {
-    "name": "L3 70B Euryale V2.1\t",
-    "context": 8192,
-    "output": 8192,
-    "tool_call": true,
-    "cost": {
-      "input": 1.48,
-      "output": 1.48
-    }
-  },
-  "novita-ai/sao10K/L3-8B-stheno-v3.2": {
-    "name": "L3 8B Stheno V3.2",
-    "context": 8192,
-    "output": 32000,
-    "tool_call": true,
-    "cost": {
-      "input": 0.05,
-      "output": 0.05
-    }
-  },
-  "novita-ai/sao10K/l3-8b-lunaris": {
-    "name": "Sao10k L3 8B Lunaris\t",
-    "context": 8192,
-    "output": 8192,
-    "structured_output": true,
-    "cost": {
-      "input": 0.05,
-      "output": 0.05
-    }
-  },
-  "novita-ai/sao10K/l31-70b-euryale-v2.2": {
-    "name": "L31 70B Euryale V2.2",
-    "context": 8192,
-    "output": 8192,
-    "tool_call": true,
-    "cost": {
-      "input": 1.48,
-      "output": 1.48
     }
   },
   "302ai/grok-4-1-fast-reasoning": {
@@ -34900,8 +34662,8 @@
     "image": true,
     "video": true,
     "cost": {
-      "input": 0.49,
-      "output": 13,
+      "input": 0.33,
+      "output": 14.89,
       "cache_read": 0.3
     }
   },
@@ -35318,9 +35080,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.0079,
+      "input": 0.0099,
       "output": 1.28,
-      "cache_read": 0.0079
+      "cache_read": 0.0099
     }
   },
   "openrouter/deepseek/deepseek-v4.1-flash": {
@@ -35382,9 +35144,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 1.32,
-      "output": 3.96,
-      "cache_read": 0.044
+      "input": 0.66,
+      "output": 1.98,
+      "cache_read": 0.022
     }
   },
   "openrouter/deepseek/deepseek-v3.2-exp": {
@@ -35430,13 +35192,13 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.95526,
-      "output": 1.91052,
-      "cache_read": 0.079605
+      "input": 0.9483,
+      "output": 1.8966,
+      "cache_read": 0.079025
     }
   },
   "openrouter/deepseek/deepseek-r1-0528": {
-    "name": "R1 0528",
+    "name": "DeepSeek R1 0528",
     "context": 163840,
     "output": 32768,
     "reasoning": true,
@@ -35457,8 +35219,8 @@
     "structured_output": true,
     "cost": {
       "input": 0.259,
-      "output": 0.42,
-      "cache_read": 0.135
+      "output": 0.8,
+      "cache_read": 0.14
     }
   },
   "openrouter/deepseek/deepseek-v4-flash": {
@@ -35469,9 +35231,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.0075,
+      "input": 0.0182,
       "output": 1.28,
-      "cache_read": 0.0075
+      "cache_read": 0.0182
     }
   },
   "openrouter/unbiased/pareto-26.10-preview": {
@@ -35804,14 +35566,14 @@
   "openrouter/z-ai/glm-4.6": {
     "name": "GLM-4.6",
     "context": 204800,
-    "output": 16384,
+    "output": 131072,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.43,
-      "output": 1.75,
-      "cache_read": 0.08
+      "input": 0.5,
+      "output": 2,
+      "cache_read": 0.1
     }
   },
   "openrouter/z-ai/glm-5": {
@@ -35888,7 +35650,7 @@
     "structured_output": true,
     "cost": {
       "input": 0.06,
-      "output": 4.2,
+      "output": 7,
       "cache_read": 0.059
     }
   },
@@ -36239,29 +36001,29 @@
   "openrouter/~z-ai/glm-flash-latest": {
     "name": "GLM Flash Latest",
     "context": 1048576,
-    "output": 943718,
+    "output": 131072,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
     "image": true,
     "video": true,
     "cost": {
-      "input": 0.032,
-      "output": 1.041434,
-      "cache_read": 0.02
+      "input": 0.04,
+      "output": 0.5,
+      "cache_read": 0.0125
     }
   },
   "openrouter/~z-ai/glm-latest": {
     "name": "GLM Latest",
     "context": 1048576,
-    "output": 131072,
+    "output": 943718,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.0312,
-      "output": 4.4,
-      "cache_read": 0.029
+      "input": 0.039,
+      "output": 4.8,
+      "cache_read": 0.038
     }
   },
   "openrouter/arcee-ai/trinity-large-thinking": {
@@ -36596,22 +36358,22 @@
     "structured_output": true,
     "image": true,
     "cost": {
-      "input": 0.016,
-      "output": 1.2,
-      "cache_read": 0.01
+      "input": 0.0001,
+      "output": 0.6,
+      "cache_read": 0.005
     }
   },
   "openrouter/~deepseek/deepseek-pro-latest": {
     "name": "DeepSeek Pro Latest",
     "context": 1048576,
-    "output": 393216,
+    "output": 943718,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.198,
-      "output": 8,
-      "cache_read": 0.2
+      "input": 0.3,
+      "output": 5,
+      "cache_read": 0.219
     }
   },
   "openrouter/~deepseek/deepseek-v4-flash-latest": {
@@ -36622,9 +36384,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.00632,
-      "output": 0.1086,
-      "cache_read": 0.00632
+      "input": 0.0099,
+      "output": 1.28,
+      "cache_read": 0.0099
     }
   },
   "openrouter/~x-ai/grok-latest": {
@@ -36790,9 +36552,9 @@
     "image": true,
     "video": true,
     "cost": {
-      "input": 0.09,
-      "output": 0.3,
-      "cache_read": 0.05
+      "input": 0.0675,
+      "output": 0.225,
+      "cache_read": 0.0375
     }
   },
   "openrouter/google/gemini-3-pro-image-preview": {
@@ -37505,7 +37267,6 @@
     "output": 32768,
     "reasoning": true,
     "tool_call": true,
-    "structured_output": true,
     "cost": {
       "input": 0.042,
       "output": 0.1232,
@@ -37522,9 +37283,9 @@
     "image": true,
     "video": true,
     "cost": {
-      "input": 0.5,
-      "output": 12,
-      "cache_read": 0.3
+      "input": 0.64,
+      "output": 13.5,
+      "cache_read": 0.28
     }
   },
   "openrouter/moonshotai/kimi-k2.6": {
@@ -37538,19 +37299,20 @@
     "cost": {
       "input": 0.465,
       "output": 2.45,
-      "cache_read": 0.0975
+      "cache_read": 0.0875
     }
   },
   "openrouter/moonshotai/kimi-k2-thinking": {
     "name": "Kimi K2 Thinking",
     "context": 262144,
-    "output": 235929,
+    "output": 98304,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
     "cost": {
       "input": 0.6,
-      "output": 2.5
+      "output": 2.5,
+      "cache_read": 0.15
     }
   },
   "openrouter/moonshotai/kimi-k2.5": {
@@ -37562,13 +37324,13 @@
     "structured_output": true,
     "image": true,
     "cost": {
-      "input": 0.45,
-      "output": 2.25,
-      "cache_read": 0.07
+      "input": 0.5,
+      "output": 2.5,
+      "cache_read": 0.15
     }
   },
   "openrouter/moonshotai/kimi-k2-0905": {
-    "name": "Kimi K2 0905",
+    "name": "Kimi K2 Instruct 0905",
     "context": 262144,
     "output": 98304,
     "tool_call": true,
@@ -37664,14 +37426,14 @@
   "openrouter/nvidia/nemotron-3.5-lightning": {
     "name": "Nemotron 3.5 Lightning 30B A3B",
     "context": 262144,
-    "output": 131072,
+    "output": 235929,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.0469,
-      "output": 0.134,
-      "cache_read": 0.02345
+      "input": 0.07,
+      "output": 0.2,
+      "cache_read": 0.04
     }
   },
   "openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
@@ -38233,19 +37995,6 @@
       "cache_write": 0.53125
     }
   },
-  "openrouter/qwen/qwen3-vl-235b-a22b-thinking": {
-    "name": "Qwen3 VL 235B A22B Thinking",
-    "context": 131072,
-    "output": 32768,
-    "reasoning": true,
-    "tool_call": true,
-    "structured_output": true,
-    "image": true,
-    "cost": {
-      "input": 0.4,
-      "output": 4
-    }
-  },
   "openrouter/qwen/qwen3.8-2.4t-a95b": {
     "name": "Qwen3.8 2.4T A95B",
     "context": 1048576,
@@ -38276,7 +38025,7 @@
   "openrouter/qwen/qwen3-next-80b-a3b-thinking": {
     "name": "Qwen3-Next 80B-A3B (Thinking)",
     "context": 262144,
-    "output": 32768,
+    "output": 235929,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
@@ -38349,19 +38098,6 @@
       "cache_write": 0.038
     }
   },
-  "openrouter/qwen/qwen3-max": {
-    "name": "Qwen3 Max",
-    "context": 262144,
-    "output": 65536,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.78,
-      "output": 3.9,
-      "cache_read": 0.156,
-      "cache_write": 0.975
-    }
-  },
   "openrouter/qwen/qwen3-coder-30b-a3b-instruct": {
     "name": "Qwen3-Coder 30B-A3B Instruct",
     "context": 262144,
@@ -38402,24 +38138,13 @@
   },
   "openrouter/qwen/qwen3-235b-a22b-thinking-2507": {
     "name": "Qwen3 235B A22B Thinking 2507",
-    "context": 131072,
-    "output": 117964,
+    "context": 128000,
+    "output": 16384,
     "reasoning": true,
     "tool_call": true,
     "cost": {
-      "input": 0.23,
-      "output": 2.3
-    }
-  },
-  "openrouter/qwen/qwen3-235b-a22b": {
-    "name": "Qwen3 235B-A22B",
-    "context": 131072,
-    "output": 8192,
-    "reasoning": true,
-    "tool_call": true,
-    "cost": {
-      "input": 0.455,
-      "output": 1.82
+      "input": 0.45,
+      "output": 3.5
     }
   },
   "openrouter/qwen/qwen3.5-122b-a10b": {
@@ -38434,17 +38159,6 @@
     "cost": {
       "input": 0.26,
       "output": 2.08
-    }
-  },
-  "openrouter/qwen/qwen-plus-2025-07-28": {
-    "name": "Qwen Plus 0728",
-    "context": 1000000,
-    "output": 32768,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.26,
-      "output": 0.78
     }
   },
   "openrouter/qwen/qwen3.6-35b-a3b": {
@@ -38477,14 +38191,14 @@
   "openrouter/qwen/qwen3-vl-30b-a3b-thinking": {
     "name": "Qwen3 VL 30B A3B Thinking",
     "context": 262144,
-    "output": 32768,
+    "output": 235929,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
     "image": true,
     "cost": {
-      "input": 0.2,
-      "output": 2.4
+      "input": 0.29,
+      "output": 1
     }
   },
   "openrouter/qwen/qwen3.6-flash": {
@@ -38535,31 +38249,6 @@
     "cost": {
       "input": 0.065,
       "output": 0.26
-    }
-  },
-  "openrouter/qwen/qwen3-max-thinking": {
-    "name": "Qwen3 Max Thinking",
-    "context": 262144,
-    "output": 65536,
-    "reasoning": true,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.78,
-      "output": 3.9
-    }
-  },
-  "openrouter/qwen/qwen3-coder-plus": {
-    "name": "Qwen3 Coder Plus",
-    "context": 1000000,
-    "output": 65536,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.65,
-      "output": 3.25,
-      "cache_read": 0.13,
-      "cache_write": 0.8125
     }
   },
   "openrouter/qwen/qwen3.5-9b": {
@@ -38618,8 +38307,7 @@
     "cost": {
       "input": 0.15,
       "output": 0.47,
-      "cache_read": 0.016,
-      "cache_write": 0.2
+      "cache_read": 0.016
     }
   },
   "openrouter/qwen/qwen3.5-35b-a3b": {
@@ -38637,22 +38325,9 @@
       "cache_read": 0.04
     }
   },
-  "openrouter/qwen/qwen3.6-max-preview": {
-    "name": "Qwen3.6 Max Preview",
-    "context": 262144,
-    "output": 65536,
-    "reasoning": true,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 1.027,
-      "output": 6.162,
-      "cache_write": 1.28375
-    }
-  },
   "openrouter/qwen/qwen3-30b-a3b": {
     "name": "Qwen3 30B A3B",
-    "context": 131072,
+    "context": 40960,
     "output": 16384,
     "reasoning": true,
     "tool_call": true,
@@ -38677,39 +38352,17 @@
       "cache_read": 0.225
     }
   },
-  "openrouter/qwen/qwen3-8b": {
-    "name": "Qwen3 8B",
-    "context": 131072,
-    "output": 8192,
-    "reasoning": true,
-    "tool_call": true,
-    "cost": {
-      "input": 0.117,
-      "output": 0.455
-    }
-  },
-  "openrouter/qwen/qwen3-vl-32b-instruct": {
-    "name": "Qwen3 VL 32B Instruct",
-    "context": 131072,
-    "output": 32768,
-    "tool_call": true,
-    "structured_output": true,
-    "image": true,
-    "cost": {
-      "input": 0.104,
-      "output": 0.416
-    }
-  },
   "openrouter/qwen/qwen3-vl-8b-instruct": {
     "name": "Qwen3 VL 8B Instruct",
     "context": 262144,
-    "output": 32768,
+    "output": 235929,
     "tool_call": true,
     "structured_output": true,
     "image": true,
     "cost": {
-      "input": 0.117,
-      "output": 0.455
+      "input": 0.25,
+      "output": 0.75,
+      "cache_read": 0.12
     }
   },
   "openrouter/qwen/qwen3-30b-a3b-instruct-2507": {
@@ -38771,29 +38424,18 @@
       "output": 0.4
     }
   },
-  "openrouter/qwen/qwen3-30b-a3b-thinking-2507": {
-    "name": "Qwen3 30B A3B Thinking 2507",
-    "context": 81920,
-    "output": 32768,
-    "reasoning": true,
-    "tool_call": true,
-    "cost": {
-      "input": 0.2,
-      "output": 2.4
-    }
-  },
   "openrouter/qwen/qwen3.6-27b": {
     "name": "Qwen3.6 27B",
     "context": 262144,
-    "output": 65536,
+    "output": 81920,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
     "image": true,
     "video": true,
     "cost": {
-      "input": 0.45,
-      "output": 2.7
+      "input": 0.32,
+      "output": 3.2
     }
   },
   "openrouter/qwen/qwen3.6-plus": {
@@ -38813,7 +38455,7 @@
   },
   "openrouter/qwen/qwen3-14b": {
     "name": "Qwen3 14B",
-    "context": 131072,
+    "context": 40960,
     "output": 16384,
     "reasoning": true,
     "tool_call": true,
@@ -38821,19 +38463,6 @@
     "cost": {
       "input": 0.12,
       "output": 0.24
-    }
-  },
-  "openrouter/qwen/qwen3-vl-8b-thinking": {
-    "name": "Qwen3 VL 8B Thinking",
-    "context": 131072,
-    "output": 32768,
-    "reasoning": true,
-    "tool_call": true,
-    "structured_output": true,
-    "image": true,
-    "cost": {
-      "input": 0.18,
-      "output": 2.1
     }
   },
   "openrouter/qwen/qwen3.7-plus": {
@@ -38863,8 +38492,7 @@
     "cost": {
       "input": 2,
       "output": 6,
-      "cache_read": 0.25,
-      "cache_write": 2.5
+      "cache_read": 0.25
     }
   },
   "openrouter/morph/morph-v3-large": {
@@ -48924,6 +48552,18 @@
       "output": 1.5
     }
   },
+  "huggingface/Qwen/Qwen3-VL-30B-A3B-Instruct": {
+    "name": "Qwen3 VL 30B A3B Instruct",
+    "context": 131072,
+    "output": 32768,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "cost": {
+      "input": 0.2,
+      "output": 0.7
+    }
+  },
   "huggingface/Qwen/Qwen3-VL-235B-A22B-Thinking": {
     "name": "Qwen3 VL 235B A22B Thinking",
     "context": 131072,
@@ -49326,6 +48966,17 @@
       "output": 1.2
     }
   },
+  "huggingface/MiniMaxAI/MiniMax-M1-80k": {
+    "name": "MiniMax M1 80K",
+    "context": 1000000,
+    "output": 80000,
+    "reasoning": true,
+    "tool_call": true,
+    "cost": {
+      "input": 0.55,
+      "output": 2.2
+    }
+  },
   "huggingface/MiniMaxAI/MiniMax-M2.1": {
     "name": "MiniMax-M2.1",
     "context": 204800,
@@ -49564,6 +49215,16 @@
     "cost": {
       "input": 0.55,
       "output": 2.2
+    }
+  },
+  "huggingface/zai-org/AutoGLM-Phone-9B-Multilingual": {
+    "name": "AutoGLM Phone 9B Multilingual",
+    "context": 65536,
+    "output": 65536,
+    "image": true,
+    "cost": {
+      "input": 0.035,
+      "output": 0.138
     }
   },
   "huggingface/zai-org/GLM-4.7-Flash": {
@@ -56171,6 +55832,33 @@
       "cache_write": 0
     }
   },
+  "ambient/qwen/qwen3.6-35b-a3b": {
+    "name": "Qwen3.6 35B-A3B",
+    "context": 262144,
+    "output": 262144,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 0.15,
+      "output": 1,
+      "cache_read": 0.15,
+      "cache_write": 0
+    }
+  },
+  "ambient/qwen/qwen3-30b-a3b-instruct-2507": {
+    "name": "Qwen3 30B A3B Instruct 2507",
+    "context": 131072,
+    "output": 32768,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 0.09,
+      "output": 0.3,
+      "cache_read": 0.09,
+      "cache_write": 0
+    }
+  },
   "ambient/qwen/qwen3.6-27b": {
     "name": "Qwen3.6 27B",
     "context": 32768,
@@ -56178,7 +55866,6 @@
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
-    "image": true,
     "cost": {
       "input": 0.32,
       "output": 3.2,
@@ -58114,6 +57801,10 @@
       "cache_read": 0.042
     }
   },
+  "vercel/heygen/heygen-video-1": {
+    "name": "HeyGen Video",
+    "image": true
+  },
   "vercel/inference-net/schematron-v2-small": {
     "name": "Schematron V2 Small",
     "context": 128000,
@@ -59858,7 +59549,7 @@
     "output": 131072,
     "tool_call": true,
     "cost": {
-      "input": 0.019,
+      "input": 0.029,
       "output": 0.03
     }
   },
@@ -66203,6 +65894,21 @@
       "cache_write": 6.25
     }
   },
+  "ofox/anthropic/claude-haiku-5.5": {
+    "name": "Claude Haiku 5.5",
+    "context": 1000000,
+    "output": 128000,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "cost": {
+      "input": 0.1,
+      "output": 0.5,
+      "cache_read": 0.01,
+      "cache_write": 0.125
+    }
+  },
   "ofox/anthropic/claude-opus-4.8": {
     "name": "Claude Opus 4.8",
     "context": 1000000,
@@ -69232,6 +68938,18 @@
       "cache_write": 5
     }
   },
+  "aihubmix/coding-glm-5.3-free": {
+    "name": "GLM-5.3 (Coding, free)",
+    "context": 1000000,
+    "output": 131072,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 0,
+      "output": 0
+    }
+  },
   "aihubmix/gpt-image-2.5-flare": {
     "name": "GPT Image 2.5 Flare",
     "image": true,
@@ -69650,6 +69368,20 @@
       "input": 0.154,
       "output": 0.308,
       "cache_read": 0.0308
+    }
+  },
+  "aihubmix/coding-glm-5.3-flash-free": {
+    "name": "GLM-5.3-Flash (Coding, free)",
+    "context": 1000000,
+    "output": 131072,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "video": true,
+    "cost": {
+      "input": 0,
+      "output": 0
     }
   },
   "aihubmix/qwen3.6-flash": {
@@ -71088,6 +70820,18 @@
       "cache_read": 0.145
     }
   },
+  "merge-gateway/deepseek/deepseek-r1-0528": {
+    "name": "DeepSeek R1 (0528)",
+    "context": 65536,
+    "output": 32768,
+    "reasoning": true,
+    "structured_output": true,
+    "cost": {
+      "input": 1.35,
+      "output": 5.4,
+      "cache_read": 0.945
+    }
+  },
   "merge-gateway/deepseek/deepseek-v3.2": {
     "name": "DeepSeek V3.2",
     "context": 128000,
@@ -72214,6 +71958,19 @@
     "cost": {
       "input": 0.22,
       "output": 1.8
+    }
+  },
+  "merge-gateway/qwen/qwen3-vl-30b-a3b-instruct": {
+    "name": "Qwen3-VL 30B-A3B Instruct",
+    "context": 131072,
+    "output": 32768,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "cost": {
+      "input": 0.108,
+      "output": 0.43,
+      "cache_read": 0.0216
     }
   },
   "merge-gateway/qwen/qwen3-235b-a22b": {
@@ -78843,6 +78600,17 @@
       "output": 0.1
     }
   },
+  "edenai/deepinfra/Gryphe/MythoMax-L2-13b": {
+    "name": "MythoMax L2 13B (Deep Infra)",
+    "context": 4096,
+    "output": 3200,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 0.4,
+      "output": 0.4
+    }
+  },
   "edenai/deepinfra/deepseek-ai/DeepSeek-V4-Flash-0731": {
     "name": "DeepSeek V4 Flash 0731 (Deep Infra)",
     "context": 1048576,
@@ -78894,6 +78662,19 @@
       "cache_read": 0.006
     }
   },
+  "edenai/deepinfra/deepseek-ai/DeepSeek-R1-0528": {
+    "name": "DeepSeek R1 0528 (Deep Infra)",
+    "context": 163840,
+    "output": 32768,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 0.5,
+      "output": 2.15,
+      "cache_read": 0.35
+    }
+  },
   "edenai/deepinfra/deepseek-ai/DeepSeek-V3": {
     "name": "DeepSeek-V3 (Deep Infra)",
     "context": 163840,
@@ -78941,6 +78722,16 @@
       "input": 0.09,
       "output": 0.3,
       "cache_read": 0.02
+    }
+  },
+  "edenai/deepinfra/moonshotai/Kimi-K2-Instruct": {
+    "name": "Kimi K2 Instruct (Deep Infra)",
+    "context": 131072,
+    "output": 32768,
+    "tool_call": true,
+    "cost": {
+      "input": 0.5,
+      "output": 2
     }
   },
   "edenai/deepinfra/moonshotai/Kimi-K2.5": {
@@ -79043,6 +78834,15 @@
     "cost": {
       "input": 0.037,
       "output": 0.17
+    }
+  },
+  "edenai/deepinfra/microsoft/WizardLM-2-8x22B": {
+    "name": "WizardLM 2 8x22B (Deep Infra)",
+    "context": 65536,
+    "output": 8000,
+    "cost": {
+      "input": 0.48,
+      "output": 0.48
     }
   },
   "edenai/cerebras/gpt-oss-120b": {
@@ -79666,17 +79466,6 @@
       "output": 0.30002,
       "cache_read": 0.007,
       "cache_write": 0.07
-    }
-  },
-  "edenai/tencent/step-5-preview": {
-    "name": "Step 5 Preview (Tencent)",
-    "context": 1000000,
-    "output": 1000000,
-    "reasoning": true,
-    "cost": {
-      "input": 1,
-      "output": 2.7,
-      "cache_read": 0.05
     }
   },
   "edenai/tencent/deepseek-v4-pro-0813": {
@@ -80440,9 +80229,9 @@
     "reasoning": true,
     "tool_call": true,
     "cost": {
-      "input": 0.44744,
-      "output": 0.89488,
-      "cache_read": 0.089488
+      "input": 0.44824,
+      "output": 0.89648,
+      "cache_read": 0.089648
     }
   },
   "edenai/scaleway/llama-3.3-70b-instruct": {
@@ -80451,8 +80240,8 @@
     "output": 4096,
     "tool_call": true,
     "cost": {
-      "input": 1.00674,
-      "output": 1.00674
+      "input": 1.00854,
+      "output": 1.00854
     }
   },
   "edenai/scaleway/gpt-oss-120b": {
@@ -80462,8 +80251,8 @@
     "reasoning": true,
     "tool_call": true,
     "cost": {
-      "input": 0.16779,
-      "output": 0.67116
+      "input": 0.16809,
+      "output": 0.67236
     }
   },
   "edenai/ionos/meta-llama/Llama-3.3-70B-Instruct": {
@@ -80471,8 +80260,8 @@
     "context": 128000,
     "output": 4096,
     "cost": {
-      "input": 0.72709,
-      "output": 0.72709
+      "input": 0.72839,
+      "output": 0.72839
     }
   },
   "edenai/ionos/openai/gpt-oss-120b": {
@@ -80481,8 +80270,8 @@
     "output": 32768,
     "reasoning": true,
     "cost": {
-      "input": 0.16779,
-      "output": 0.72709
+      "input": 0.16809,
+      "output": 0.72839
     }
   },
   "edenai/vertex/gemini-flash-latest": {
@@ -80974,6 +80763,15 @@
       "output": 0.03
     }
   },
+  "edenai/cloudflare/@cf/meta/llama-3.2-1b-instruct": {
+    "name": "Llama 3.2 1B Instruct (Cloudflare)",
+    "context": 60000,
+    "output": 32000,
+    "cost": {
+      "input": 0.027,
+      "output": 0.201
+    }
+  },
   "edenai/cloudflare/@cf/aisingapore/gemma-sea-lion-v4-27b-it": {
     "name": "Gemma-SEA-LION-v4-27B-IT (Cloudflare)",
     "context": 128000,
@@ -81153,6 +80951,19 @@
       "input": 2,
       "output": 4,
       "cache_read": 0.5
+    }
+  },
+  "edenai/tensorx/deepseek/deepseek-r1-0528": {
+    "name": "DeepSeek R1 0528 (TensorX)",
+    "context": 164000,
+    "output": 32768,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "cost": {
+      "input": 0.66,
+      "output": 2.6,
+      "cache_read": 0.165
     }
   },
   "edenai/tensorx/moonshotai/kimi-k2.5": {
@@ -81884,6 +81695,19 @@
       "output": 0.47
     }
   },
+  "edenai/qwen/qwen3-vl-30b-a3b-instruct": {
+    "name": "Qwen3 VL 30B A3B Instruct",
+    "context": 131072,
+    "output": 32768,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "video": true,
+    "cost": {
+      "input": 0.2,
+      "output": 0.8
+    }
+  },
   "edenai/qwen/qwen-vl-max": {
     "name": "Qwen-VL Max",
     "context": 131072,
@@ -81944,6 +81768,15 @@
       "output": 1.5,
       "cache_read": 0.06,
       "cache_write": 0.375
+    }
+  },
+  "edenai/qwen/qwen-mt-plus": {
+    "name": "Qwen MT Plus",
+    "context": 4096,
+    "output": 8192,
+    "cost": {
+      "input": 2.46,
+      "output": 7.37
     }
   },
   "edenai/qwen/deepseek-v4-pro-0813": {
@@ -82554,8 +82387,8 @@
     "context": 100000,
     "output": 262144,
     "cost": {
-      "input": 0.33558,
-      "output": 0.44744
+      "input": 0.33618,
+      "output": 0.44824
     }
   },
   "edenai/moonshot/kimi-k3": {
@@ -93142,6 +92975,18 @@
       "cache_read": 0.01
     }
   },
+  "llmgateway/reka-edge-2603": {
+    "name": "Reka Edge 2603",
+    "context": 16384,
+    "output": 16384,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "cost": {
+      "input": 0.1,
+      "output": 0.1
+    }
+  },
   "llmgateway/grok-4-5": {
     "name": "Grok 4.5",
     "context": 500000,
@@ -93263,9 +93108,9 @@
     "image": true,
     "video": true,
     "cost": {
-      "input": 0.14,
-      "output": 0.28,
-      "cache_read": 0.0028
+      "input": 0.168,
+      "output": 0.336,
+      "cache_read": 0.0034
     }
   },
   "llmgateway/gpt-5.5-pro": {
@@ -93371,17 +93216,6 @@
       "input": 1.25,
       "output": 10,
       "cache_read": 0.125
-    }
-  },
-  "llmgateway/qwen-coder-plus": {
-    "name": "Qwen Coder Plus",
-    "context": 131072,
-    "output": 8192,
-    "tool_call": true,
-    "structured_output": true,
-    "cost": {
-      "input": 0.502,
-      "output": 1.004
     }
   },
   "llmgateway/glm-5v-turbo": {
@@ -94277,19 +94111,6 @@
       "output": 0.74
     }
   },
-  "llmgateway/qwen3-vl-flash": {
-    "name": "Qwen3 VL Flash",
-    "context": 262144,
-    "output": 32000,
-    "tool_call": true,
-    "structured_output": true,
-    "image": true,
-    "cost": {
-      "input": 0.05,
-      "output": 0.4,
-      "cache_read": 0.01
-    }
-  },
   "llmgateway/seed-2-0-pro-260328": {
     "name": "Seed 2.0 Pro (260328)",
     "context": 262144,
@@ -94674,18 +94495,6 @@
       "cache_read": 0.0036
     }
   },
-  "llmgateway/qwen3-coder-plus": {
-    "name": "Qwen3 Coder Plus",
-    "context": 1000000,
-    "output": 65536,
-    "tool_call": true,
-    "cost": {
-      "input": 1,
-      "output": 5,
-      "cache_read": 0.2,
-      "cache_write": 1.25
-    }
-  },
   "llmgateway/glm-4.7-flash": {
     "name": "GLM-4.7-Flash",
     "context": 200000,
@@ -94978,19 +94787,6 @@
       "output": 2
     }
   },
-  "llmgateway/qwen3.6-max-preview": {
-    "name": "Qwen3.6 Max Preview",
-    "context": 262144,
-    "output": 65536,
-    "reasoning": true,
-    "tool_call": true,
-    "cost": {
-      "input": 1.3,
-      "output": 7.8,
-      "cache_read": 0.13,
-      "cache_write": 1.625
-    }
-  },
   "llmgateway/claude-opus-4-6": {
     "name": "Claude Opus 4.6",
     "context": 1000000,
@@ -95082,18 +94878,6 @@
       "input": 0.57,
       "output": 2.3,
       "cache_read": 0.5
-    }
-  },
-  "llmgateway/qwen-omni-turbo": {
-    "name": "Qwen-Omni Turbo",
-    "context": 32768,
-    "output": 2048,
-    "tool_call": true,
-    "image": true,
-    "video": true,
-    "cost": {
-      "input": 0.2,
-      "output": 0.8
     }
   },
   "llmgateway/hy-mt2-plus": {
@@ -100147,8 +99931,8 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.067,
-      "output": 0.245,
+      "input": 0.179,
+      "output": 0.697,
       "cache_read": 0.014
     }
   },
@@ -104363,6 +104147,21 @@
     "context": 32768,
     "output": 32768,
     "tool_call": true
+  },
+  "digitalocean/anthropic-claude-5.5-haiku": {
+    "name": "Anthropic Claude 5.5 Haiku",
+    "context": 1000000,
+    "output": 128000,
+    "reasoning": true,
+    "tool_call": true,
+    "structured_output": true,
+    "image": true,
+    "cost": {
+      "input": 0.1,
+      "output": 0.5,
+      "cache_read": 0.01,
+      "cache_write": 0.125
+    }
   },
   "digitalocean/qwen-2.5-14b-instruct": {
     "name": "Qwen 2.5 14B Instruct",
