@@ -54,7 +54,7 @@
 
 ## Downloads
 
-- **Windows**: [GitHub Releases](https://github.com/billowliu2/KimiSwitch/releases/latest) → `.msi`
+- **Windows**: [GitHub Releases](https://github.com/billowliu2/KimiSwitch/releases/latest) → `.exe` (NSIS installer; **since v0.8.3 Windows ships NSIS as the primary format and MSI is no longer actively published** — `.msi` files of past releases remain downloadable)
 - **macOS**: [GitHub Releases](https://github.com/billowliu2/KimiSwitch/releases/latest) → `.dmg` (**unsigned** — first launch needs right-click → Open to bypass Gatekeeper)
 - **Linux**: [GitHub Releases](https://github.com/billowliu2/KimiSwitch/releases/latest) → `.deb` / `.AppImage` / `.rpm`
 
@@ -486,10 +486,10 @@ npm run tauri-build
 Output:
 
 ```
-src-tauri/target/release/bundle/msi/Kimi Switch_<version>_x64_en-US.msi
+src-tauri/target/release/bundle/nsis/Kimi.Switch_<version>_x64-setup.exe
 ```
 
-A Windows installer (MSI) with the WebView2 bootstrapper embedded for auto-download. `nsis` is disabled; only MSI is produced.
+A Windows installer (NSIS setup exe) with the WebView2 bootstrapper embedded for auto-download. Since v0.8.3 Windows **publishes only the NSIS installer; MSI is no longer actively released** (build it locally with `npx tauri build --bundles msi` if needed).
 
 ### First build
 
@@ -552,7 +552,7 @@ A: For Kimi Code, `config.toml` itself is the authoritative full config — back
 A: Vertex requires GCP project / location credentials. The current implementation leaves a TODO pending GCP SDK integration.
 
 **Q: macOS / Linux support?**
-A: The code doesn't depend on Windows-only APIs, but `tauri.conf.json` only targets `msi` for bundling. In theory, changing `bundle.targets` to `["app", "dmg"]` etc. would enable cross-platform builds, but this is unverified.
+A: The code doesn't depend on Windows-only APIs, but `tauri.conf.json` only targets `nsis` for bundling. In theory, changing `bundle.targets` to `["app", "dmg"]` etc. would enable cross-platform builds, but this is unverified.
 
 **Q: How do I change the theme / language?**
 A: Top-right gear → Settings modal → Theme / Language. Saved to frontend `localStorage` (WebView2), persists across restarts.

@@ -1599,7 +1599,8 @@ pub async fn download_update(
     Ok(path_str)
 }
 
-/// Open the downloaded MSI installer using the system default handler.
+/// Open the downloaded installer (NSIS setup exe / dmg / AppImage) using the
+/// system default handler.
 #[tauri::command]
 pub fn open_installer(app: tauri::AppHandle, path: String) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
@@ -1839,27 +1840,38 @@ fn build_kimi_web_window(app: &tauri::AppHandle, url: &tauri::Url) -> Result<(),
     });
     Ok(())
 }
-/// Preference for Linux is AppImage (portable, no install). If the preferred
-/// extension is not present, returns None so the UI can fall back to
-/// "open release page" instead of guessing a less-preferred format.
+/// Preference for Linux is AppImage (portable, no install). Windows prefers
+/// the NSIS `-setup.exe` (MSI is no longer actively published since v0.8.3)
+/// and falls back to `.msi` for releases that predate the switch. If the
+/// preferred extension is not present, returns None so the UI can fall back
+/// to "open release page" instead of guessing a less-preferred format.
 fn pick_asset_for_os(assets: &[serde_json::Value], os: &str) -> Option<String> {
-    let target_ext = match os {
-        "macos" => "dmg",
-        "linux" => "AppImage",
-        "windows" => "msi",
+    let (preferred, fallback) = match os {
+        "macos" => ("dmg", None),
+        "linux" => ("AppImage", None),
+        "windows" => ("setup.exe", Some("msi")),
         _ => return None,
     };
+    asset_url_ending_with(assets, preferred)
+        .or_else(|| fallback.and_then(|ext| asset_url_ending_with(assets, ext)))
+        .map(str::to_string)
+}
+
+/// Download URL of the first release asset whose name ends with `ext`.
+fn asset_url_ending_with<'a>(
+    assets: &'a [serde_json::Value],
+    ext: &str,
+) -> Option<&'a str> {
     assets
         .iter()
         .find(|a| {
             a.get("name")
                 .and_then(|n| n.as_str())
-                .map(|n| n.ends_with(target_ext))
+                .map(|n| n.ends_with(ext))
                 .unwrap_or(false)
         })
         .and_then(|a| a.get("browser_download_url"))
         .and_then(|v| v.as_str())
-        .map(|s| s.to_string())
 }
 
 /// Pick the GitHub release asset for the current OS (runtime target).
@@ -1872,7 +1884,10 @@ fn update_temp_filename() -> String {
     let ext = match std::env::consts::OS {
         "macos" => "dmg",
         "linux" => "AppImage",
-        "windows" => "msi",
+        // The preferred Windows installer is the NSIS setup exe; the fallback
+        // (.msi, pre-v0.8.3-releases) keeps its own extension via the same
+        // suffix match, so "exe" covers the actively published format.
+        "windows" => "exe",
         _ => "bin",
     };
     format!("KimiSwitch_update.{ext}")
@@ -2160,10 +2175,28 @@ mod asset_picker_tests {
     }
 
     #[test]
-    fn windows_picks_msi() {
-        let assets = assets(&["KimiSwitch_0.7.0_x64_en-US.msi", "KimiSwitch_0.7.0_aarch64.dmg", "KimiSwitch_0.7.0_amd64.AppImage"]);
+    fn windows_prefers_nsis_setup_exe_over_msi() {
+        let assets = assets(&[
+            "Kimi.Switch_0.8.3_x64_en-US.msi",
+            "Kimi.Switch_0.8.3_x64-setup.exe",
+            "Kimi.Switch_0.8.3_aarch64.dmg",
+        ]);
         let url = pick_asset_for_os(&assets, "windows");
-        assert_eq!(url.as_deref(), Some("https://example.com/KimiSwitch_0.7.0_x64_en-US.msi"));
+        assert_eq!(
+            url.as_deref(),
+            Some("https://example.com/Kimi.Switch_0.8.3_x64-setup.exe")
+        );
+    }
+
+    #[test]
+    fn windows_falls_back_to_msi_when_no_setup_exe() {
+        // Pre-v0.8.3 releases (and older Gitea releases) ship only the .msi.
+        let assets = assets(&["Kimi.Switch_0.8.2_x64_en-US.msi"]);
+        let url = pick_asset_for_os(&assets, "windows");
+        assert_eq!(
+            url.as_deref(),
+            Some("https://example.com/Kimi.Switch_0.8.2_x64_en-US.msi")
+        );
     }
 
     #[test]

@@ -54,7 +54,7 @@
 
 ## 下载
 
-- **Windows**: [GitHub Releases](https://github.com/billowliu2/KimiSwitch/releases/latest) → `.msi`
+- **Windows**: [GitHub Releases](https://github.com/billowliu2/KimiSwitch/releases/latest) → `.exe`（NSIS 安装包；**自 v0.8.3 起 Windows 以 NSIS 为主，MSI 不再主动发布**，历史版本 `.msi` 仍可下载）
 - **macOS**: [GitHub Releases](https://github.com/billowliu2/KimiSwitch/releases/latest) → `.dmg`（**未签名**，仅 Apple Silicon / M 系列芯片）。安装请下载 Release 附带的 `install-macos.sh` 一键处理：
 
   ```bash
@@ -496,10 +496,10 @@ npm run tauri-build
 产物位置：
 
 ```
-src-tauri/target/release/bundle/msi/Kimi Switch_<version>_x64_en-US.msi
+src-tauri/target/release/bundle/nsis/Kimi.Switch_<version>_x64-setup.exe
 ```
 
-Windows 安装包（MSI），含 WebView2 bootstrapper 自动下载。`nsis` 已禁用，目前只产 MSI。
+Windows 安装包（NSIS setup exe），含 WebView2 bootstrapper 自动下载。自 v0.8.3 起 Windows **只主动发布 NSIS 安装包，MSI 不再主动发布**（如需 MSI 可本地 `npx tauri build --bundles msi` 自行构建）。
 
 ### 首次打包
 
@@ -565,7 +565,7 @@ A: 对 Kimi Code，`config.toml` 本身就是全量权威，直接备份即可�
 A: Vertex 需要 GCP project / location 凭证，当前实现留 TODO，等 GCP SDK 集成后补。
 
 **Q: 支持 macOS / Linux 吗？**
-A: 代码不依赖 Windows 专属 API，但 `tauri.conf.json` 的 bundle 目标目前只配了 `msi`。理论上把 `bundle.targets` 改成 `["app", "dmg"]` 等即可跨平台，但未验证。
+A: 代码不依赖 Windows 专属 API，但 `tauri.conf.json` 的 bundle 目标目前只配了 `nsis`。理论上把 `bundle.targets` 改成 `["app", "dmg"]` 等即可跨平台，但未验证。
 
 **Q: 怎么改主题 / 语言？**
 A: 顶部齿轮 → 设置弹窗 → 主题 / 语言。保存到前端 `localStorage`（WebView2），重启后保持。

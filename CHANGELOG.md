@@ -6,6 +6,10 @@
 
 ---
 
+## Unreleased
+
+- **Windows 安装包改为以 NSIS（`.exe`）为主，MSI 不再主动发布**：CI 的 Windows 构建由 `--bundles msi` 改为 `--bundles nsis`，`tauri.conf.json` 默认打包目标同步改为仅 `nsis`；应用内「检查更新」优先下载 NSIS 安装包（无 exe 的历史版本自动回落 `.msi`）。历史版本的 `.msi` 仍可下载，需要 MSI 可本地 `npx tauri build --bundles msi` 自行构建
+
 ## v0.8.3 (2026-10-15)
 
 配置一致性修复版（含 kimi-code CLI 2.2.0 适配核验）。
