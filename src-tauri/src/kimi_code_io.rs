@@ -1407,4 +1407,184 @@ max_context_size = 128000
         assert_eq!(pt.get("api_key").and_then(|v| v.as_str()), Some("sk-keep"));
         assert!(!pt.contains_key("api_key_env"));
     }
+
+    #[test]
+    fn kimi_code_roundtrip_preserves_mcp_default_deferred() {
+        // kimi-code 2.2.0 adds `default_deferred` (the global default for
+        // deferred MCP tool disclosure) to the top-level [mcp] section. The
+        // whole section travels through raw_other, so both orderings must
+        // round-trip: present at import time, and written by the CLI only
+        // after we imported.
+        let toml_str = r#"
+default_model = "p1/m1"
+
+[providers.p1]
+type = "openai"
+api_key = "sk-test"
+
+[models."p1/m1"]
+provider = "p1"
+model = "m1"
+max_context_size = 128000
+
+[mcp]
+startup_timeout_ms = 30000
+tool_timeout_ms = 60000
+default_deferred = true
+"#;
+        let value: TomlValue = toml_str.parse().unwrap();
+        let config = kimi_code_to_config(&value);
+
+        assert!(
+            config.raw_other.get("mcp").is_some(),
+            "[mcp] must be carried in raw_other"
+        );
+        assert!(
+            config.imported_section_keys.contains(&"mcp".to_string()),
+            "baseline must record the imported [mcp] section"
+        );
+
+        // (a) [mcp] existed at import time — it must be written back verbatim.
+        let exported = config_to_kimi_code(&config, Some(&value));
+        let mcp = exported
+            .as_table().unwrap()
+            .get("mcp").unwrap()
+            .as_table().unwrap();
+        assert_eq!(
+            mcp.get("default_deferred").and_then(|v| v.as_bool()),
+            Some(true),
+            "[mcp] default_deferred must survive export"
+        );
+        assert_eq!(
+            mcp.get("startup_timeout_ms").and_then(|v| v.as_integer()),
+            Some(30000)
+        );
+        assert_eq!(
+            mcp.get("tool_timeout_ms").and_then(|v| v.as_integer()),
+            Some(60000)
+        );
+
+        // (b) [mcp] absent at import, added by the CLI afterwards — not in the
+        // baseline, so the stale-key cleanup must leave it untouched.
+        let without_mcp = r#"
+default_model = "p1/m1"
+
+[providers.p1]
+type = "openai"
+api_key = "sk-test"
+
+[models."p1/m1"]
+provider = "p1"
+model = "m1"
+max_context_size = 128000
+"#;
+        let imported: TomlValue = without_mcp.parse().unwrap();
+        let config = kimi_code_to_config(&imported);
+        assert!(!config.imported_section_keys.contains(&"mcp".to_string()));
+
+        let existing: TomlValue = format!(
+            "{}\n[mcp]\nstartup_timeout_ms = 30000\ntool_timeout_ms = 60000\ndefault_deferred = true\n",
+            without_mcp.trim_end()
+        )
+        .parse()
+        .unwrap();
+
+        let exported = config_to_kimi_code(&config, Some(&existing));
+        let mcp = exported
+            .as_table().unwrap()
+            .get("mcp").unwrap()
+            .as_table().unwrap();
+        assert_eq!(
+            mcp.get("default_deferred").and_then(|v| v.as_bool()),
+            Some(true),
+            "CLI-added [mcp] default_deferred must be preserved"
+        );
+        assert_eq!(
+            mcp.get("startup_timeout_ms").and_then(|v| v.as_integer()),
+            Some(30000)
+        );
+    }
+
+    #[test]
+    fn kimi_code_roundtrip_preserves_model_upgrade_metadata() {
+        // kimi-code 2.2.0 adds an `upgrade` sub-table per model
+        // ({ model, migration_markdown, retirement_at }) describing the
+        // retirement/migration target. It is not one of the five known model
+        // keys, so it lives in the model's raw_other and must survive both a
+        // plain round-trip and an edit of a known field.
+        let toml_str = r#"
+default_model = "p1/m1"
+
+[providers.p1]
+type = "openai"
+api_key = "sk-test"
+
+[models."p1/m1"]
+provider = "p1"
+model = "m1"
+max_context_size = 128000
+
+[models."p1/m1".upgrade]
+model = "kimi-k3"
+migration_markdown = "Move to kimi-k3 before retirement."
+retirement_at = "2027-01-15T00:00:00Z"
+"#;
+        let value: TomlValue = toml_str.parse().unwrap();
+        let config = kimi_code_to_config(&value);
+
+        let model = config.models.get("p1/m1").unwrap();
+        assert!(
+            model.raw_other.get("upgrade").is_some(),
+            "upgrade must be carried in the model raw_other"
+        );
+        // The known keys are still extracted normally.
+        assert_eq!(model.max_context_size, 128000);
+
+        let exported = config_to_kimi_code(&config, Some(&value));
+        let mt = exported
+            .as_table().unwrap()
+            .get("models").unwrap()
+            .as_table().unwrap()
+            .get("p1/m1").unwrap()
+            .as_table().unwrap();
+        let upgrade = mt.get("upgrade").expect("upgrade sub-table").as_table().unwrap();
+        assert_eq!(
+            upgrade.get("model").and_then(|v| v.as_str()),
+            Some("kimi-k3")
+        );
+        assert_eq!(
+            upgrade.get("retirement_at").and_then(|v| v.as_str()),
+            Some("2027-01-15T00:00:00Z")
+        );
+        assert_eq!(
+            upgrade.get("migration_markdown").and_then(|v| v.as_str()),
+            Some("Move to kimi-k3 before retirement.")
+        );
+
+        // Editing a known field (the UI path) must not drop the passthrough
+        // `upgrade` metadata.
+        let mut edited = config;
+        edited.models.get_mut("p1/m1").unwrap().max_context_size = 262_144;
+        let exported = config_to_kimi_code(&edited, Some(&value));
+        let mt = exported
+            .as_table().unwrap()
+            .get("models").unwrap()
+            .as_table().unwrap()
+            .get("p1/m1").unwrap()
+            .as_table().unwrap();
+        assert_eq!(
+            mt.get("max_context_size").and_then(|v| v.as_integer()),
+            Some(262_144)
+        );
+        let upgrade = mt.get("upgrade").expect("upgrade sub-table").as_table().unwrap();
+        assert_eq!(
+            upgrade.get("model").and_then(|v| v.as_str()),
+            Some("kimi-k3"),
+            "upgrade metadata must survive an edit of a known field"
+        );
+        assert_eq!(
+            upgrade.get("retirement_at").and_then(|v| v.as_str()),
+            Some("2027-01-15T00:00:00Z")
+        );
+    }
 }

@@ -1934,7 +1934,9 @@ fn semver_triple(version: &str) -> Option<(u32, u32, u32)> {
 }
 
 /// Adaptation baseline against the kimi-code CLI:
-///   >= 2.0.2  fully supported ("current")
+///   >= 2.0.2  fully supported ("current"; verified through 2.2.0 — the new
+///             [mcp] default_deferred and [models] upgrade keys round-trip,
+///             see the kimi_code_io roundtrip tests)
 ///   >= 0.43.1 quota parsing moved upstream — upgrade KimiSwitch ("outdated")
 ///   >= 0.43.0 the auto_session_title flag is gone ("partial")
 ///   <  0.43.0 untested ("unknown")
