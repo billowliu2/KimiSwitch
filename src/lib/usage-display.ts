@@ -13,15 +13,54 @@ type TranslateFn = (
 export const BOOSTER_WALLET_PLAN = "booster_wallet";
 
 /**
+ * 金额行 vs 配额行：NewAPI 的钱包行与 Kimi 加力钱包（booster_wallet）只报金额，
+ * 其 used/total 是钱数而不是配额比例，必须走 formatAmount 渲染路径。
+ *
+ * 注意 NewAPI 站点同时有钱包与订阅两套账：钱包行的 planName 是 "NewAPI"（金额），
+ * 订阅行是 "subscription"（`unit="%"` 的配额占比），后者不在此列表内，正常走
+ * 百分比渲染。判定只能看 planName —— sub2api 的 USD 行 unit 同样不是 "%"，但语义
+ * 仍是「额度用了百分之多少」，按 unit 判定会把它误渲染成余额。
+ */
+export function isMoneyRow(d: { planName?: string | null }): boolean {
+  return d.planName === "NewAPI" || d.planName === BOOSTER_WALLET_PLAN;
+}
+
+/** 额度/配额行：有 planName、非金额行，且报了 total 或 used。 */
+export function isPlanRow(d: {
+  planName?: string | null;
+  total?: number | null;
+  used?: number | null;
+}): boolean {
+  return !!d.planName && !isMoneyRow(d) && (d.total != null || d.used != null);
+}
+
+/**
+ * 配额行的「已用百分比」。优先 used/total，其次由 remaining/total 反推；
+ * total 缺失或 ≤0（无法算比例）返回 null。金额行不应调用此函数。
+ */
+export function percentOf(d: {
+  used?: number | null;
+  total?: number | null;
+  remaining?: number | null;
+}): number | null {
+  if (d.used != null && d.total != null && d.total > 0)
+    return (d.used / d.total) * 100;
+  if (d.remaining != null && d.total != null && d.total > 0)
+    return (1 - d.remaining / d.total) * 100;
+  return null;
+}
+
+/**
  * Map a raw Rust plan/tier name to a localized label. Unknown names (proper
  * nouns like "OpenRouter", "NewAPI", currency codes) pass through unchanged.
  *
  * Coverage note: ALL plan-type (套餐) queries flow through
  * src-tauri/src/services/coding_plan.rs::percent_tier, whose names come only
  * from TIER_FIVE_HOUR / TIER_WEEKLY_LIMIT / TIER_MONTHLY_LIMIT /
- * TIER_MONTH_CODE — so this mapping covers every current and future plan
- * provider automatically. If a new tier id is ever added there, add a case
- * here too.
+ * TIER_MONTH_CODE — so the fixed tiers are covered here. The other cases come
+ * from src-tauri/src/services/balance.rs: `booster_wallet` (Kimi 加力钱包) and
+ * `subscription` (NewAPI 订阅套餐额度行). If a new tier id is added anywhere,
+ * add a case here too.
  */
 export function planLabel(name: string, t: TranslateFn): string {
   switch (name) {
@@ -37,6 +76,8 @@ export function planLabel(name: string, t: TranslateFn): string {
       return t("usageTierMonthCode");
     case BOOSTER_WALLET_PLAN:
       return t("usageTierBoosterWallet");
+    case "subscription":
+      return t("usageTierSubscription");
     default:
       return name;
   }

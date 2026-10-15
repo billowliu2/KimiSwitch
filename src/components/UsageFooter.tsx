@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { useTranslation } from "../i18n";
 import {
-  BOOSTER_WALLET_PLAN,
   formatAmount,
+  isPlanRow,
   localizeUsageError,
+  percentOf,
   planLabel,
 } from "../lib/usage-display";
 import { isAlertTier } from "../hooks/useUsageQuery";
-import type { UsageData, UsageQueryState } from "../hooks/useUsageQuery";
+import type { UsageQueryState } from "../hooks/useUsageQuery";
 
 interface UsageFooterProps {
   /** Query state lifted to the provider card via useUsageQuery. Both the
@@ -21,18 +22,15 @@ interface UsageFooterProps {
 }
 
 /**
- * 金额行 vs 配额行：NewAPI 与 Kimi 加力钱包（booster_wallet）只报金额，其
- * used/total 是钱数而不是配额比例，必须走 formatAmount 渲染路径。判定只能看
+ * 金额行 vs 配额行：NewAPI 的钱包行与 Kimi 加力钱包（booster_wallet）只报金额，
+ * 其 used/total 是钱数而不是配额比例，必须走 formatAmount 渲染路径。判定只能看
  * planName —— sub2api 的 USD 行 unit 同样不是 "%"，但语义仍是「额度用了百分之
  * 多少」，按 unit 判定会把它误渲染成余额。
+ *
+ * NewAPI 站点可同时返回钱包行（planName "NewAPI"，金额）与订阅行
+ * （planName "subscription"，`unit="%"` 的配额占比）；后者不属于金额行，走
+ * 百分比渲染路径。判定逻辑与 usage-display.ts 共用，避免与配置面板再次分叉。
  */
-function isMoneyRow(d: UsageData): boolean {
-  return d.planName === "NewAPI" || d.planName === BOOSTER_WALLET_PLAN;
-}
-
-function isPlanRow(d: UsageData): boolean {
-  return !!d.planName && !isMoneyRow(d) && (d.total != null || d.used != null);
-}
 
 export function UsageFooter({ usage, variant = "detail" }: UsageFooterProps) {
   const { t } = useTranslation();
@@ -47,14 +45,6 @@ export function UsageFooter({ usage, variant = "detail" }: UsageFooterProps) {
   }, [status]);
 
   if (!supported || status === "idle") return null;
-
-  const percentOf = (d: UsageData): number | null => {
-    if (d.used != null && d.total != null && d.total > 0)
-      return (d.used / d.total) * 100;
-    if (d.remaining != null && d.total != null && d.total > 0)
-      return (1 - d.remaining / d.total) * 100;
-    return null;
-  };
 
   const formatReset = (resetsAt?: string | null): string | null => {
     if (!resetsAt) return null;

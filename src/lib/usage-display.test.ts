@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { formatAmount, localizeUsageError, planLabel } from "./usage-display";
+import {
+  formatAmount,
+  isMoneyRow,
+  isPlanRow,
+  localizeUsageError,
+  percentOf,
+  planLabel,
+} from "./usage-display";
 
 // Minimal TranslateFn: return the key itself so assertions read the key.
 const t = (key: string) => key;
@@ -60,8 +67,48 @@ describe("planLabel", () => {
     expect(planLabel("weekly_limit", t)).toBe("usageTierWeekly");
     expect(planLabel("monthly_limit", t)).toBe("usageTierMonthly");
     expect(planLabel("booster_wallet", t)).toBe("usageTierBoosterWallet");
+    expect(planLabel("subscription", t)).toBe("usageTierSubscription");
     expect(planLabel("NewAPI", t)).toBe("NewAPI");
     expect(planLabel("¥", t)).toBe("¥");
+  });
+});
+
+describe("isMoneyRow / isPlanRow", () => {
+  it("treats the NewAPI wallet and booster wallet as money rows", () => {
+    // NewAPI 钱包行只报金额，其 used/total 是钱数，不能当百分比渲染。
+    expect(isMoneyRow({ planName: "NewAPI" })).toBe(true);
+    expect(isMoneyRow({ planName: "booster_wallet" })).toBe(true);
+    expect(isMoneyRow({ planName: "subscription" })).toBe(false);
+    expect(isMoneyRow({ planName: "weekly_limit" })).toBe(false);
+  });
+
+  it("classifies quota rows by planName, not unit", () => {
+    // NewAPI 订阅行：unit="%" → 配额行
+    expect(
+      isPlanRow({ planName: "subscription", total: 100, used: 41 })
+    ).toBe(true);
+    // sub2api 订阅窗口：unit 是 USD，但语义仍是配额占比 → 仍算配额行
+    expect(
+      isPlanRow({ planName: "weekly_limit", total: 50, used: 10 })
+    ).toBe(true);
+    // 钱包行永远不是配额行，即使带了 total/used
+    expect(isPlanRow({ planName: "NewAPI", total: 704, used: 204 })).toBe(false);
+    // 无 planName 或无数值 → 非配额行
+    expect(isPlanRow({ planName: null, total: 100, used: 1 })).toBe(false);
+    expect(isPlanRow({ planName: "x" })).toBe(false);
+  });
+});
+
+describe("percentOf", () => {
+  it("prefers used/total and falls back to remaining/total", () => {
+    expect(percentOf({ used: 41, total: 100 })).toBe(41);
+    expect(percentOf({ remaining: 59, total: 100 })).toBe(41);
+  });
+
+  it("returns null when total is missing or non-positive", () => {
+    expect(percentOf({ used: 41 })).toBeNull();
+    expect(percentOf({ used: 41, total: 0 })).toBeNull();
+    expect(percentOf({})).toBeNull();
   });
 });
 

@@ -503,6 +503,7 @@ export const zhTranslations = {
   usageTierMonthly: "30天",
   usageTierMonthCode: "30天（代码）",
   usageTierBoosterWallet: "加力钱包",
+  usageTierSubscription: "订阅",
   usageThreshold: "预警阈值",
   usageThresholdHint: "任一用量窗口达到该百分比时高亮提醒，0 为关闭",
   usageThresholdAlert: "已达预警阈值",

@@ -4,7 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { ArrowLeft, Eye, EyeOff, Loader2, Play } from "lucide-react";
 import { useTranslation } from "../i18n";
 import type { TranslationKey } from "../i18n/zh";
-import { formatAmount, localizeUsageError, planLabel } from "../lib/usage-display";
+import { formatAmount, isPlanRow, localizeUsageError, percentOf, planLabel } from "../lib/usage-display";
 import type { Agent, Provider, UsageConfig } from "../types";
 
 interface UsageResult {
@@ -131,13 +131,18 @@ export function UsageConfigModal({ open, agent, provider, onClose, onSave }: Usa
       });
       if (result.success) {
         setTestOk(true);
+        // 与卡片 UsageFooter 同一套行判定：金额行（NewAPI 钱包 / 加力钱包）只显示
+        // 金额——其 used/total 是钱数，算成「百分比」是误导（曾把钱包余额误显示为
+        // 「已用 29%」）。只有真正的配额行才追加百分比。
         const summary = (result.data ?? [])
           .map((d) => {
             const parts: string[] = [];
             if (d.planName) parts.push(planLabel(d.planName, t));
             if (d.remaining != null) parts.push(`${t("usageRemaining")} ${formatAmount(d.remaining, d.unit)}`);
-            if (d.used != null && d.total != null && d.total > 0)
-              parts.push(`${Math.round((d.used / d.total) * 100)}%`);
+            if (isPlanRow(d)) {
+              const pct = percentOf(d);
+              if (pct != null) parts.push(`${Math.round(pct)}%`);
+            }
             return parts.join(" ");
           })
           .filter(Boolean)

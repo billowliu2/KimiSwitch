@@ -14,6 +14,7 @@
 //! HTTP 调用与 JSON→UsageData 解析拆成纯函数，便于无 mock 单元测试。
 
 use super::usage_types::{UsageData, UsageResult};
+use super::coding_plan;
 use std::time::Duration;
 
 pub(crate) const REQUEST_TIMEOUT: Duration = Duration::from_secs(8);
@@ -467,9 +468,93 @@ pub async fn query_newapi(
 
     let (quota_per_unit, symbol) = fetch_newapi_status(base_url, timeout).await;
     Ok(match parse_newapi(&body, quota_per_unit, &symbol) {
-        Ok(data) => UsageResult::ok(data),
+        Ok(wallet) => {
+            // 订阅额度是决策主信息（钱包余额独立于它），前置到钱包行之前；
+            // compact 卡片只取 data[0]，所以顺序决定了卡片主摘要显示什么。
+            let subs = fetch_newapi_subscriptions(&client, base, access_token, user_id, quota_per_unit).await;
+            let mut data = subs;
+            data.extend(wallet);
+            UsageResult::ok(data)
+        }
         Err(err) => err,
     })
+}
+
+/// 拉取用户的订阅套餐额度（NewAPI `GET /api/subscription/self`）。这是 NewAPI
+/// 较新的特性：站点无此接口（404）、无订阅、网络失败或解析失败一律返回空
+/// Vec——订阅是钱包余额之外的附加信息，任何失败都不能拖垮整个用量查询。
+///
+/// 与 `/api/user/self` 同源同凭据（Bearer access token + New-Api-User）。
+async fn fetch_newapi_subscriptions(
+    client: &reqwest::Client,
+    base: &str,
+    access_token: &str,
+    user_id: &str,
+    quota_per_unit: f64,
+) -> Vec<UsageData> {
+    let url = format!("{base}/api/subscription/self");
+    let Ok(resp) = client
+        .get(&url)
+        .header("Accept", "application/json")
+        .header("Authorization", format!("Bearer {access_token}"))
+        .header("New-Api-User", user_id)
+        .send()
+        .await
+    else {
+        return Vec::new();
+    };
+    if !resp.status().is_success() {
+        return Vec::new();
+    }
+    let Ok(raw) = resp.bytes().await else {
+        return Vec::new();
+    };
+    let Ok(body) = serde_json::from_slice::<serde_json::Value>(&raw) else {
+        return Vec::new();
+    };
+    parse_newapi_subscriptions(&body, quota_per_unit)
+}
+
+/// 解析订阅自查响应。每项形如 `{ subscription: { amount_total, amount_used,
+/// next_reset_time, ... } }`；金额是 int64 原始配额单位，需除以站点
+/// `quota_per_unit` 才是钱数。产出百分比行（`unit="%"`，与 plan tier 同形态，
+/// 因此自动参与预警阈值判定）。
+///
+/// `amount_total` 为 0（站点未设额度）时百分比记为 0，不做除法。
+fn parse_newapi_subscriptions(body: &serde_json::Value, quota_per_unit: f64) -> Vec<UsageData> {
+    let Some(subs) = body
+        .get("data")
+        .and_then(|d| d.get("subscriptions"))
+        .and_then(|s| s.as_array())
+    else {
+        return Vec::new();
+    };
+
+    let mut out = Vec::new();
+    for entry in subs {
+        // SubscriptionSummary 把实际字段包在 `subscription` 里；兼容站点直接
+        // 平铺字段的情况（取 entry 本身作回退）。
+        let sub = entry.get("subscription").unwrap_or(entry);
+        let total_raw = parse_f64_field(sub, "amount_total").unwrap_or(0.0);
+        let used_raw = parse_f64_field(sub, "amount_used").unwrap_or(0.0);
+        let total = total_raw / quota_per_unit;
+        let used = used_raw / quota_per_unit;
+        let percent = if total > 0.0 {
+            (used / total * 100.0).clamp(0.0, 100.0)
+        } else {
+            0.0
+        };
+        out.push(UsageData {
+            plan_name: Some("subscription".to_string()),
+            remaining: Some((100.0 - percent).max(0.0)),
+            total: Some(100.0),
+            used: Some(percent),
+            unit: Some("%".to_string()),
+            is_valid: Some(percent < 100.0),
+            resets_at: sub.get("next_reset_time").and_then(coding_plan::extract_reset_time),
+        });
+    }
+    out
 }
 
 fn parse_newapi(
@@ -840,6 +925,91 @@ mod tests {
         let data = parse_newapi(&body, 500_000.0, "¥").unwrap();
         assert_eq!(data[0].remaining, Some(1.0));
         assert_eq!(data[0].used, Some(0.2));
+    }
+
+    #[test]
+    fn newapi_subscription_maps_to_percent_row() {
+        // 用户实测站点的数值：总额度 $500、已用 $206.17 → 41.234% 已用
+        // （amount_* 是 int64 原始配额，quota_per_unit=500000 换算成钱）。
+        let body = json!({
+            "success": true,
+            "data": {
+                "subscriptions": [{
+                    "subscription": {
+                        "id": 9,
+                        "amount_total": 250_000_000,
+                        "amount_used": 103_085_000,
+                        "next_reset_time": 1_793_491_200,
+                        "end_time": 2_106_105_600,
+                        "status": "active"
+                    }
+                }],
+                "all_subscriptions": []
+            }
+        });
+        let data = parse_newapi_subscriptions(&body, 500_000.0);
+        assert_eq!(data.len(), 1);
+        assert_eq!(data[0].plan_name.as_deref(), Some("subscription"));
+        assert_eq!(data[0].unit.as_deref(), Some("%"));
+        assert_eq!(data[0].total, Some(100.0));
+        // 41.234% 已用 → 剩余 58.766
+        assert!((data[0].used.unwrap() - 41.234).abs() < 0.01);
+        assert!((data[0].remaining.unwrap() - 58.766).abs() < 0.01);
+        assert_eq!(data[0].is_valid, Some(true));
+        assert!(data[0].resets_at.is_some(), "next_reset_time must map to ISO");
+    }
+
+    #[test]
+    fn newapi_subscription_multiple_all_returned() {
+        let body = json!({
+            "success": true,
+            "data": {
+                "subscriptions": [
+                    { "subscription": { "amount_total": 100_000_000, "amount_used": 90_000_000 } },
+                    { "subscription": { "amount_total": 200_000_000, "amount_used": 20_000_000 } }
+                ]
+            }
+        });
+        let data = parse_newapi_subscriptions(&body, 500_000.0);
+        assert_eq!(data.len(), 2);
+        assert!((data[0].used.unwrap() - 90.0).abs() < 0.01);
+        assert!((data[1].used.unwrap() - 10.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn newapi_subscription_empty_or_missing_yields_nothing() {
+        // 站点无订阅 → 空数组
+        let empty = json!({ "success": true, "data": { "subscriptions": [] } });
+        assert!(parse_newapi_subscriptions(&empty, 500_000.0).is_empty());
+        // 老版本无此接口/字段缺失 → 也必须是空，不 panic
+        let no_field = json!({ "success": true, "data": {} });
+        assert!(parse_newapi_subscriptions(&no_field, 500_000.0).is_empty());
+    }
+
+    #[test]
+    fn newapi_subscription_zero_total_does_not_divide_by_zero() {
+        let body = json!({
+            "success": true,
+            "data": { "subscriptions": [{ "subscription": { "amount_total": 0, "amount_used": 0 } }] }
+        });
+        let data = parse_newapi_subscriptions(&body, 500_000.0);
+        assert_eq!(data.len(), 1);
+        assert_eq!(data[0].used, Some(0.0));
+        assert_eq!(data[0].remaining, Some(100.0));
+        assert_eq!(data[0].is_valid, Some(true));
+    }
+
+    #[test]
+    fn newapi_subscription_used_over_total_is_clamped() {
+        // 防御：站点数据异常（已用 > 总额）时百分比钳到 100，不出现负数剩余。
+        let body = json!({
+            "success": true,
+            "data": { "subscriptions": [{ "subscription": { "amount_total": 100, "amount_used": 300 } }] }
+        });
+        let data = parse_newapi_subscriptions(&body, 1.0);
+        assert_eq!(data[0].used, Some(100.0));
+        assert_eq!(data[0].remaining, Some(0.0));
+        assert_eq!(data[0].is_valid, Some(false));
     }
 
     #[test]

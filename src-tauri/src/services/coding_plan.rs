@@ -53,7 +53,7 @@ fn millis_to_iso8601(ms: i64) -> Option<String> {
 /// 从 JSON 值提取重置时间，兼容字符串和数字格式：
 /// - 字符串：直接返回（视为 ISO 8601）
 /// - 数字：自动判断秒/毫秒并转为 ISO 8601；0/负值视为无重置时间
-fn extract_reset_time(value: &serde_json::Value) -> Option<String> {
+pub(crate) fn extract_reset_time(value: &serde_json::Value) -> Option<String> {
     if let Some(s) = value.as_str() {
         return Some(s.to_string());
     }

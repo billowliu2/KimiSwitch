@@ -514,6 +514,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   usageTierMonthly: "Monthly",
   usageTierMonthCode: "Monthly (code)",
   usageTierBoosterWallet: "Booster",
+  usageTierSubscription: "Subscription",
   usageThreshold: "Alert threshold",
   usageThresholdHint: "Highlight any window that reaches this percentage; 0 = off",
   usageThresholdAlert: "Threshold reached",
