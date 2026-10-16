@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN" class="light">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/KimiSwitch/kimi.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#fafafb" id="theme-color" />
+    <title>Kimi Switch — 多 LLM 供应商配置管理 · 用量与账单监控</title>
+    <meta
+      name="description"
+      content="Kimi Switch / KimiCodeSwitch — 桌面端 LLM 供应商配置管理器：22 个预设选好即写入 config.toml，用量与账单直读各厂商官方接口。Tauri + Rust，开源 MIT。"
+    />
+    <meta
+      name="keywords"
+      content="Kimi Switch, KimiSwitch, KimiCode Switch, KimiCodeSwitch, SwitchKimi, Kimi Code Switch, Kimi 切换, LLM 供应商管理, AI 供应商切换, 多 LLM 管理, Kimi 用量监控, 智谱 GLM, MiniMax, DeepSeek, OpenRouter, 基元律动, 用量查询, 账单监控, Token 套餐, Claude, GPT, Windows LLM 桌面工具"
+    />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Kimi Switch — 多 LLM 供应商配置管理" />
+    <meta
+      property="og:description"
+      content="把 Kimi Code 的供应商配置搬进图形界面：22 个预设、用量与账单直读官方接口，免费开源 MIT。"
+    />
+    <meta property="og:url" content="https://billowliu2.github.io/KimiSwitch/" />
+    <meta property="og:image" content="https://billowliu2.github.io/KimiSwitch/og.png" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:locale:alternate" content="en_US" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Kimi Switch — 多 LLM 供应商配置管理" />
+    <meta
+      name="twitter:description"
+      content="把 Kimi Code 的供应商配置搬进图形界面：22 个预设、用量与账单直读官方接口，免费开源 MIT。"
+    />
+    <meta name="twitter:image" content="https://billowliu2.github.io/KimiSwitch/og.png" />
+
+    <!-- Canonical -->
+    <link rel="canonical" href="https://billowliu2.github.io/KimiSwitch/" />
+
+    <!--
+      Theme bootstrap. Runs before the first paint so the page never flashes
+      the wrong palette: read the stored preference (same key and vocabulary
+      as the desktop app), resolve it against the OS, and set the class on
+      <html>. Kept inline and dependency-free on purpose.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("kimi-switch-theme");
+          var mode = stored === "light" || stored === "dark" || stored === "auto" ? stored : "auto";
+          var dark = mode === "dark" ||
+            (mode === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          var root = document.documentElement;
+          root.classList.remove("light", "dark");
+          root.classList.add(dark ? "dark" : "light");
+          var meta = document.getElementById("theme-color");
+          if (meta) meta.setAttribute("content", dark ? "#101216" : "#fafafb");
+        } catch (e) {
+          /* private mode / disabled storage: fall through to the light default */
+        }
+      })();
+    </script>
+
+    <!-- JSON-LD: SoftwareApplication + Organization + WebSite -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "SoftwareApplication",
+            "name": "Kimi Switch",
+            "alternateName": ["KimiSwitch", "KimiCodeSwitch", "Kimi Switch", "KimiCode Switch"],
+            "url": "https://billowliu2.github.io/KimiSwitch/",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "Windows 10, Windows 11, macOS, Linux",
+            "softwareVersion": "0.8.5",
+            "dateModified": "2026-10-16",
+            "description": "桌面端 LLM 供应商配置管理器：22 个预设选好即写入 config.toml，用量与账单直读各厂商官方接口。Tauri + Rust，开源 MIT。",
+            "downloadUrl": "https://github.com/billowliu2/KimiSwitch/releases",
+            "softwareHelp": "https://github.com/billowliu2/KimiSwitch",
+            "license": "https://opensource.org/licenses/MIT",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD"
+            },
+            "author": {
+              "@type": "Organization",
+              "name": "KimiSwitch",
+              "url": "https://github.com/billowliu2/KimiSwitch"
+            }
+          },
+          {
+            "@type": "Organization",
+            "name": "KimiSwitch",
+            "url": "https://github.com/billowliu2/KimiSwitch",
+            "logo": "https://billowliu2.github.io/KimiSwitch/kimi.svg",
+            "sameAs": [
+              "https://github.com/billowliu2/KimiSwitch",
+              "https://git.codingplan.site/admin/KimiCodeSwitch"
+            ]
+          },
+          {
+            "@type": "WebSite",
+            "name": "Kimi Switch",
+            "url": "https://billowliu2.github.io/KimiSwitch/",
+            "inLanguage": ["zh-CN", "en"]
+          }
+        ]
+      }
+    </script>
+    <script type="module" crossorigin src="/KimiSwitch/assets/index-DlFQzr43.js"></script>
+    <link rel="stylesheet" crossorigin href="/KimiSwitch/assets/index-GIwAY7Fj.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
