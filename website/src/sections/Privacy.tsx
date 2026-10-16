@@ -1,5 +1,6 @@
+import { BookOpen, Database, LinkSimple, type Icon } from "@phosphor-icons/react";
 import SectionShell from "../components/SectionShell";
-import { Database, LinkSimple, BookOpen, type Icon } from "@phosphor-icons/react";
+import { useInView } from "../hooks";
 import { useLang } from "../i18n";
 
 const icons: Record<string, Icon> = {
@@ -10,29 +11,31 @@ const icons: Record<string, Icon> = {
 
 export default function Privacy() {
   const { t } = useLang();
+  const [ref, inView] = useInView<HTMLDivElement>();
+
   return (
-    <SectionShell
-      id="privacy"
-      title={t.privacy.title}
-      subtitle={t.privacy.subtitle}
-    >
-      {/* 三条承诺改为一个面板内的三行，图标左置，避免三张等宽卡片 */}
-      <div className="card divide-y divide-border p-0">
-        {t.privacy.items.map((it) => {
+    <SectionShell id="privacy" title={t.privacy.title} subtitle={t.privacy.subtitle}>
+      <div
+        ref={ref}
+        className={`reveal grid grid-cols-1 gap-10 md:grid-cols-3 md:gap-8 ${
+          inView ? "reveal-on" : "reveal-off"
+        }`}
+      >
+        {t.privacy.items.map((it, i) => {
           const Icon = icons[it.id] ?? Database;
           return (
-            <div key={it.id} className="flex items-start gap-5 p-6 md:p-7">
-              <div className="icon-chip shrink-0">
-                <Icon className="h-5 w-5" weight="duotone" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-base font-semibold tracking-tight">
-                  {it.title}
-                </h3>
-                <p className="mt-1 max-w-[65ch] text-sm leading-relaxed text-muted-foreground">
-                  {it.desc}
-                </p>
-              </div>
+            <div
+              key={it.id}
+              style={{ transitionDelay: `${i * 80}ms` }}
+              className={`border-t border-border pt-6 ${
+                inView ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
+              } transition-[opacity,transform] duration-[620ms] ease-reveal`}
+            >
+              <Icon className="h-5 w-5 text-primary" weight="duotone" aria-hidden="true" />
+              <h3 className="mt-4 text-base font-semibold tracking-tight">{it.title}</h3>
+              <p className="mt-2 max-w-[42ch] text-sm leading-relaxed text-muted-foreground">
+                {it.desc}
+              </p>
             </div>
           );
         })}

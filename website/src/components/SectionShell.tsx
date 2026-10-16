@@ -1,40 +1,41 @@
-import { useInView } from "../hooks";
+import { useInView, useRevealStyles } from "../hooks";
 import type { ReactNode } from "react";
 
 interface SectionShellProps {
   id: string;
   title: string;
   subtitle?: string;
+  className?: string;
   children: ReactNode;
 }
 
-export default function SectionShell({ id, title, subtitle, children }: SectionShellProps) {
+export default function SectionShell({
+  id,
+  title,
+  subtitle,
+  className = "",
+  children,
+}: SectionShellProps) {
   const [ref, inView] = useInView<HTMLElement>();
+  const head = useRevealStyles(inView);
   return (
     <section
       ref={ref}
       id={id}
       aria-labelledby={`${id}-title`}
-      className={`pt-16 pb-20 transition-all duration-700 ease-out ${
-        inView
-          ? "motion-safe:opacity-100 motion-safe:translate-y-0"
-          : "motion-safe:opacity-0 motion-safe:translate-y-6"
-      }`}
+      className={`scroll-mt-20 py-20 md:py-28 ${className}`}
     >
       <div className="container-page">
-        <div className="mb-12 max-w-3xl">
-          <h2
-            id={`${id}-title`}
-            className="text-3xl font-bold tracking-[-0.03em] md:text-4xl"
-          >
+        <header className={`mb-10 max-w-2xl md:mb-14 ${head.className}`} style={head.style}>
+          <h2 id={`${id}-title`} className="text-section font-semibold">
             {title}
           </h2>
           {subtitle && (
-            <p className="mt-3 max-w-[68ch] text-base leading-relaxed text-muted-foreground">
+            <p className="mt-4 max-w-prose text-base leading-relaxed text-muted-foreground">
               {subtitle}
             </p>
           )}
-        </div>
+        </header>
         {children}
       </div>
     </section>

@@ -7166,9 +7166,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.8957,
-      "output": 0.99,
-      "cache_read": 0.1866
+      "input": 1.1,
+      "output": 2.5,
+      "cache_read": 0.04
     }
   },
   "nano-gpt/deepseek/deepseek-v4-flash-0423:thinking": {
@@ -7205,9 +7205,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.8957,
-      "output": 0.99,
-      "cache_read": 0.1866
+      "input": 1.1,
+      "output": 2.5,
+      "cache_read": 0.04
     }
   },
   "nano-gpt/deepseek/deepseek-v4-pro-0813": {
@@ -7218,9 +7218,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.8957,
-      "output": 0.99,
-      "cache_read": 0.1866
+      "input": 1.1,
+      "output": 2.5,
+      "cache_read": 0.04
     }
   },
   "nano-gpt/deepseek/deepseek-v4-flash-0731:thinking": {
@@ -7260,19 +7260,6 @@
       "input": 0.05,
       "output": 0.16,
       "cache_read": 0.013
-    }
-  },
-  "nano-gpt/deepseek/deepseek-v4-flash-vision-exp-cybersecurity": {
-    "name": "DeepSeek V4 Flash Vision Exp Cybersecurity",
-    "context": 1048576,
-    "output": 32768,
-    "reasoning": true,
-    "tool_call": true,
-    "image": true,
-    "cost": {
-      "input": 0.15,
-      "output": 0.6,
-      "cache_read": 0.075
     }
   },
   "nano-gpt/deepseek/deepseek-v3.2": {
@@ -10032,9 +10019,9 @@
     "tool_call": true,
     "image": true,
     "cost": {
-      "input": 0.441,
-      "output": 2.45,
-      "cache_read": 0.099
+      "input": 0.5,
+      "output": 2.6,
+      "cache_read": 0.125
     }
   },
   "nano-gpt/moonshotai/kimi-k2.5:thinking": {
@@ -10095,9 +10082,9 @@
     "tool_call": true,
     "image": true,
     "cost": {
-      "input": 0.441,
-      "output": 2.45,
-      "cache_read": 0.099
+      "input": 0.5,
+      "output": 2.6,
+      "cache_read": 0.125
     }
   },
   "nano-gpt/moonshotai/kimi-k2-instruct-0711": {
@@ -23499,20 +23486,6 @@
       "cache_write": 12.5
     }
   },
-  "kilo/anthropic/claude-sonnet-4": {
-    "name": "Anthropic: Claude Sonnet 4 (retires Oct 15)",
-    "context": 200000,
-    "output": 64000,
-    "reasoning": true,
-    "tool_call": true,
-    "image": true,
-    "cost": {
-      "input": 3,
-      "output": 15,
-      "cache_read": 0.3,
-      "cache_write": 3.75
-    }
-  },
   "kilo/anthropic/claude-sonnet-5": {
     "name": "Claude Sonnet 5",
     "context": 1000000,
@@ -24653,9 +24626,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.063,
+      "input": 0.0608,
       "output": 4.4,
-      "cache_read": 0.0586
+      "cache_read": 0.0565
     }
   },
   "kilo/arcee-ai/trinity-large-thinking": {
@@ -25003,9 +24976,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.225,
+      "input": 0.1307,
       "output": 8,
-      "cache_read": 0.23
+      "cache_read": 0.13
     }
   },
   "kilo/~deepseek/deepseek-v4-flash-latest": {
@@ -25629,7 +25602,7 @@
   },
   "kilo/mistralai/mistral-small-3.2-24b-instruct": {
     "name": "Mistral Small 3.2 24B",
-    "context": 128000,
+    "context": 256000,
     "output": 16384,
     "tool_call": true,
     "structured_output": true,
@@ -27111,7 +27084,7 @@
   "kilo/qwen/qwen3.6-27b": {
     "name": "Qwen3.6 27B",
     "context": 262144,
-    "output": 81920,
+    "output": 65536,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
@@ -35752,20 +35725,6 @@
       "cache_write": 12.5
     }
   },
-  "openrouter/anthropic/claude-sonnet-4": {
-    "name": "Claude Sonnet 4",
-    "context": 200000,
-    "output": 64000,
-    "reasoning": true,
-    "tool_call": true,
-    "image": true,
-    "cost": {
-      "input": 3,
-      "output": 15,
-      "cache_read": 0.3,
-      "cache_write": 3.75
-    }
-  },
   "openrouter/anthropic/claude-sonnet-5": {
     "name": "Claude Sonnet 5",
     "context": 1000000,
@@ -36038,9 +35997,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.95526,
-      "output": 1.91052,
-      "cache_read": 0.079605
+      "input": 0.43935,
+      "output": 0.8787,
+      "cache_read": 0.036613
     }
   },
   "openrouter/deepseek/deepseek-r1-0528": {
@@ -36507,9 +36466,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.02,
+      "input": 0.06,
       "output": 7,
-      "cache_read": 0.019
+      "cache_read": 0.059
     }
   },
   "openrouter/z-ai/glm-5.1": {
@@ -36557,9 +36516,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.079,
-      "output": 4.8,
-      "cache_read": 0.078
+      "input": 0.4,
+      "output": 8,
+      "cache_read": 0.399
     }
   },
   "openrouter/inference-net/schematron-v2-small": {
@@ -36914,9 +36873,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.063,
+      "input": 0.0608,
       "output": 4.4,
-      "cache_read": 0.0586
+      "cache_read": 0.0565
     }
   },
   "openrouter/arcee-ai/trinity-large-thinking": {
@@ -37264,9 +37223,9 @@
     "tool_call": true,
     "structured_output": true,
     "cost": {
-      "input": 0.225,
+      "input": 0.1307,
       "output": 8,
-      "cache_read": 0.23
+      "cache_read": 0.13
     }
   },
   "openrouter/~deepseek/deepseek-v4-flash-latest": {
@@ -37920,8 +37879,8 @@
     "structured_output": true,
     "image": true,
     "cost": {
-      "input": 0.075,
-      "output": 0.2
+      "input": 0.09375,
+      "output": 0.25
     }
   },
   "openrouter/mistralai/mistral-large": {
@@ -39313,15 +39272,15 @@
   "openrouter/qwen/qwen3.6-27b": {
     "name": "Qwen3.6 27B",
     "context": 262144,
-    "output": 81920,
+    "output": 65536,
     "reasoning": true,
     "tool_call": true,
     "structured_output": true,
     "image": true,
     "video": true,
     "cost": {
-      "input": 0.32,
-      "output": 3.2
+      "input": 0.45,
+      "output": 2.7
     }
   },
   "openrouter/qwen/qwen3.6-plus": {

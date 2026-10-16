@@ -1,11 +1,10 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="light">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="%BASE_URL%kimi.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#efebe1" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#231f1a" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fafafb" id="theme-color" />
     <title>Kimi Switch — 多 LLM 供应商配置管理 · 用量与账单监控</title>
     <meta
       name="description"
@@ -25,6 +24,8 @@
     />
     <meta property="og:url" content="https://billowliu2.github.io/KimiSwitch/" />
     <meta property="og:image" content="https://billowliu2.github.io/KimiSwitch/og.png" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:locale:alternate" content="en_US" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
@@ -38,6 +39,30 @@
     <!-- Canonical -->
     <link rel="canonical" href="https://billowliu2.github.io/KimiSwitch/" />
 
+    <!--
+      Theme bootstrap. Runs before the first paint so the page never flashes
+      the wrong palette: read the stored preference (same key and vocabulary
+      as the desktop app), resolve it against the OS, and set the class on
+      <html>. Kept inline and dependency-free on purpose.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("kimi-switch-theme");
+          var mode = stored === "light" || stored === "dark" || stored === "auto" ? stored : "auto";
+          var dark = mode === "dark" ||
+            (mode === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          var root = document.documentElement;
+          root.classList.remove("light", "dark");
+          root.classList.add(dark ? "dark" : "light");
+          var meta = document.getElementById("theme-color");
+          if (meta) meta.setAttribute("content", dark ? "#101216" : "#fafafb");
+        } catch (e) {
+          /* private mode / disabled storage: fall through to the light default */
+        }
+      })();
+    </script>
+
     <!-- JSON-LD: SoftwareApplication + Organization + WebSite -->
     <script type="application/ld+json">
       {
@@ -50,8 +75,8 @@
             "url": "https://billowliu2.github.io/KimiSwitch/",
             "applicationCategory": "DeveloperApplication",
             "operatingSystem": "Windows 10, Windows 11, macOS, Linux",
-            "softwareVersion": "0.8.2",
-            "dateModified": "2026-10-09",
+            "softwareVersion": "0.8.5",
+            "dateModified": "2026-10-16",
             "description": "桌面端 LLM 供应商配置管理器：22 个预设选好即写入 config.toml，用量与账单直读各厂商官方接口。Tauri + Rust，开源 MIT。",
             "downloadUrl": "https://github.com/billowliu2/KimiSwitch/releases",
             "softwareHelp": "https://github.com/billowliu2/KimiSwitch",
@@ -81,7 +106,7 @@
             "@type": "WebSite",
             "name": "Kimi Switch",
             "url": "https://billowliu2.github.io/KimiSwitch/",
-            "inLanguage": "zh-CN"
+            "inLanguage": ["zh-CN", "en"]
           }
         ]
       }

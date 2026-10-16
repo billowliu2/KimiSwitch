@@ -974,18 +974,29 @@ fn is_health_target(provider: &Provider) -> bool {
     provider.enabled && provider.provider_type.is_openai_compatible()
 }
 
-/// 是否顺带查账单：配置了 usageKinds，且用户没有在配置面板关掉用量查询
+/// 是否顺带查账单：配置了 usageKinds，或配了 NewAPI / Sub2API 模板——这两条
+/// 模板路径直接查网关自己的用量端点（见 [`query_provider_usage`]），绕过了
+/// usageKinds，所以 kinds 为空也要查。前提是用户没有在配置面板关掉用量查询
 /// （关掉是明确意图，不该记成失败）。
 fn wants_usage_check(provider: &Provider) -> bool {
-    provider
+    let Some(cfg) = provider.usage_config.as_ref() else {
+        return provider
+            .usage_kinds
+            .as_ref()
+            .is_some_and(|v| !v.is_empty());
+    };
+    if !cfg.enabled {
+        return false;
+    }
+    let has_kinds = provider
         .usage_kinds
         .as_ref()
-        .is_some_and(|v| !v.is_empty())
-        && provider
-            .usage_config
-            .as_ref()
-            .map(|c| c.enabled)
-            .unwrap_or(true)
+        .is_some_and(|v| !v.is_empty());
+    let has_gateway_template = matches!(
+        cfg.template_type.as_str(),
+        UsageConfig::TEMPLATE_NEWAPI | UsageConfig::TEMPLATE_SUB2API
+    );
+    has_kinds || has_gateway_template
 }
 
 /// 探活 404 的判定前缀，与 services/probe.rs 的 `endpoint not found` 对应。
@@ -1291,6 +1302,66 @@ mod health_check_tests {
         assert!(!wants_usage_check(&p));
     }
 
+    /// 构造 usage_config；`enabled` 之外的字段对本组用例无意义。
+    fn usage_config(enabled: bool, template_type: &str) -> UsageConfig {
+        UsageConfig {
+            enabled,
+            template_type: template_type.to_string(),
+            base_url: None,
+            access_token: None,
+            user_id: None,
+            auto_query_interval_minutes: None,
+            timeout_seconds: None,
+            threshold: None,
+        }
+    }
+
+    #[test]
+    fn usage_check_runs_for_gateway_template_without_kinds() {
+        // NewAPI / Sub2API 模板走网关自己的用量端点，绕过 usageKinds：
+        // 未知域名（detect_provider 不命中）+ 只配模板时必须照查。
+        for template in [UsageConfig::TEMPLATE_NEWAPI, UsageConfig::TEMPLATE_SUB2API] {
+            let mut p = provider(ProviderType::Openai, true);
+            p.usage_kinds = Some(vec![]);
+            p.usage_config = Some(usage_config(true, template));
+            assert!(wants_usage_check(&p), "template {template} 应触发账单查询");
+        }
+    }
+
+    #[test]
+    fn usage_check_skips_gateway_template_when_disabled() {
+        // 面板里关了用量查询 → 模板再全也不查
+        for template in [UsageConfig::TEMPLATE_NEWAPI, UsageConfig::TEMPLATE_SUB2API] {
+            let mut p = provider(ProviderType::Openai, true);
+            p.usage_kinds = Some(vec![]);
+            p.usage_config = Some(usage_config(false, template));
+            assert!(!wants_usage_check(&p), "template {template} 关闭时不应查询");
+        }
+    }
+
+    #[test]
+    fn usage_check_skips_empty_kinds_with_auto_or_no_template() {
+        let mut p = provider(ProviderType::Openai, true);
+        p.usage_kinds = Some(vec![]);
+        // 无 usage_config
+        assert!(!wants_usage_check(&p));
+        // auto 模板 + enabled：仍然没有可查的东西
+        p.usage_config = Some(usage_config(true, UsageConfig::TEMPLATE_AUTO));
+        assert!(!wants_usage_check(&p));
+    }
+
+    #[test]
+    fn usage_check_runs_for_kinds_with_enabled_panel() {
+        let mut p = provider(ProviderType::Openai, true);
+        p.usage_kinds = Some(vec!["balance:deepseek".to_string()]);
+        p.usage_config = Some(usage_config(true, UsageConfig::TEMPLATE_AUTO));
+        assert!(wants_usage_check(&p));
+
+        // kinds 非空 + 模板也是网关模板 → 依然查
+        p.usage_config = Some(usage_config(true, UsageConfig::TEMPLATE_NEWAPI));
+        assert!(wants_usage_check(&p));
+    }
+
     #[test]
     fn probe_404_is_neutral_other_errors_fail() {
         assert_eq!(classify_probe(Ok(())).state, HealthCheck::Pass);
@@ -1499,6 +1570,11 @@ pub async fn check_for_update() -> Result<UpdateInfo, String> {
 
 /// GET a releases API (Gitea or GitHub, same array shape) and extract the
 /// latest tag, release page URL and the installer asset for the current OS.
+///
+/// The *first* published (non-draft, non-prerelease) release wins. Both hosts
+/// return releases newest-first, but a draft or an rc published after a stable
+/// release would otherwise be picked and offered as the update — so filter
+/// them out explicitly and take the newest survivor.
 async fn fetch_latest_release(
     client: &reqwest::Client,
     url: &str,
@@ -1512,10 +1588,7 @@ async fn fetch_latest_release(
         .await
         .map_err(|e| format!("parse failed: {e}"))?;
 
-    let first = releases
-        .as_array()
-        .and_then(|a| a.first())
-        .ok_or("no releases found")?;
+    let first = pick_published_release(&releases).ok_or("no published releases found")?;
 
     let latest = first
         .get("tag_name")
@@ -1535,6 +1608,17 @@ async fn fetch_latest_release(
         .and_then(|a| pick_asset_for_current_os(a));
 
     Ok((latest, release_url, download_url))
+}
+
+/// Newest release that is neither a draft nor a prerelease. Both hosts return
+/// releases newest-first, so this is the first array element that survives the
+/// filter. Drafts are invisible to users anyway; an rc published after a
+/// stable release must not be offered as the update.
+fn pick_published_release(releases: &serde_json::Value) -> Option<&serde_json::Value> {
+    releases.as_array()?.iter().find(|r| {
+        !r.get("draft").and_then(|v| v.as_bool()).unwrap_or(false)
+            && !r.get("prerelease").and_then(|v| v.as_bool()).unwrap_or(false)
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -2161,6 +2245,48 @@ mod kimi_code_version_tests {
 mod asset_picker_tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn published_release_skips_draft_and_prerelease() {
+        // Gitea/GitHub 顺序：最新在前。若最新是 draft 或 rc，必须跳到下一个
+        // 正式版，否则会把未发布/预发布版本当成更新推给用户。
+        let releases = json!([
+            { "tag_name": "v0.9.0", "draft": false, "prerelease": true },
+            { "tag_name": "v0.8.5", "draft": true, "prerelease": false },
+            { "tag_name": "v0.8.4", "draft": false, "prerelease": false },
+        ]);
+        assert_eq!(
+            pick_published_release(&releases)
+                .and_then(|r| r.get("tag_name"))
+                .and_then(|v| v.as_str()),
+            Some("v0.8.4")
+        );
+    }
+
+    #[test]
+    fn published_release_takes_the_newest_when_all_are_stable() {
+        let releases = json!([
+            { "tag_name": "v0.8.5", "draft": false, "prerelease": false },
+            { "tag_name": "v0.8.4", "draft": false, "prerelease": false },
+        ]);
+        assert_eq!(
+            pick_published_release(&releases)
+                .and_then(|r| r.get("tag_name"))
+                .and_then(|v| v.as_str()),
+            Some("v0.8.5")
+        );
+    }
+
+    #[test]
+    fn published_release_none_when_empty_or_all_unpublished() {
+        assert!(pick_published_release(&json!([])).is_none());
+        assert!(pick_published_release(&json!([
+            { "tag_name": "v1.0.0-rc1", "prerelease": true }
+        ]))
+        .is_none());
+        // 非数组（错误响应体）不得 panic
+        assert!(pick_published_release(&json!({ "message": "rate limited" })).is_none());
+    }
 
     fn assets(names: &[&str]) -> Vec<serde_json::Value> {
         names

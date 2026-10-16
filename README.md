@@ -139,7 +139,7 @@
 │   │     ProviderList         │    │     ├── main.rs              │    │
 │   │     ProviderEdit         │    │     ├── commands.rs          │    │
 │   │     AgentSettingsPanel   │    │     ├── db.rs                │    │
-│   │     SettingsModal        │    │     ├── kimi_code_io.rs      │    │
+│   │     SettingsPage         │    │     ├── kimi_code_io.rs      │    │
 │   │     ProviderIcon /       │    │     ├── pi_io.rs (legacy)    │    │
 │   │     IconPicker            │    │     ├── config_io.rs         │    │
 │   │     dashboard/           │    │     ├── models.rs            │    │
@@ -334,7 +334,11 @@ npm run dev
 │   │   ├── ProviderList.tsx          # 供应商列表 + 切换 / 复制 / 测试连通 / 编辑 / 删除
 │   │   ├── ProviderEdit.tsx          # 供应商编辑 + 模型映射 + JSON 直编 + 能力
 │   │   ├── AgentSettingsPanel.tsx    # Kimi Code 全局设置（思考/循环/权限/钩子）
-│   │   ├── SettingsModal.tsx         # 设置弹窗（主题 / 语言 / 版本 / 检查更新）
+│   │   ├── settings/                 # 设置页（返回头 + 设置/高级功能 Tab）
+│   │   │   ├── SettingsPage.tsx
+│   │   │   ├── SettingsGeneralTab.tsx
+│   │   │   ├── SettingsGlobalTab.tsx
+│   │   │   └── SettingsAdvancedTab.tsx
 │   │   ├── ProviderIcon.tsx          # 供商品牌图标（带首字母兜底）
 │   │   ├── IconPicker.tsx            # 图标选择器（brands / inference 分类）
 │   │   ├── dashboard/                # 用量仪表盘
@@ -454,7 +458,7 @@ npm run dev
 - 翻译源：`src/i18n/zh.ts`（源） + `src/i18n/en.ts`（目标）
 - 新增 key **先在 `zh.ts` 里加**，`en.ts` 的 `Record<TranslationKey, string>` 类型会自动校验缺失条目（编译时报错）
 - `useTranslation` hook 暴露 `{ t, lang, setLang }`
-- 运行时切换由 `SettingsModal` 提供，持久化到前端 `localStorage`（`kimi-switch-lang`）
+- 运行时切换在设置页「设置」Tab 中提供，持久化到前端 `localStorage`（`kimi-switch-lang`）
 
 ## 测试
 

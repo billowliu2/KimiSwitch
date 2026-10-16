@@ -308,6 +308,7 @@ export const zhTranslations = {
   themeAuto: "跟随系统",
   settings: "设置",
   settingsTitle: "设置",
+  settingsTabGlobal: "全局设置",
   settingsAppearance: "外观",
   settingsUpdates: "更新",
   settingsAbout: "关于",
@@ -322,6 +323,9 @@ export const zhTranslations = {
   downloadComplete: "下载完成，点击安装",
   install: "安装",
   updateCheckFailed: "检查更新失败",
+  updateNoDownload: "该版本没有可用的安装包，请前往 Release 页面手动下载",
+  openReleasePage: "打开下载页",
+  downloadFailed: "下载失败",
   lastChecked: "上次检查",
   // Kimi Code 版本跟踪
   kimiCodeSection: "Kimi Code 版本",
@@ -338,6 +342,7 @@ export const zhTranslations = {
   appDescription: "Windows 桌面端 LLM 供应商配置管理器",
   settingsWebsite: "官方网站",
   kimiEyesSite: "Kimi Eyes 插件站",
+  openTerminalSite: "OpenTerminal 项目站",
   referenceProject: "引用项目",
 
   // Validation errors

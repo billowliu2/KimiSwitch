@@ -319,6 +319,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   themeAuto: "Auto",
   settings: "Settings",
   settingsTitle: "Settings",
+  settingsTabGlobal: "Global Settings",
   settingsAppearance: "Appearance",
   settingsUpdates: "Updates",
   settingsAbout: "About",
@@ -333,6 +334,9 @@ export const enTranslations: Record<TranslationKey, string> = {
   downloadComplete: "Download complete, click to install",
   install: "Install",
   updateCheckFailed: "Update check failed",
+  updateNoDownload: "No installer available for this release — open the release page to download manually",
+  openReleasePage: "Open release page",
+  downloadFailed: "Download failed",
   lastChecked: "Last checked",
   // Kimi Code version tracking
   kimiCodeSection: "Kimi Code version",
@@ -349,6 +353,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   appDescription: "Windows desktop LLM provider config manager",
   settingsWebsite: "Official website",
   kimiEyesSite: "Kimi Eyes plugin site",
+  openTerminalSite: "OpenTerminal site",
   referenceProject: "Reference project",
 
   // Validation errors

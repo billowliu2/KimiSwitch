@@ -5,6 +5,23 @@
     <link rel="icon" type="image/svg+xml" href="/kimi.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Kimi Switch</title>
+    <script>
+      // 首帧前应用主题：CSS 变量默认深色（:root 即深色），而 Tailwind 的
+      // dark: 变体要等 React 挂载后 useTheme 才加 .dark class，启动瞬间
+      // 两者不一致会导致激活卡片显示浅色。这里提前读 localStorage +
+      // 系统偏好把 class 设置好，与 src/hooks/useTheme.ts 的键保持一致。
+      (function () {
+        try {
+          var stored = localStorage.getItem("kimi-switch-theme");
+          var dark =
+            stored === "dark" ||
+            ((stored === "auto" || stored === null) &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.classList.toggle("dark", dark);
+          document.documentElement.classList.toggle("light", !dark);
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

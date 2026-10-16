@@ -9,7 +9,7 @@ import { SubagentSettingsPage } from "./components/SubagentSettingsPage";
 import { DashboardPage } from "./components/dashboard/DashboardPage";
 import { SessionsPage } from "./components/sessions/SessionsPage";
 import { PluginMarketplacePage } from "./components/plugins/PluginMarketplacePage";
-import { SettingsModal } from "./components/SettingsModal";
+import { SettingsPage } from "./components/settings/SettingsPage";
 import { UsageConfigModal } from "./components/UsageConfigModal";
 import { PresetPickerModal } from "./components/PresetPickerModal";
 import { useTranslation } from "./i18n";
@@ -81,12 +81,14 @@ export default function App() {
   } = useConfig(agent);
 
   const [view, setView] = useState<
-    "list" | "edit" | "subagent" | "dashboard" | "sessions" | "plugins"
+    "list" | "edit" | "subagent" | "dashboard" | "sessions" | "plugins" | "settings"
   >("list");
   const [editingProvider, setEditingProvider] = useState<string>("");
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [switchMessage, setSwitchMessage] = useState<string | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<"general" | "global" | "advanced">(
+    "general",
+  );
   const [showPresetPicker, setShowPresetPicker] = useState(false);
   /** Provider whose usage-config panel is open; null = closed. */
   const [usageConfigProvider, setUsageConfigProvider] = useState<string | null>(null);
@@ -628,6 +630,20 @@ export default function App() {
           >
             {t("sessions")}
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSettingsTab("advanced");
+              setView("settings");
+            }}
+            className={`px-3 py-1 text-sm rounded transition-colors ${
+              view === "settings" && settingsTab === "advanced"
+                ? "bg-blue-600 text-white"
+                : "text-content-muted hover:text-content-primary"
+            }`}
+          >
+            {t("subagentSettings")}
+          </button>
           {/* 插件市场功能尚未成熟，导航入口暂时隐藏；页面代码保留，
               恢复时把下面的按钮加回即可（view/渲染分支均未移除）。
           <button
@@ -651,7 +667,10 @@ export default function App() {
           {/* Settings gear */}
           <button
             type="button"
-            onClick={() => setShowSettings(true)}
+            onClick={() => {
+              setSettingsTab("global");
+              setView("settings");
+            }}
             title={t("settings")}
             className="relative p-1.5 rounded border border-border hover:bg-hover-2 transition-colors"
           >
@@ -685,10 +704,26 @@ export default function App() {
           <SessionsPage />
         ) : view === "plugins" ? (
           <PluginMarketplacePage />
+        ) : view === "settings" ? (
+          <SettingsPage
+            activeTab={settingsTab}
+            onTabChange={setSettingsTab}
+            updateInfo={updateInfo}
+            checking={checking}
+            onCheckUpdate={checkNow}
+            lastChecked={lastChecked}
+            rawOther={config.raw_other}
+            models={config.models}
+            defaultModel={config.default_model}
+            onRawOtherChange={(nextRawOther) =>
+              updateConfig((cfg) => ({ ...cfg, raw_other: nextRawOther }))
+            }
+          />
         ) : view === "subagent" ? (
           <SubagentSettingsPage
             rawOther={config.raw_other}
             models={config.models}
+            defaultModel={config.default_model}
             onChange={(nextRawOther) =>
               updateConfig((cfg) => ({ ...cfg, raw_other: nextRawOther }))
             }
@@ -718,10 +753,6 @@ export default function App() {
               (m) => m.provider === currentProvider.name
             )}
             defaultModel={config.default_model}
-            rawOther={config.raw_other}
-            onRawOtherChange={(nextRawOther) =>
-              updateConfig((cfg) => ({ ...cfg, raw_other: nextRawOther }))
-            }
             onBack={handleEditBack}
             onChange={handleUpdateProvider}
             onDelete={() => handleDeleteProvider(currentProvider.name)}
@@ -903,27 +934,9 @@ export default function App() {
           >
             {t("openConfigDir")}
           </button>
-          {view === "list" && (
-            <button
-              type="button"
-              onClick={() => setView("subagent")}
-              className="px-3 py-1.5 text-sm border border-border rounded hover:bg-hover-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            >
-              {t("subagentSettings")}
-            </button>
-          )}
         </div>
       </footer>
       )}
-
-      <SettingsModal
-        open={showSettings}
-        onClose={() => setShowSettings(false)}
-        updateInfo={updateInfo}
-        checking={checking}
-        onCheckUpdate={checkNow}
-        lastChecked={lastChecked}
-      />
 
       <PresetPickerModal
         open={showPresetPicker}

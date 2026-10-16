@@ -10,107 +10,238 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Design tokens — Kimi brand: neutral gray + blue accent (matches the app UI).
-   Light is the default; dark follows prefers-color-scheme. */
+/* ---------------------------------------------------------------------------
+   Design tokens
+   One neutral family (hue 230) for both themes, one brand accent pair:
+   app blue #2563eb (#3b82f6 on dark, for AA contrast) plus Kimi purple used
+   for icon tints and the hero glyph only. Light is the base set; `.dark` on
+   <html> swaps the whole set, so every `dark:` utility is a rarity here.
+   --------------------------------------------------------------------------- */
 @layer base {
   :root {
-    --background: 240 11% 97%;
-    --foreground: 240 9% 11%;
+    --background: 240 20% 98.4%;
+    --foreground: 230 16% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 240 9% 11%;
-    --muted: 240 6% 94%;
-    --muted-foreground: 220 9% 46%;
-    --accent: 240 6% 94%;
-    --accent-foreground: 240 9% 11%;
-    --border: 240 6% 90%;
-    --primary: 221 74% 50%;
+    --muted: 240 16% 95.5%;
+    --muted-foreground: 230 9% 42%;
+    --accent: 240 16% 95.5%;
+    --border: 232 16% 89%;
+    --primary: 221 83% 53%;
     --primary-foreground: 0 0% 100%;
-    --ring: 221 74% 50%;
-    /* 克制分层阴影（色相一致的 tinted shadow，非荧光发光） */
-    --shadow-soft: 0 1px 2px hsl(240 9% 11% / 0.05),
-      0 8px 24px hsl(240 9% 11% / 0.06);
-    --shadow-lift: 0 1px 2px hsl(240 9% 11% / 0.05),
-      0 12px 36px hsl(240 9% 11% / 0.1);
+    --violet: 265 72% 56%;
+    --violet-foreground: 0 0% 100%;
+    --ring: 221 83% 53%;
+
+    --shadow-soft: 0 1px 2px hsl(230 30% 20% / 0.06), 0 6px 20px hsl(230 30% 20% / 0.06);
+    --shadow-lift: 0 2px 4px hsl(230 30% 20% / 0.07), 0 16px 40px hsl(230 30% 20% / 0.12);
+    --shadow-inset: inset 0 1px 0 hsl(0 0% 100% / 0.65);
+    --frame-shell: 240 14% 93%;
+    --halo: 221 83% 53%;
+    color-scheme: light;
   }
 
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --background: 222 47% 6%;
-      --foreground: 220 20% 92%;
-      --card: 222 32% 10%;
-      --card-foreground: 220 20% 92%;
-      --muted: 222 25% 14%;
-      --muted-foreground: 220 12% 62%;
-      --accent: 222 25% 14%;
-      --accent-foreground: 220 20% 92%;
-      --border: 222 22% 17%;
-      --primary: 216 68% 62%;
-      --primary-foreground: 0 0% 100%;
-      --ring: 216 68% 62%;
-      --shadow-soft: 0 1px 2px hsl(222 47% 2% / 0.5),
-        0 8px 24px hsl(222 47% 2% / 0.45);
-      --shadow-lift: 0 1px 2px hsl(222 47% 2% / 0.5),
-        0 12px 36px hsl(222 47% 2% / 0.55);
-    }
+  .dark {
+    --background: 231 15% 6.5%;
+    --foreground: 228 18% 93%;
+    --card: 231 14% 9.5%;
+    --muted: 231 13% 13.5%;
+    --muted-foreground: 228 11% 64%;
+    --accent: 231 13% 14.5%;
+    --border: 230 13% 17%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --violet: 265 85% 70%;
+    --violet-foreground: 232 20% 8%;
+    --ring: 217 91% 60%;
+
+    --shadow-soft: 0 1px 2px hsl(231 40% 2% / 0.5), 0 8px 24px hsl(231 40% 2% / 0.4);
+    --shadow-lift: 0 2px 4px hsl(231 40% 2% / 0.55), 0 18px 44px hsl(231 40% 2% / 0.55);
+    --shadow-inset: inset 0 1px 0 hsl(228 30% 90% / 0.06);
+    --frame-shell: 231 13% 15%;
+    --halo: 217 91% 60%;
+    color-scheme: dark;
   }
 
   html {
     scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
   }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
   }
-  /* 选中色与键盘焦点（无障碍） */
+
   ::selection {
-    background: hsl(var(--primary) / 0.16);
+    background: hsl(var(--primary) / 0.2);
   }
+
   :focus-visible {
     outline: 2px solid hsl(var(--ring));
     outline-offset: 2px;
+    border-radius: 4px;
   }
-  /* 展示标题：更紧字距 + 防孤词 */
+
   h1,
-  h2 {
+  h2,
+  h3 {
     text-wrap: balance;
-    letter-spacing: -0.02em;
+  }
+
+  /* The app's own scrollbar treatment, matched to the neutral family. */
+  * {
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border: 3px solid hsl(var(--background));
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
   }
 }
 
 @layer components {
   .container-page {
-    @apply mx-auto w-full max-w-7xl px-5 md:px-8;
+    @apply mx-auto w-full max-w-[1200px] px-5 md:px-8;
   }
+
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium transition-all duration-200;
+    @apply inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-lg px-5 py-2.5 text-sm font-medium transition-all duration-200 ease-out active:translate-y-0 active:scale-[0.985];
   }
   .btn-primary {
-    @apply btn bg-primary text-primary-foreground hover:bg-primary/90 hover:-translate-y-px active:translate-y-0 active:scale-[0.98];
-    box-shadow: 0 1px 2px hsl(221 45% 25% / 0.25);
+    @apply btn bg-primary text-primary-foreground hover:brightness-110 hover:-translate-y-px;
+    box-shadow: 0 1px 2px hsl(var(--primary) / 0.3), 0 8px 22px hsl(var(--primary) / 0.22);
   }
   .btn-ghost {
-    @apply btn border border-border bg-card/60 text-foreground hover:border-foreground/25 hover:bg-accent active:scale-[0.98];
+    @apply btn border border-border bg-card/70 text-foreground backdrop-blur hover:border-foreground/25 hover:bg-accent;
   }
+  .btn-quiet {
+    @apply btn border border-transparent text-muted-foreground hover:bg-accent hover:text-foreground;
+  }
+
+  /* Container: hairline border + one hairline of inner light on the top edge
+     is the whole "micro-glow" budget. No outer neon. */
   .card {
-    @apply rounded-2xl border border-border bg-card p-6;
-    box-shadow: var(--shadow-soft);
-    transition:
-      box-shadow 0.3s ease,
-      transform 0.3s ease,
-      border-color 0.3s ease;
+    @apply relative rounded-card border border-border bg-card;
+    box-shadow: var(--shadow-soft), var(--shadow-inset);
+    transition: box-shadow 0.35s ease, transform 0.35s ease, border-color 0.35s ease;
   }
-  .card:hover {
-    box-shadow: var(--shadow-lift);
+  .card-hover:hover {
+    @apply -translate-y-0.5 border-primary/35;
+    box-shadow: var(--shadow-lift), var(--shadow-inset);
   }
-  /* 截图容器：限定最大宽高，避免撑满页面 */
-  .screenshot {
-    @apply overflow-hidden rounded-xl border border-border bg-muted;
-    box-shadow: var(--shadow-lift);
+
+  .icon-chip {
+    @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-muted text-foreground;
   }
-  .screenshot > img {
+
+  /* macOS-style window chrome for real screenshots. The shell draws a title
+     bar; the image sits in an inset plate with a 1px seam. */
+  .window {
+    @apply overflow-hidden rounded-frame border border-border bg-card;
+    box-shadow: var(--shadow-lift), var(--shadow-inset);
+  }
+  .window-bar {
+    @apply flex h-9 items-center gap-2 border-b border-border px-3.5;
+    background: hsl(var(--frame-shell));
+  }
+  .window-dot {
+    @apply h-2.5 w-2.5 rounded-full;
+  }
+  .window-body {
+    @apply bg-background p-1.5 md:p-2;
+  }
+  .window-plate {
+    @apply block overflow-hidden rounded-[0.55rem] border border-border/70 bg-muted;
+  }
+  .window-plate > img {
     @apply block h-auto w-full;
   }
-  /* 图标容器：中性底、统一描边宽度（Phosphor duotone） */
-  .icon-chip {
-    @apply flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-muted text-foreground;
+
+  /* Hero backdrop: two very wide, very faint radial washes. Radial gradients
+     fade to transparent on their own, so the layer can be clipped by the hero
+     without a hard edge. Fixed layer, pointer-events-none. */
+  .halo {
+    @apply pointer-events-none absolute inset-0 -z-10 overflow-hidden;
+  }
+  .halo::before,
+  .halo::after {
+    content: "";
+    @apply absolute;
+  }
+  .halo::before {
+    left: -18%;
+    top: -45%;
+    width: 78%;
+    height: 150%;
+    background: radial-gradient(closest-side, hsl(var(--halo) / 0.13), transparent 72%);
+  }
+  .halo::after {
+    right: -16%;
+    top: 5%;
+    width: 72%;
+    height: 140%;
+    background: radial-gradient(closest-side, hsl(var(--violet) / 0.09), transparent 70%);
+  }
+  .dark .halo::before {
+    background: radial-gradient(closest-side, hsl(var(--halo) / 0.2), transparent 72%);
+  }
+  .dark .halo::after {
+    background: radial-gradient(closest-side, hsl(var(--violet) / 0.14), transparent 70%);
+  }
+
+  .tab-pill {
+    @apply rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-foreground;
+  }
+  .tab-pill-active {
+    @apply bg-card text-foreground shadow-soft;
+  }
+}
+
+@layer utilities {
+  /* Scroll reveal: the only motion primitive on the site besides hover.
+     The hidden state lives inside the no-preference media query, so under
+     prefers-reduced-motion the content is simply always visible. */
+  .reveal-off {
+    opacity: 1;
+    transform: none;
+  }
+  .reveal-on {
+    opacity: 1;
+    transform: none;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      transition:
+        opacity 0.62s cubic-bezier(0.16, 1, 0.3, 1),
+        transform 0.62s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .reveal-off {
+      opacity: 0;
+      transform: translateY(1.25rem);
+    }
+  }
+
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
   }
 }

@@ -133,7 +133,7 @@ Per-workspace Kimi Code session browsing, active / archived / all filters; strea
 │   │     ProviderList         │    │     ├── main.rs              │    │
 │   │     ProviderEdit         │    │     ├── commands.rs          │    │
 │   │     AgentSettingsPanel   │    │     ├── db.rs                │    │
-│   │     SettingsModal        │    │     ├── kimi_code_io.rs      │    │
+│   │     SettingsPage         │    │     ├── kimi_code_io.rs      │    │
 │   │     ProviderIcon /       │    │     ├── pi_io.rs (legacy)    │    │
 │   │     IconPicker           │    │     ├── config_io.rs         │    │
 │   │     dashboard/           │    │     ├── models.rs            │    │
@@ -324,7 +324,11 @@ Good for pure UI debugging.
 │   │   ├── ProviderList.tsx          # Provider list + switch / duplicate / test / edit / delete
 │   │   ├── ProviderEdit.tsx          # Edit provider + model mapping + raw JSON + capabilities
 │   │   ├── AgentSettingsPanel.tsx    # Kimi Code global settings (thinking / loop / permissions / hooks)
-│   │   ├── SettingsModal.tsx         # Settings modal (theme / language / version / update check)
+│   │   ├── settings/                 # Settings page (back header + Settings / Advanced tabs)
+│   │   │   ├── SettingsPage.tsx
+│   │   │   ├── SettingsGeneralTab.tsx
+│   │   │   ├── SettingsGlobalTab.tsx
+│   │   │   └── SettingsAdvancedTab.tsx
 │   │   ├── ProviderIcon.tsx          # Provider brand icons (with initial-letter fallback)
 │   │   ├── IconPicker.tsx            # Icon picker (brands / inference groups)
 │   │   ├── dashboard/                # Usage dashboard
@@ -444,7 +448,7 @@ Good for pure UI debugging.
 - Sources: `src/i18n/zh.ts` (source) + `src/i18n/en.ts` (target)
 - When adding a key, **add it to `zh.ts` first** — the `Record<TranslationKey, string>` type in `en.ts` will flag missing entries at compile time
 - `useTranslation` hook exposes `{ t, lang, setLang }`
-- Runtime switch is provided by `SettingsModal`; persisted to frontend `localStorage` (`kimi-switch-lang`)
+- Runtime switch lives in the settings page's "Settings" tab; persisted to frontend `localStorage` (`kimi-switch-lang`)
 
 ## Testing
 

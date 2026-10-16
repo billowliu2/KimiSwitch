@@ -8041,9 +8041,9 @@
           "id": "deepseek/deepseek-latest",
           "name": "DeepSeek Latest",
           "cost": {
-            "input": 0.8957,
-            "output": 0.99,
-            "cache_read": 0.1866
+            "input": 1.1,
+            "output": 2.5,
+            "cache_read": 0.04
           },
           "context": 1048576,
           "input_limit": 1048576,
@@ -8086,9 +8086,9 @@
           "id": "deepseek/deepseek-v4-pro-0813:thinking",
           "name": "DeepSeek V4 Pro 0813 Thinking",
           "cost": {
-            "input": 0.8957,
-            "output": 0.99,
-            "cache_read": 0.1866
+            "input": 1.1,
+            "output": 2.5,
+            "cache_read": 0.04
           },
           "context": 1048576,
           "input_limit": 1048576,
@@ -8101,9 +8101,9 @@
           "id": "deepseek/deepseek-v4-pro-0813",
           "name": "DeepSeek V4 Pro 0813",
           "cost": {
-            "input": 0.8957,
-            "output": 0.99,
-            "cache_read": 0.1866
+            "input": 1.1,
+            "output": 2.5,
+            "cache_read": 0.04
           },
           "context": 1048576,
           "input_limit": 1048576,
@@ -8156,21 +8156,6 @@
           "reasoning": true,
           "tool_call": true,
           "structured_output": true
-        },
-        {
-          "id": "deepseek/deepseek-v4-flash-vision-exp-cybersecurity",
-          "name": "DeepSeek V4 Flash Vision Exp Cybersecurity",
-          "cost": {
-            "input": 0.15,
-            "output": 0.6,
-            "cache_read": 0.075
-          },
-          "context": 1048576,
-          "input_limit": 1048576,
-          "output_limit": 32768,
-          "reasoning": true,
-          "tool_call": true,
-          "image": true
         },
         {
           "id": "deepseek/deepseek-v3.2",
@@ -11376,9 +11361,9 @@
           "id": "moonshotai/kimi-k2.6",
           "name": "Kimi K2.6",
           "cost": {
-            "input": 0.441,
-            "output": 2.45,
-            "cache_read": 0.099
+            "input": 0.5,
+            "output": 2.6,
+            "cache_read": 0.125
           },
           "context": 262144,
           "input_limit": 262144,
@@ -11448,9 +11433,9 @@
           "id": "moonshotai/kimi-k2.6:thinking",
           "name": "Kimi K2.6 Thinking",
           "cost": {
-            "input": 0.441,
-            "output": 2.45,
-            "cache_read": 0.099
+            "input": 0.5,
+            "output": 2.6,
+            "cache_read": 0.125
           },
           "context": 262144,
           "input_limit": 262144,
@@ -26365,21 +26350,6 @@
           "image": true
         },
         {
-          "id": "anthropic/claude-sonnet-4",
-          "name": "Anthropic: Claude Sonnet 4 (retires Oct 15)",
-          "cost": {
-            "input": 3,
-            "output": 15,
-            "cache_read": 0.3,
-            "cache_write": 3.75
-          },
-          "context": 200000,
-          "output_limit": 64000,
-          "reasoning": true,
-          "tool_call": true,
-          "image": true
-        },
-        {
           "id": "anthropic/claude-sonnet-5",
           "name": "Claude Sonnet 5",
           "cost": {
@@ -27608,9 +27578,9 @@
           "id": "~z-ai/glm-latest",
           "name": "Z.ai: GLM Latest",
           "cost": {
-            "input": 0.063,
+            "input": 0.0608,
             "output": 4.4,
-            "cache_read": 0.0586
+            "cache_read": 0.0565
           },
           "context": 1048576,
           "output_limit": 131072,
@@ -27984,9 +27954,9 @@
           "id": "~deepseek/deepseek-pro-latest",
           "name": "DeepSeek: DeepSeek Pro Latest",
           "cost": {
-            "input": 0.225,
+            "input": 0.1307,
             "output": 8,
-            "cache_read": 0.23
+            "cache_read": 0.13
           },
           "context": 1048576,
           "output_limit": 393216,
@@ -28667,7 +28637,7 @@
             "output": 0.3,
             "cache_read": 0.01
           },
-          "context": 128000,
+          "context": 256000,
           "output_limit": 16384,
           "tool_call": true,
           "structured_output": true,
@@ -30268,7 +30238,7 @@
             "output": 2.7
           },
           "context": 262144,
-          "output_limit": 81920,
+          "output_limit": 65536,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,
@@ -39800,21 +39770,6 @@
           "image": true
         },
         {
-          "id": "anthropic/claude-sonnet-4",
-          "name": "Claude Sonnet 4",
-          "cost": {
-            "input": 3,
-            "output": 15,
-            "cache_read": 0.3,
-            "cache_write": 3.75
-          },
-          "context": 200000,
-          "output_limit": 64000,
-          "reasoning": true,
-          "tool_call": true,
-          "image": true
-        },
-        {
           "id": "anthropic/claude-sonnet-5",
           "name": "Claude Sonnet 5",
           "cost": {
@@ -40103,9 +40058,9 @@
           "id": "deepseek/deepseek-v4-pro",
           "name": "DeepSeek V4 Pro",
           "cost": {
-            "input": 0.95526,
-            "output": 1.91052,
-            "cache_read": 0.079605
+            "input": 0.43935,
+            "output": 0.8787,
+            "cache_read": 0.036613
           },
           "context": 1048576,
           "output_limit": 384000,
@@ -40611,9 +40566,9 @@
           "id": "z-ai/glm-5.2",
           "name": "GLM-5.2",
           "cost": {
-            "input": 0.02,
+            "input": 0.06,
             "output": 7,
-            "cache_read": 0.019
+            "cache_read": 0.059
           },
           "context": 1048576,
           "output_limit": 943718,
@@ -40665,9 +40620,9 @@
           "id": "z-ai/glm-5.3",
           "name": "GLM-5.3",
           "cost": {
-            "input": 0.079,
-            "output": 4.8,
-            "cache_read": 0.078
+            "input": 0.4,
+            "output": 8,
+            "cache_read": 0.399
           },
           "context": 1048576,
           "output_limit": 943718,
@@ -41054,9 +41009,9 @@
           "id": "~z-ai/glm-latest",
           "name": "GLM Latest",
           "cost": {
-            "input": 0.063,
+            "input": 0.0608,
             "output": 4.4,
-            "cache_read": 0.0586
+            "cache_read": 0.0565
           },
           "context": 1048576,
           "output_limit": 131072,
@@ -41430,9 +41385,9 @@
           "id": "~deepseek/deepseek-pro-latest",
           "name": "DeepSeek Pro Latest",
           "cost": {
-            "input": 0.225,
+            "input": 0.1307,
             "output": 8,
-            "cache_read": 0.23
+            "cache_read": 0.13
           },
           "context": 1048576,
           "output_limit": 393216,
@@ -42135,8 +42090,8 @@
           "id": "mistralai/mistral-small-3.2-24b-instruct",
           "name": "Mistral Small 3.2 24B",
           "cost": {
-            "input": 0.075,
-            "output": 0.2
+            "input": 0.09375,
+            "output": 0.25
           },
           "context": 256000,
           "output_limit": 16384,
@@ -43647,11 +43602,11 @@
           "id": "qwen/qwen3.6-27b",
           "name": "Qwen3.6 27B",
           "cost": {
-            "input": 0.32,
-            "output": 3.2
+            "input": 0.45,
+            "output": 2.7
           },
           "context": 262144,
-          "output_limit": 81920,
+          "output_limit": 65536,
           "reasoning": true,
           "tool_call": true,
           "structured_output": true,

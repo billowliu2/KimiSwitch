@@ -1,0 +1,532 @@
+import { useEffect, useState, type ReactNode } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { useTranslation, type Language } from "../../i18n";
+import { useTheme, type Theme } from "../../hooks/useTheme";
+import type { UpdateInfo } from "../../hooks/useUpdateCheck";
+import {
+  useKimiCodeVersion,
+  isNewerVersion,
+  type KimiCodeStatus,
+} from "../../hooks/useKimiCodeVersion";
+
+function formatVersion(version: string): string {
+  const v = version.trim();
+  return v.startsWith("v") || v.startsWith("V") ? v : `v${v}`;
+}
+
+/** 上游 kimi-code releases 页面。 */
+const KIMI_CODE_RELEASES_URL = "https://github.com/MoonshotAI/kimi-code/releases";
+
+interface SettingsGeneralTabProps {
+  updateInfo: UpdateInfo | null;
+  checking: boolean;
+  onCheckUpdate: () => void;
+  lastChecked: number | null;
+}
+
+export function SettingsGeneralTab({
+  updateInfo,
+  checking,
+  onCheckUpdate,
+  lastChecked,
+}: SettingsGeneralTabProps) {
+  const { t, lang, setLang } = useTranslation();
+  const { theme, setTheme } = useTheme();
+  const {
+    info: kimiCodeInfo,
+    checking: kimiCodeChecking,
+    checkNow: checkKimiCode,
+  } = useKimiCodeVersion();
+  const [appVersion, setAppVersion] = useState("");
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+  const [downloadedPath, setDownloadedPath] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    invoke<string>("get_app_version").then(setAppVersion).catch(() => {});
+  }, []);
+
+  // Listen to download progress events
+  useEffect(() => {
+    const unlisteners: (() => void)[] = [];
+
+    const setupProgress = async () => {
+      const un1 = await listen<{ downloaded: number; total: number; progress: number }>(
+        "download-progress",
+        (event) => {
+          setDownloadProgress(event.payload.progress);
+        }
+      );
+      unlisteners.push(() => un1());
+
+      const un2 = await listen<{ path: string }>(
+        "download-complete",
+        (event) => {
+          setDownloadedPath(event.payload.path);
+          setDownloadProgress(100);
+        }
+      );
+      unlisteners.push(() => un2());
+    };
+
+    setupProgress();
+
+    return () => unlisteners.forEach((fn) => fn());
+  }, []);
+
+  const handleDownload = async () => {
+    // No installer asset for this OS in the release (e.g. a release published
+    // without a Windows package, or a renamed asset): silently returning would
+    // look like a dead button. Fall back to the release page instead, and say
+    // why when even that URL is missing.
+    if (!updateInfo?.downloadUrl) {
+      if (updateInfo?.releaseUrl) {
+        openExternal(updateInfo.releaseUrl);
+        setDownloadError(null);
+      } else {
+        setDownloadError(t("updateNoDownload"));
+      }
+      return;
+    }
+    setDownloadProgress(0);
+    setDownloadError(null);
+    setDownloadedPath(null);
+    try {
+      const path = await invoke<string>("download_update", {
+        url: updateInfo.downloadUrl,
+      });
+      setDownloadedPath(path);
+      setDownloadProgress(100);
+    } catch (e) {
+      setDownloadError(e instanceof Error ? e.message : String(e));
+      setDownloadProgress(null);
+    }
+  };
+
+  const handleInstall = () => {
+    if (!downloadedPath) return;
+    invoke("open_installer", { path: downloadedPath }).catch(() => {});
+  };
+
+  // Open an external link via the Rust-side opener command (bypasses the JS
+  // plugin scope); fall back to a new tab when even that fails.
+  const openExternal = (url: string) => {
+    invoke("open_external_url", { url }).catch(() => {
+      const w = window.open(url, "_blank");
+      if (!w) console.error(`failed to open ${url}`);
+    });
+  };
+
+  const themeOptions: { value: Theme; icon: ReactNode; label: string }[] = [
+    {
+      value: "light",
+      icon: (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+        </svg>
+      ),
+      label: t("themeLight"),
+    },
+    {
+      value: "dark",
+      icon: (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+        </svg>
+      ),
+      label: t("themeDark"),
+    },
+    {
+      value: "auto",
+      icon: (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="4" width="18" height="12" rx="2" />
+          <path d="M8 21h8M12 16v5" />
+        </svg>
+      ),
+      label: t("themeAuto"),
+    },
+  ];
+
+  const fmtLastChecked = (ts: number | null) => {
+    if (!ts) return "—";
+    const d = new Date(ts);
+    return d.toLocaleString(lang === "zh" ? "zh-CN" : "en-US");
+  };
+
+  // 状态徽标：绿=已适配 / 黄=建议升级 KimiSwitch / 橙=部分兼容 / 灰=未知或未安装
+  const kimiCodeBadge = (status: KimiCodeStatus) => {
+    switch (status) {
+      case "current":
+        return {
+          label: t("kimiCodeStatusCurrent"),
+          className:
+            "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 border-green-300 dark:border-green-500/30",
+        };
+      case "outdated":
+        return {
+          label: t("kimiCodeStatusOutdated"),
+          className:
+            "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border-yellow-300 dark:border-yellow-500/30",
+        };
+      case "partial":
+        return {
+          label: t("kimiCodeStatusPartial"),
+          className:
+            "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-500/30",
+        };
+      case "unknown":
+        return {
+          label: t("kimiCodeStatusUnknown"),
+          className: "bg-hover-2 text-content-muted border-border",
+        };
+      default:
+        return {
+          label: t("kimiCodeStatusNotInstalled"),
+          className: "bg-hover-2 text-content-muted border-border",
+        };
+    }
+  };
+
+  const kimiCodeUpdateAvailable =
+    !!kimiCodeInfo?.installed &&
+    !!kimiCodeInfo?.latest &&
+    isNewerVersion(kimiCodeInfo.latest, kimiCodeInfo.installed);
+
+  const kimiCodeBadgeInfo = kimiCodeInfo ? kimiCodeBadge(kimiCodeInfo.status) : null;
+
+  return (
+    <div className="space-y-5">
+      {/* Appearance */}
+      <section>
+        <h3 className="mb-3 text-[11px] uppercase tracking-wider text-content-muted">
+          {t("settingsAppearance")}
+        </h3>
+        <div className="space-y-3">
+          {/* Theme */}
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-content-muted">
+              {t("themeLight")} / {t("themeDark")}
+            </span>
+            <div className="flex h-8 items-center gap-1 bg-input rounded border border-border p-0.5">
+              {themeOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setTheme(opt.value)}
+                  title={opt.label}
+                  className={`flex h-7 items-center gap-1 px-2 text-sm rounded transition-colors ${
+                    theme === opt.value
+                      ? "bg-blue-600 text-white"
+                      : "text-content-muted hover:text-content-primary"
+                  }`}
+                >
+                  {opt.icon}
+                  <span className="hidden sm:inline">{opt.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Language */}
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-content-muted">{t("language")}</span>
+            <select
+              value={lang}
+              onChange={(e) => setLang(e.target.value as Language)}
+              className="h-8 bg-input border border-border rounded px-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            >
+              <option value="zh">{t("zh")}</option>
+              <option value="en">{t("en")}</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      {/* Updates */}
+      <section>
+        <h3 className="mb-3 text-[11px] uppercase tracking-wider text-content-muted">
+          {t("settingsUpdates")}
+        </h3>
+        <div className="space-y-2 rounded-lg border border-border bg-input p-3">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-content-muted">{t("currentVersion")}</span>
+            <span className="font-medium text-content-primary tabular-nums">
+              v{appVersion || "—"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-content-muted">{t("latestVersion")}</span>
+            <span className="font-medium text-content-primary tabular-nums">
+              {updateInfo ? formatVersion(updateInfo.latest) : "—"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-content-muted">{t("lastChecked")}</span>
+            <span className="text-content-muted tabular-nums">
+              {fmtLastChecked(lastChecked)}
+            </span>
+          </div>
+          <div className="pt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onCheckUpdate}
+              disabled={checking}
+              className="px-3 py-1.5 text-sm rounded border border-border hover:bg-hover-2 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={checking ? "animate-spin" : ""}
+              >
+                <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                <polyline points="21 3 21 9 15 9" />
+              </svg>
+              {checking ? t("checking") : t("checkUpdate")}
+            </button>
+            {updateInfo?.updateAvailable && downloadProgress === null && !downloadedPath && (
+              <button
+                type="button"
+                onClick={handleDownload}
+                className="px-3 py-1.5 text-sm rounded bg-green-600 text-white hover:bg-green-500 transition-colors flex items-center gap-1.5"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                {updateInfo?.downloadUrl
+                  ? t("downloadUpdate")
+                  : t("openReleasePage")}
+              </button>
+            )}
+            {downloadedPath && (
+              <button
+                type="button"
+                onClick={handleInstall}
+                className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-500 transition-colors flex items-center gap-1.5"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polygon points="6 3 20 12 6 21 6 3" />
+                </svg>
+                {t("install")}
+              </button>
+            )}
+          </div>
+          {/* Download progress bar */}
+          {downloadProgress !== null && downloadProgress < 100 && (
+            <div className="pt-1">
+              <div className="flex items-center justify-between text-xs text-content-muted mb-1">
+                <span>{t("downloading")}</span>
+                <span className="tabular-nums">{downloadProgress}%</span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-hover">
+                <div
+                  className="h-full rounded-full bg-blue-500 transition-all duration-150"
+                  style={{ width: `${downloadProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
+          {downloadedPath && (
+            <div className="pt-1 text-sm text-green-600 dark:text-green-500">
+              ✓ {t("downloadComplete")}
+            </div>
+          )}
+          {downloadError && (
+            <div className="pt-1 text-sm text-red-500">
+              {t("downloadFailed")}: {downloadError}
+            </div>
+          )}
+          {updateInfo?.updateAvailable && (
+            <div className="pt-1 text-sm text-green-600 dark:text-green-500">
+              ✦ {t("updateAvailable")}: {formatVersion(updateInfo.latest)}
+            </div>
+          )}
+          {updateInfo && !updateInfo.updateAvailable && (
+            <div className="pt-1 text-sm text-content-muted">
+              ✓ {t("upToDate")}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Kimi Code CLI version & compatibility */}
+      <section>
+        <h3 className="mb-3 text-[11px] uppercase tracking-wider text-content-muted">
+          {t("kimiCodeSection")}
+        </h3>
+        <div className="space-y-2 rounded-lg border border-border bg-input p-3">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-content-muted">{t("kimiCodeInstalled")}</span>
+            <span className="font-medium text-content-primary tabular-nums">
+              {kimiCodeInfo?.installed ? formatVersion(kimiCodeInfo.installed) : "—"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-content-muted">{t("kimiCodeLatest")}</span>
+            <span className="font-medium text-content-primary tabular-nums">
+              {kimiCodeInfo?.latest ? formatVersion(kimiCodeInfo.latest) : "—"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-content-muted">{t("kimiCodeStatusLabel")}</span>
+            {kimiCodeBadgeInfo ? (
+              <span
+                className={`text-xs px-2 py-0.5 rounded-full border ${kimiCodeBadgeInfo.className}`}
+              >
+                {kimiCodeBadgeInfo.label}
+              </span>
+            ) : (
+              <span className="text-xs text-content-muted">—</span>
+            )}
+          </div>
+          <div className="pt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={checkKimiCode}
+              disabled={kimiCodeChecking}
+              className="px-3 py-1.5 text-sm rounded border border-border hover:bg-hover-2 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={kimiCodeChecking ? "animate-spin" : ""}
+              >
+                <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                <polyline points="21 3 21 9 15 9" />
+              </svg>
+              {kimiCodeChecking ? t("checking") : t("kimiCodeCheck")}
+            </button>
+            {kimiCodeUpdateAvailable && (
+              <button
+                type="button"
+                onClick={() => openExternal(KIMI_CODE_RELEASES_URL)}
+                className="px-3 py-1.5 text-sm rounded border border-border hover:bg-hover-2 transition-colors"
+              >
+                {t("kimiCodeOpenReleases")}
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* About */}
+      <section>
+        <h3 className="mb-3 text-[11px] uppercase tracking-wider text-content-muted">
+          {t("settingsAbout")}
+        </h3>
+        <div className="space-y-1.5 text-sm text-content-muted">
+          <div className="font-medium text-content-primary">Kimi Switch</div>
+          <div>{t("appDescription")}</div>
+          <div className="text-xs text-content-muted">v{appVersion} · MIT License</div>
+          <div className="pt-2 space-y-1">
+            <div>
+              {t("settingsWebsite")}:{" "}
+              <button
+                type="button"
+                onClick={() =>
+                  openExternal("https://billowliu2.github.io/KimiSwitch")
+                }
+                className="text-blue-500 hover:text-blue-400 underline bg-transparent p-0 border-0 cursor-pointer"
+              >
+                billowliu2.github.io/KimiSwitch
+              </button>
+            </div>
+            <div>
+              {t("kimiEyesSite")}:{" "}
+              <button
+                type="button"
+                onClick={() =>
+                  openExternal("https://billowliu2.github.io/kimi-eyes")
+                }
+                className="text-blue-500 hover:text-blue-400 underline bg-transparent p-0 border-0 cursor-pointer"
+              >
+                billowliu2.github.io/kimi-eyes
+              </button>
+            </div>
+            <div>
+              {t("openTerminalSite")}:{" "}
+              <button
+                type="button"
+                onClick={() =>
+                  openExternal("https://billowliu2.github.io/OpenTerminal/")
+                }
+                className="text-blue-500 hover:text-blue-400 underline bg-transparent p-0 border-0 cursor-pointer"
+              >
+                billowliu2.github.io/OpenTerminal
+              </button>
+            </div>
+            <div>
+              {t("attributionPorted")}{" "}
+              <button
+                type="button"
+                onClick={() =>
+                  openExternal("https://github.com/JochenYang/kimicode-dashboard")
+                }
+                className="text-blue-500 hover:text-blue-400 underline bg-transparent p-0 border-0 cursor-pointer font-semibold"
+              >
+                kimicode-dashboard
+              </button>
+              <span className="text-content-muted"> {t("attributionSuffix")}</span>
+            </div>
+            <div className="pt-1">
+              {t("modelDataSourcePrefix")}{" "}
+              <button
+                type="button"
+                onClick={() => openExternal("https://models.dev/")}
+                className="text-blue-500 hover:text-blue-400 underline bg-transparent p-0 border-0 cursor-pointer"
+              >
+                models.dev
+              </button>
+            </div>
+            <div className="pt-1">
+              <span className="text-content-muted">{t("referenceProject")}: </span>
+              <button
+                type="button"
+                onClick={() =>
+                  openExternal("https://github.com/farion1231/cc-switch")
+                }
+                className="text-blue-500 hover:text-blue-400 underline bg-transparent p-0 border-0 cursor-pointer"
+              >
+                cc-switch
+              </button>
+              <span className="text-content-muted"> (MIT, © Jason Young)</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
