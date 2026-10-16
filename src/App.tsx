@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useConfig } from "./hooks/useConfig";
@@ -99,7 +99,20 @@ export default function App() {
   const [pendingNewProviders, setPendingNewProviders] = useState<Set<string>>(
     () => new Set(),
   );
+  // The provider an earlier name collision overwrote in memory, held so it
+  // can be put back. Non-null means the in-memory config is missing an entry,
+  // so trySave hard-blocks on it; the rename / delete paths restore it.
+  const displacedRef = useRef<{ key: string; provider: Provider } | null>(null);
 
+  // Every "abandon the in-memory config" path goes through here. The reload
+  // brings back the on-disk truth, which includes whatever a collision
+  // displaced, so the stash is obsolete once the reload has actually
+  // returned. Clearing it only afterwards keeps a *failed* reload (config
+  // unchanged, still collided) from looking clean to trySave.
+  const reloadFromDisk = useCallback(async () => {
+    await refresh();
+    displacedRef.current = null;
+  }, [refresh]);
 
   useEffect(() => {
     if (!loading) {
@@ -170,6 +183,26 @@ export default function App() {
     async (target?: string): Promise<boolean> => {
       if (!config) return false;
       if (dirty) {
+        // Hard blocks ahead of the completeness confirm. Both describe a
+        // config that loses data the moment it reaches disk, so there is
+        // nothing here for the user to confirm.
+        if (displacedRef.current) {
+          alert(t("saveBlockedDisplaced"));
+          return false;
+        }
+        const blankNames = Object.keys(config.providers).filter(
+          (key) => key.trim() === ""
+        );
+        if (blankNames.length > 0) {
+          // JSON.stringify keeps a blank name readable in the message —
+          // joining the raw keys renders as nothing after the colon.
+          alert(
+            t("saveBlockedNameConflict", {
+              names: blankNames.map((k) => JSON.stringify(k)).join(", "),
+            })
+          );
+          return false;
+        }
         const issues = validateProviders(config, config.models, tGeneric, target);
         if (issues.length > 0) {
           const summary = issues
@@ -203,7 +236,7 @@ export default function App() {
         case "R":
           e.preventDefault();
           if (dirty && !confirm(t("unsavedConfirm"))) return;
-          refresh();
+          void reloadFromDisk();
           break;
         case "o":
         case "O":
@@ -216,7 +249,7 @@ export default function App() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [trySave, refresh, dirty, t, agent]);
+  }, [trySave, reloadFromDisk, dirty, t, agent]);
 
   // "Add provider" opens the preset picker; the empty form is reachable via
   // the picker's "+ custom config" entry (handleAddCustomProvider).
@@ -228,7 +261,15 @@ export default function App() {
   const handleAddCustomProvider = () => {
     if (!config) return;
     setShowPresetPicker(false);
-    const name = `provider-${providers.length + 1}`;
+    // Counting alone can land on a taken name (delete `provider-2`, add:
+    // `provider-3` may already exist), and that collision would silently
+    // overwrite an existing provider before the user types anything.
+    let n = providers.length + 1;
+    let name = `provider-${n}`;
+    while (name in config.providers) {
+      n++;
+      name = `provider-${n}`;
+    }
     const defaultType = agent === "kimi_code" ? "kimi" : "openai";
     updateConfig((cfg) => ({
       ...cfg,
@@ -292,6 +333,16 @@ export default function App() {
       const oldEntry = Object.entries(providers).find(
         ([, p]) => p.name === editingProvider
       );
+      const oldKey = oldEntry ? oldEntry[0] : editingProvider;
+      // Judged against the pre-change map: the name this write lands on is
+      // exactly the entry the overwrite below would destroy without a trace.
+      const displacedKey =
+        provider.name !== oldKey && provider.name in cfg.providers
+          ? provider.name
+          : null;
+      // Both branches assign `next`; the initial value is only there so
+      // TypeScript can infer its type.
+      let next = cfg;
       if (oldEntry && oldEntry[0] !== provider.name) {
         delete providers[oldEntry[0]];
         // Re-key this provider's model aliases so the `<provider>/<model>`
@@ -317,10 +368,37 @@ export default function App() {
         // pool entries.
         const raw_other = rekeySubagentPoolAliases(cfg.raw_other, aliasMap);
         setEditingProvider(provider.name);
-        return { ...cfg, providers, models, default_model, raw_other };
+        next = { ...cfg, providers, models, default_model, raw_other };
+      } else {
+        providers[provider.name] = provider;
+        next = { ...cfg, providers };
       }
-      providers[provider.name] = provider;
-      return { ...cfg, providers };
+      // Put back the entry an earlier collision displaced. This must run
+      // AFTER the rename above moved the edited provider off that key: while
+      // the edited entry still holds it, the key is present in `providers`
+      // and the condition would never fire. Running it before the stashing
+      // below also empties the ref, so a second collision in a row can stash
+      // its own victim instead of being skipped.
+      if (
+        displacedRef.current &&
+        provider.name !== displacedRef.current.key &&
+        !(displacedRef.current.key in providers)
+      ) {
+        providers[displacedRef.current.key] = displacedRef.current.provider;
+        displacedRef.current = null;
+      }
+      // Stash whatever this write is about to overwrite. The write itself
+      // still goes through: the name input is controlled and reports every
+      // keystroke, so rejecting a colliding one would make the text jump back
+      // as the user types. Keeping the loss out of config.toml is trySave's
+      // job, not the input's.
+      if (displacedKey && displacedRef.current == null) {
+        displacedRef.current = {
+          key: displacedKey,
+          provider: cfg.providers[displacedKey],
+        };
+      }
+      return next;
     });
   };
 
@@ -329,6 +407,14 @@ export default function App() {
     updateConfig((cfg) => {
       const providers = { ...cfg.providers };
       delete providers[name];
+      // The stash holds a provider an earlier collision overwrote in memory.
+      // Deleting frees the key the edited entry was squatting on, so the
+      // displaced provider can go back instead of staying stranded — a
+      // stranded stash blocks every later save until the user discards.
+      if (displacedRef.current && !(displacedRef.current.key in providers)) {
+        providers[displacedRef.current.key] = displacedRef.current.provider;
+        displacedRef.current = null;
+      }
       const models = { ...cfg.models };
       const removedAliases: string[] = [];
       for (const key of Object.keys(models)) {
@@ -371,19 +457,25 @@ export default function App() {
   };
 
   const handleDuplicateProvider = async (name: string) => {
+    if (!config) return;
+    const src = config.providers[name];
+    if (!src) return;
+    // Resolved outside the updater so the toast below can name the entry that
+    // was actually created (`-copy-2` and up when `-copy` is taken). The
+    // closure's config is the same map the updater starts from.
+    let newName = `${name}-copy`;
+    let n = 2;
+    while (config.providers[newName]) {
+      newName = `${name}-copy-${n}`;
+      n++;
+    }
     updateConfig((cfg) => {
-      const src = cfg.providers[name];
-      if (!src) return cfg;
-      let newName = `${name}-copy`;
-      let n = 2;
-      while (cfg.providers[newName]) {
-        newName = `${name}-copy-${n}`;
-        n++;
-      }
+      const source = cfg.providers[name];
+      if (!source) return cfg;
       // Clone the provider (deactivated, clear its remembered default model
       // since the model aliases will be re-keyed to the new name below).
       const copied = setProviderDefaultModel(
-        { ...src, name: newName, active: false },
+        { ...source, name: newName, active: false },
         null
       );
       const providers = { ...cfg.providers, [newName]: copied };
@@ -395,7 +487,7 @@ export default function App() {
     // No immediate save: the copy lives in memory only, like every other
     // edit. Abandoning (back → discard) must leave the config unchanged;
     // the copy persists when the user saves (Ctrl+S / footer / switch).
-    setSwitchMessage(t("copiedProvider", { name: `${name}-copy` }));
+    setSwitchMessage(t("copiedProvider", { name: newName }));
     setTimeout(() => setSwitchMessage(null), 3000);
   };
 
@@ -468,7 +560,7 @@ export default function App() {
     if (!saved) {
       // Validation was cancelled: undo the in-memory switch by reloading
       // the on-disk state, and skip the activation + /reload nudge.
-      await refresh();
+      await reloadFromDisk();
       return;
     }
     await invoke("activate_agent_config_command", { agent });
@@ -495,17 +587,29 @@ export default function App() {
         next.delete(target);
         return next;
       });
-      await refresh();
+      await reloadFromDisk();
     } else if (dirty) {
       // Real edits to a previously-saved provider — keep the existing
       // unsaved-changes confirm so the user doesn't lose work by accident.
       if (!confirm(t("unsavedConfirm"))) return;
-      await refresh();
+      await reloadFromDisk();
     }
     setView("list");
   };
 
   const handleApplyProviderJson = (provider: Provider, models: Model[]) => {
+    if (!config) return;
+    // Source-level rejection: applying is a single deliberate action, so
+    // refusing here leaves both the panel and the config untouched (unlike
+    // the name input, which takes every keystroke and stashes the loss).
+    if (provider.name.trim() === "") {
+      alert(t("validationNameEmpty"));
+      return;
+    }
+    if (provider.name !== editingProvider && provider.name in config.providers) {
+      alert(t("applyJsonNameConflict"));
+      return;
+    }
     updateConfig((cfg) => {
       const providers = { ...cfg.providers };
       const oldName = editingProvider;
@@ -581,7 +685,7 @@ export default function App() {
             <button
               type="button"
               className="mt-2 px-2 py-1 border border-red-400/30 rounded hover:bg-red-900/30"
-              onClick={() => refresh()}
+              onClick={() => void reloadFromDisk()}
             >
               {t("retry")}
             </button>
@@ -746,9 +850,18 @@ export default function App() {
             agent={agent}
           />
         ) : currentProvider ? (
+          // `nameConflict` is read from the displaced-entry stash during
+          // render: the collision write happens inside updateConfig's
+          // updater, which sets the ref before React re-renders, so this pass
+          // already sees the new value (same precedent as setEditingProvider
+          // inside that updater).
           <ProviderEdit
             agent={agent}
             provider={currentProvider}
+            allProviderNames={Object.keys(config.providers).filter(
+              (k) => k !== editingProvider
+            )}
+            nameConflict={displacedRef.current != null}
             models={Object.values(config.models).filter(
               (m) => m.provider === currentProvider.name
             )}
@@ -914,7 +1027,7 @@ export default function App() {
               if (dirty && !confirm(t("unsavedConfirm"))) {
                 return;
               }
-              refresh();
+              void reloadFromDisk();
             }}
             disabled={loading}
             className="px-3 py-1.5 text-sm border border-border rounded hover:bg-hover-2 focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-50"

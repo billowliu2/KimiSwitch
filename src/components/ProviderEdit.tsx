@@ -12,6 +12,7 @@ import {
   withMaxOutputSize,
 } from "../lib/model-max-output";
 import { capabilitiesFromRef, getModelRef, modelsDevReady } from "../lib/models-dev";
+import { validateProviderName } from "../lib/validation";
 import { getIconMetadata } from "../icons/extracted/metadata";
 import { KimiOAuthDialog } from "./KimiOAuthDialog";
 import { ProviderIcon } from "./ProviderIcon";
@@ -87,6 +88,15 @@ function defaultBaseUrl(agent: Agent, type: ProviderType): string {
 interface ProviderEditProps {
   agent: Agent;
   provider: Provider;
+  /** Names of every OTHER provider. Used to flag a colliding name as the
+   *  user types; the enforced gates live in App.tsx (write path + trySave),
+   *  because Ctrl+S is a window-level listener that bypasses this form. */
+  allProviderNames: string[];
+  /** Set while App holds a displaced entry: the name collides exactly with
+   *  another provider, a case `allProviderNames` cannot see (the edited
+   *  entry has already been re-keyed onto the colliding name and is
+   *  excluded there). */
+  nameConflict?: boolean;
   models: Model[];
   defaultModel: string | null;
   onBack: () => void;
@@ -104,6 +114,8 @@ interface ProviderEditProps {
 export function ProviderEdit({
   agent,
   provider,
+  allProviderNames,
+  nameConflict,
   models,
   defaultModel,
   onBack,
@@ -128,6 +140,14 @@ export function ProviderEdit({
   const [showApiKey, setShowApiKey] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [kimiOAuthOpen, setKimiOAuthOpen] = useState(false);
+
+  // Display layer only. The enforced gates are the write path in App.tsx
+  // (which stashes whatever a collision overwrites) and trySave; Ctrl+S is a
+  // window-level listener, so a disabled button here cannot stop a save.
+  const nameIssue = validateProviderName(allProviderNames, provider.name);
+  // An exact collision is invisible to the check above (see `nameConflict`),
+  // so the stash flag has to widen the highlight too.
+  const nameError = nameIssue != null || nameConflict === true;
 
   // Preset this provider was created from (if any) — provides the
   // "Get API Key" / referral links shown under the key input.
@@ -170,7 +190,8 @@ export function ProviderEdit({
         <button
           type="button"
           onClick={onSave}
-          className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded focus:ring-2 focus:ring-green-500 focus:outline-none"
+          disabled={nameError}
+          className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded focus:ring-2 focus:ring-green-500 focus:outline-none disabled:opacity-50"
         >
           {t("saveConfig")}
         </button>
@@ -248,10 +269,21 @@ export function ProviderEdit({
                   </label>
                   <input
                     id={nameId}
-                    className="w-full bg-input border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className={`w-full bg-input border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:outline-none ${
+                      nameError
+                        ? "border-red-500 focus:ring-red-500"
+                        : "border-border focus:ring-blue-500"
+                    }`}
                     value={provider.name}
                     onChange={(e) => onChange({ ...provider, name: e.target.value })}
                   />
+                  {nameError && (
+                    <p className="mt-1.5 text-sm text-red-400">
+                      {nameIssue === "empty"
+                        ? t("validationNameEmpty")
+                        : t("validationNameDuplicate")}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label htmlFor={noteId} className="block text-sm text-content-muted mb-1.5">

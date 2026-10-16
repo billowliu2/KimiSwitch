@@ -15,6 +15,11 @@ export const zhTranslations = {
   validationBlankModels: "存在未填写 model id 的模型：{aliases}",
   saveValidationConfirm:
     "以下供应商尚未完成配置，仍要保存吗？\n\n{details}\n\n（点击「确定」仍会保存到 config.toml；点击「取消」可继续编辑）",
+  validationNameEmpty: "供应商名称不能为空",
+  validationNameDuplicate: "名称与其他供应商重复",
+  saveBlockedNameConflict: "保存已阻止：以下供应商名称冲突或为空：{names}",
+  applyJsonNameConflict: "JSON 中的名称与其他供应商重复，未应用",
+  saveBlockedDisplaced: "保存已阻止：本次编辑曾发生同名覆盖，请返回并丢弃更改后重试",
   providerNotFound: "供应商不存在",
   backToList: "返回列表",
   syncToOmp: "同步到 OMP",

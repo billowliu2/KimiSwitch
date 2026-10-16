@@ -87,3 +87,31 @@ export function validateProviders(
   }
   return issues;
 }
+
+export type ProviderNameIssue = "empty" | "duplicate";
+
+/**
+ * Check a single provider name against the names of all OTHER providers.
+ * Providers are keyed by name in the config, so a name collision silently
+ * overwrites the existing entry — this helper is the shared gate for both
+ * the edit-page hint and the write-path rejection.
+ *
+ * Comparison is a case-sensitive exact match after trimming, on purpose:
+ * the name IS the storage key, so `TokenHub` and `tokenhub` are two distinct
+ * providers that can coexist. Normalizing (lowercasing, stripping inner
+ * whitespace) would reject names the storage layer accepts, and would block
+ * users who deliberately keep a case-variant copy of a provider.
+ *
+ * Returns "empty" for a blank name (checked first — a blank name has no
+ * meaningful collision semantics), "duplicate" when `allNames` already holds
+ * the trimmed name, and null otherwise.
+ */
+export function validateProviderName(
+  allNames: string[], // names of all OTHER providers (current entry excluded)
+  name: string, // the name being validated
+): ProviderNameIssue | null {
+  const trimmed = name.trim();
+  if (trimmed === "") return "empty";
+  if (allNames.some((other) => other.trim() === trimmed)) return "duplicate";
+  return null;
+}

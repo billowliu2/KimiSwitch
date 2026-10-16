@@ -17,6 +17,12 @@ export const enTranslations: Record<TranslationKey, string> = {
   validationBlankModels: "Model entries with empty model id: {aliases}",
   saveValidationConfirm:
     "The following providers are not fully configured. Save anyway?\n\n{details}\n\n(Click OK to save to config.toml as-is; click Cancel to keep editing.)",
+  validationNameEmpty: "Provider name is required",
+  validationNameDuplicate: "Name conflicts with another provider",
+  saveBlockedNameConflict: "Save blocked: duplicate or empty provider names: {names}",
+  applyJsonNameConflict: "Name in JSON conflicts with another provider; not applied",
+  saveBlockedDisplaced:
+    "Save blocked: a provider was overwritten by a name conflict during this edit; go back and discard changes, then retry",
   providerNotFound: "Provider not found",
   backToList: "Back to list",
   syncToOmp: "Sync to OMP",
