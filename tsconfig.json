@@ -2,7 +2,10 @@
   "compilerOptions": {
     "target": "ES2020",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    // ES2022 for Object.hasOwn: the code base uses it to test map membership
+    // without walking the prototype chain. `target` stays at ES2020 — the API
+    // is a runtime one, and every webview Tauri 2 supports has it.
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "bundler",

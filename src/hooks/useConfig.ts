@@ -8,7 +8,12 @@ interface UseConfigReturn {
   dirty: boolean;
   error: string | null;
   loading: boolean;
-  refresh: (opts?: { silent?: boolean }) => Promise<void>;
+  // Resolves true when the config was actually re-read from disk, false when
+  // the load failed (the error is also surfaced via `error`). Callers that
+  // discard in-memory state as a consequence of reloading must gate on this:
+  // a failed reload leaves the old in-memory config — and whatever it is
+  // missing — untouched.
+  refresh: (opts?: { silent?: boolean }) => Promise<boolean>;
   save: (opts?: { silent?: boolean }) => Promise<void>;
   updateConfig: (updater: (config: Config) => Config) => void;
 }
@@ -25,7 +30,7 @@ export function useConfig(agent: Agent): UseConfigReturn {
     configRef.current = config;
   }, [config]);
 
-  const refresh = useCallback(async (opts?: { silent?: boolean }) => {
+  const refresh = useCallback(async (opts?: { silent?: boolean }): Promise<boolean> => {
     // silent: skip the loading flip — App returns a bare loading screen while
     // `loading` is true, which would unmount any open panel (and swallow its
     // in-flight async results).
@@ -37,10 +42,12 @@ export function useConfig(agent: Agent): UseConfigReturn {
       });
       setConfig(loadedConfig);
       setDirty(false);
+      return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
       console.error("useConfig refresh failed:", message);
+      return false;
     } finally {
       if (!opts?.silent) setLoading(false);
     }

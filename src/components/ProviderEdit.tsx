@@ -92,10 +92,11 @@ interface ProviderEditProps {
    *  user types; the enforced gates live in App.tsx (write path + trySave),
    *  because Ctrl+S is a window-level listener that bypasses this form. */
   allProviderNames: string[];
-  /** Set while App holds a displaced entry: the name collides exactly with
-   *  another provider, a case `allProviderNames` cannot see (the edited
-   *  entry has already been re-keyed onto the colliding name and is
-   *  excluded there). */
+  /** Set while App holds a displaced entry *for this provider's name*: the
+   *  name collides exactly with another provider, a case `allProviderNames`
+   *  cannot see (the edited entry has already been re-keyed onto the
+   *  colliding name and is excluded there). A stash slot for some other name
+   *  must not paint this form red. */
   nameConflict?: boolean;
   models: Model[];
   defaultModel: string | null;

@@ -1,4 +1,4 @@
-import type { Config, Model, ProviderType } from "../types";
+import type { Config, Model, Provider, ProviderType } from "../types";
 
 /**
  * Provider types that must have a base_url set in order to function.
@@ -114,4 +114,38 @@ export function validateProviderName(
   if (trimmed === "") return "empty";
   if (allNames.some((other) => other.trim() === trimmed)) return "duplicate";
   return null;
+}
+
+/**
+ * Scan a whole provider map for names that are duplicates once trimmed.
+ *
+ * `validateProviderName` applies exactly this comparison to the single name
+ * the user is typing, but the map itself may already hold two entries that
+ * only differ by surrounding whitespace (`"TokenHub"` and `"TokenHub "`).
+ * The name input excludes the entry being edited from its comparison list, so
+ * such a pair is invisible in the UI while both are persisted — the edit page
+ * then shows a permanent red border with nothing the user can do about it
+ * except rename one of them.
+ *
+ * Returns the offending original keys (NOT the trimmed names — the caller
+ * keys its lookups on the map's own keys), sorted for stable assertions.
+ * Blank names are excluded: they cannot collide semantically and are reported
+ * by their own empty-name gate.
+ */
+export function findTrimDuplicateProviderNames(
+  providers: Record<string, Provider>,
+): string[] {
+  const keysByTrimmedName = new Map<string, string[]>();
+  for (const key of Object.keys(providers)) {
+    const trimmed = key.trim();
+    if (trimmed === "") continue;
+    const keys = keysByTrimmedName.get(trimmed);
+    if (keys) keys.push(key);
+    else keysByTrimmedName.set(trimmed, [key]);
+  }
+  const duplicates: string[] = [];
+  for (const keys of keysByTrimmedName.values()) {
+    if (keys.length > 1) duplicates.push(...keys);
+  }
+  return duplicates.sort();
 }

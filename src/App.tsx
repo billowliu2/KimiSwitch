@@ -19,7 +19,7 @@ import {
   presetToProviderAndModels,
   type ProviderPreset,
 } from "./config/providerPresets";
-import { validateProviders } from "./lib/validation";
+import { findTrimDuplicateProviderNames, validateProviders } from "./lib/validation";
 import {
   copyModelsOnProviderDuplicate,
   rekeyModelsOnProviderRename,
@@ -31,6 +31,15 @@ import {
 import type { Agent, Model, Provider, UsageConfig } from "./types";
 
 const AGENT_STORAGE_KEY = "kimi-switch-agent";
+
+type View =
+  | "list"
+  | "edit"
+  | "subagent"
+  | "dashboard"
+  | "sessions"
+  | "plugins"
+  | "settings";
 
 function getProviderDefaultModel(provider: Provider): string | null {
   const raw = provider.raw_other as Record<string, unknown> | undefined;
@@ -80,9 +89,7 @@ export default function App() {
     updateConfig,
   } = useConfig(agent);
 
-  const [view, setView] = useState<
-    "list" | "edit" | "subagent" | "dashboard" | "sessions" | "plugins" | "settings"
-  >("list");
+  const [view, setView] = useState<View>("list");
   const [editingProvider, setEditingProvider] = useState<string>("");
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [switchMessage, setSwitchMessage] = useState<string | null>(null);
@@ -99,19 +106,76 @@ export default function App() {
   const [pendingNewProviders, setPendingNewProviders] = useState<Set<string>>(
     () => new Set(),
   );
-  // The provider an earlier name collision overwrote in memory, held so it
-  // can be put back. Non-null means the in-memory config is missing an entry,
-  // so trySave hard-blocks on it; the rename / delete paths restore it.
-  const displacedRef = useRef<{ key: string; provider: Provider } | null>(null);
+  // Providers an earlier name collision overwrote in memory, keyed by the
+  // provider name the colliding entry squatted on, held so they can be put
+  // back. A non-empty map means the in-memory config is missing entries, so
+  // trySave and the usage-config save hard-block on it; the rename / delete /
+  // JSON-apply paths restore whatever they free. Multiple slots are possible
+  // (rename A→B, then rename C→D without resolving the first) — a single slot
+  // would drop the older victim on the floor.
+  const displacedRef = useRef<Map<string, Provider>>(new Map());
+
+  // Put every stashed provider back whose key is free again (mutates the map
+  // it is given, and drops the restored slots). Must run AFTER a rename has
+  // moved the edited entry off the squatted key: while the edited entry still
+  // holds it, the key is present and nothing can be restored. Running it also
+  // empties the restored slots, so a second collision in a row can stash its
+  // own victim.
+  const restoreDisplaced = useCallback(
+    (providers: Record<string, Provider>) => {
+      const stash = displacedRef.current;
+      for (const [key, provider] of [...stash]) {
+        if (!Object.hasOwn(providers, key)) {
+          providers[key] = provider;
+          stash.delete(key);
+        }
+      }
+    },
+    [],
+  );
+
+  // The reasons a config must not reach disk at all, shared by every write
+  // path (trySave for whole-config saves, handleSaveUsageConfig for the
+  // usage panel's silent save). Both describe a config that loses data the
+  // moment it is persisted, so there is nothing here for the user to confirm.
+  // Returns the alert message, or null when nothing blocks the save.
+  const hardBlockMessage = useCallback((): string | null => {
+    if (!config) return null;
+    if (displacedRef.current.size > 0) {
+      return t("saveBlockedDisplaced");
+    }
+    const blankNames = Object.keys(config.providers).filter(
+      (key) => key.trim() === ""
+    );
+    if (blankNames.length > 0) {
+      // JSON.stringify keeps a blank name readable in the message — joining
+      // the raw keys renders as nothing after the colon.
+      return t("saveBlockedNameConflict", {
+        names: blankNames.map((k) => JSON.stringify(k)).join(", "),
+      });
+    }
+    // Names that collide once trimmed ("TokenHub" vs "TokenHub ") are
+    // invisible to the blank-name check above and to the edit page's per-name
+    // hint (which excludes the entry being edited), but both are on disk and
+    // the edit page paints both red with no way out. Block them here.
+    const trimDuplicates = findTrimDuplicateProviderNames(config.providers);
+    if (trimDuplicates.length > 0) {
+      return t("saveBlockedNameConflict", {
+        names: trimDuplicates.map((k) => JSON.stringify(k)).join(", "),
+      });
+    }
+    return null;
+  }, [config, t]);
 
   // Every "abandon the in-memory config" path goes through here. The reload
   // brings back the on-disk truth, which includes whatever a collision
   // displaced, so the stash is obsolete once the reload has actually
-  // returned. Clearing it only afterwards keeps a *failed* reload (config
-  // unchanged, still collided) from looking clean to trySave.
+  // returned. Clearing it only on a *successful* reload keeps a failed one
+  // (config unchanged, still collided) from looking clean to trySave.
   const reloadFromDisk = useCallback(async () => {
-    await refresh();
-    displacedRef.current = null;
+    if (await refresh()) {
+      displacedRef.current.clear();
+    }
   }, [refresh]);
 
   useEffect(() => {
@@ -176,31 +240,17 @@ export default function App() {
   //      provider being switched to — only that one needs to be
   //      complete; sibling providers being merely listed in the config
   //      must not block the switch.
-  // Returns `true` when the config was actually persisted, `false` when
-  // the user cancelled the validation confirm (callers can react to this
-  // to roll back in-memory mutations made before the save).
+  // Returns `true` when the config was actually persisted, `false` when a
+  // hard block (see hardBlockMessage) or the validation confirm stopped it
+  // — callers can react to this to roll back in-memory mutations made before
+  // the save.
   const trySave = useCallback(
     async (target?: string): Promise<boolean> => {
       if (!config) return false;
       if (dirty) {
-        // Hard blocks ahead of the completeness confirm. Both describe a
-        // config that loses data the moment it reaches disk, so there is
-        // nothing here for the user to confirm.
-        if (displacedRef.current) {
-          alert(t("saveBlockedDisplaced"));
-          return false;
-        }
-        const blankNames = Object.keys(config.providers).filter(
-          (key) => key.trim() === ""
-        );
-        if (blankNames.length > 0) {
-          // JSON.stringify keeps a blank name readable in the message —
-          // joining the raw keys renders as nothing after the colon.
-          alert(
-            t("saveBlockedNameConflict", {
-              names: blankNames.map((k) => JSON.stringify(k)).join(", "),
-            })
-          );
+        const blocked = hardBlockMessage();
+        if (blocked) {
+          alert(blocked);
           return false;
         }
         const issues = validateProviders(config, config.models, tGeneric, target);
@@ -219,7 +269,7 @@ export default function App() {
       setPendingNewProviders(new Set());
       return true;
     },
-    [config, dirty, save, t],
+    [config, dirty, hardBlockMessage, save, t],
   );
 
   // Keyboard shortcuts: Ctrl+S save, Ctrl+R reload, Ctrl+O open config dir
@@ -266,7 +316,7 @@ export default function App() {
     // overwrite an existing provider before the user types anything.
     let n = providers.length + 1;
     let name = `provider-${n}`;
-    while (name in config.providers) {
+    while (Object.hasOwn(config.providers, name)) {
       n++;
       name = `provider-${n}`;
     }
@@ -337,7 +387,7 @@ export default function App() {
       // Judged against the pre-change map: the name this write lands on is
       // exactly the entry the overwrite below would destroy without a trace.
       const displacedKey =
-        provider.name !== oldKey && provider.name in cfg.providers
+        provider.name !== oldKey && Object.hasOwn(cfg.providers, provider.name)
           ? provider.name
           : null;
       // Both branches assign `next`; the initial value is only there so
@@ -373,30 +423,24 @@ export default function App() {
         providers[provider.name] = provider;
         next = { ...cfg, providers };
       }
-      // Put back the entry an earlier collision displaced. This must run
-      // AFTER the rename above moved the edited provider off that key: while
-      // the edited entry still holds it, the key is present in `providers`
-      // and the condition would never fire. Running it before the stashing
-      // below also empties the ref, so a second collision in a row can stash
-      // its own victim instead of being skipped.
-      if (
-        displacedRef.current &&
-        provider.name !== displacedRef.current.key &&
-        !(displacedRef.current.key in providers)
-      ) {
-        providers[displacedRef.current.key] = displacedRef.current.provider;
-        displacedRef.current = null;
-      }
+      // Put back every entry an earlier collision displaced whose key is free
+      // again. This must run AFTER the rename above moved the edited provider
+      // off that key: while the edited entry still holds it, the key is
+      // present in `providers` and nothing can be restored. Running it before
+      // the stashing below also drops the restored slots, so a second
+      // collision in a row can stash its own victim instead of being skipped.
+      restoreDisplaced(providers);
       // Stash whatever this write is about to overwrite. The write itself
       // still goes through: the name input is controlled and reports every
       // keystroke, so rejecting a colliding one would make the text jump back
       // as the user types. Keeping the loss out of config.toml is trySave's
       // job, not the input's.
-      if (displacedKey && displacedRef.current == null) {
-        displacedRef.current = {
-          key: displacedKey,
-          provider: cfg.providers[displacedKey],
-        };
+      //
+      // One slot per squatted name, and the first snapshot wins: re-colliding
+      // on the same name overwrites that slot's squatter again, so the
+      // original victim — the only copy of it — must not be replaced.
+      if (displacedKey && !displacedRef.current.has(displacedKey)) {
+        displacedRef.current.set(displacedKey, cfg.providers[displacedKey]);
       }
       return next;
     });
@@ -407,14 +451,11 @@ export default function App() {
     updateConfig((cfg) => {
       const providers = { ...cfg.providers };
       delete providers[name];
-      // The stash holds a provider an earlier collision overwrote in memory.
-      // Deleting frees the key the edited entry was squatting on, so the
-      // displaced provider can go back instead of staying stranded — a
-      // stranded stash blocks every later save until the user discards.
-      if (displacedRef.current && !(displacedRef.current.key in providers)) {
-        providers[displacedRef.current.key] = displacedRef.current.provider;
-        displacedRef.current = null;
-      }
+      // The stash holds providers an earlier collision overwrote in memory.
+      // Deleting frees the keys they were squatting on, so they can go back
+      // instead of staying stranded — a stranded stash blocks every later
+      // save until the user discards.
+      restoreDisplaced(providers);
       const models = { ...cfg.models };
       const removedAliases: string[] = [];
       for (const key of Object.keys(models)) {
@@ -450,6 +491,18 @@ export default function App() {
         },
       };
     });
+    // Same hard blocks as trySave: this save is silent (no loading screen, no
+    // completeness confirm), but "silent" must not mean "unchecked" — a
+    // collided or blank-named config would otherwise reach disk through the
+    // usage panel, which the whole-config save path refuses to do.
+    //
+    // Returns without throwing on purpose: the panel's test flow awaits this
+    // and would report a rejection as a network error.
+    const blocked = hardBlockMessage();
+    if (blocked) {
+      alert(blocked);
+      return Promise.resolve();
+    }
     // Silent save: a normal save flips App to its loading screen, which
     // unmounts this panel and swallows the in-flight test query's result.
     // Returned so the panel's test can await persistence before querying.
@@ -606,7 +659,7 @@ export default function App() {
       alert(t("validationNameEmpty"));
       return;
     }
-    if (provider.name !== editingProvider && provider.name in config.providers) {
+    if (provider.name !== editingProvider && Object.hasOwn(config.providers, provider.name)) {
       alert(t("applyJsonNameConflict"));
       return;
     }
@@ -629,7 +682,7 @@ export default function App() {
       for (const m of models) {
         let alias = m.alias;
         let n = 1;
-        while (alias in updatedModels) {
+        while (Object.hasOwn(updatedModels, alias)) {
           alias = `${m.alias}-${n}`;
           n++;
         }
@@ -645,7 +698,7 @@ export default function App() {
       }
 
       let default_model = cfg.default_model;
-      if (default_model && !(default_model in updatedModels)) {
+      if (default_model && !Object.hasOwn(updatedModels, default_model)) {
         default_model = null;
       }
 
@@ -653,7 +706,8 @@ export default function App() {
       // (provider renamed, models dropped) must not survive as zombies.
       const removedAliases = Object.keys(cfg.models).filter(
         (key) =>
-          cfg.models[key].provider === oldName && !(key in updatedModels)
+          cfg.models[key].provider === oldName &&
+          !Object.hasOwn(updatedModels, key)
       );
       const raw_other = purgeSubagentPoolAliases(cfg.raw_other, removedAliases);
 
@@ -663,6 +717,13 @@ export default function App() {
       if (updatedProvider && default_model && updatedModels[default_model]?.provider === provider.name) {
         providers[provider.name] = setProviderDefaultModel(updatedProvider, default_model);
       }
+
+      // Applying JSON is another way to move the edited entry off a name it
+      // squatted on, so the same restore applies: without it a stash left
+      // over from an earlier collision would be stranded, and every later
+      // save hard-blocked forever (the panel cannot be left with the stash
+      // intact — reloading clears it only via an explicit discard).
+      restoreDisplaced(providers);
 
       return { ...cfg, providers, models: updatedModels, default_model, raw_other };
     });
@@ -697,13 +758,27 @@ export default function App() {
 
   const currentProvider = config.providers[editingProvider];
 
+  // Top-bar navigation guard. Only an *unresolved* collision blocks it: the
+  // stash is the one state the user can only fix from the provider edit page
+  // (rename away, delete the squatter, or discard), so wandering off to the
+  // dashboard leaves a config that refuses every save. Plain unsaved edits
+  // deliberately keep navigating — that flow is unchanged.
+  const guardedSetView = (next: View, prepare?: () => void) => {
+    if (displacedRef.current.size > 0) {
+      alert(t("saveBlockedDisplaced"));
+      return;
+    }
+    prepare?.();
+    setView(next);
+  };
+
   return (
     <div className="flex flex-col h-full bg-app text-content-primary">
       <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border bg-panel">
         <div className="flex items-center bg-input border border-border rounded p-0.5">
           <button
             type="button"
-            onClick={() => setView("list")}
+            onClick={() => guardedSetView("list")}
             className={`px-3 py-1 text-sm rounded transition-colors ${
               view === "list" || view === "edit" || view === "subagent"
                 ? "bg-blue-600 text-white"
@@ -714,7 +789,7 @@ export default function App() {
           </button>
           <button
             type="button"
-            onClick={() => setView("dashboard")}
+            onClick={() => guardedSetView("dashboard")}
             className={`px-3 py-1 text-sm rounded transition-colors ${
               view === "dashboard"
                 ? "bg-blue-600 text-white"
@@ -725,7 +800,7 @@ export default function App() {
           </button>
           <button
             type="button"
-            onClick={() => setView("sessions")}
+            onClick={() => guardedSetView("sessions")}
             className={`px-3 py-1 text-sm rounded transition-colors ${
               view === "sessions"
                 ? "bg-blue-600 text-white"
@@ -736,10 +811,7 @@ export default function App() {
           </button>
           <button
             type="button"
-            onClick={() => {
-              setSettingsTab("advanced");
-              setView("settings");
-            }}
+            onClick={() => guardedSetView("settings", () => setSettingsTab("advanced"))}
             className={`px-3 py-1 text-sm rounded transition-colors ${
               view === "settings" && settingsTab === "advanced"
                 ? "bg-blue-600 text-white"
@@ -771,10 +843,7 @@ export default function App() {
           {/* Settings gear */}
           <button
             type="button"
-            onClick={() => {
-              setSettingsTab("global");
-              setView("settings");
-            }}
+            onClick={() => guardedSetView("settings", () => setSettingsTab("global"))}
             title={t("settings")}
             className="relative p-1.5 rounded border border-border hover:bg-hover-2 transition-colors"
           >
@@ -852,16 +921,18 @@ export default function App() {
         ) : currentProvider ? (
           // `nameConflict` is read from the displaced-entry stash during
           // render: the collision write happens inside updateConfig's
-          // updater, which sets the ref before React re-renders, so this pass
-          // already sees the new value (same precedent as setEditingProvider
-          // inside that updater).
+          // updater, which fills the stash before React re-renders, so this
+          // pass already sees the new value (same precedent as
+          // setEditingProvider inside that updater). Only the entry that is
+          // currently squatting on a stashed name gets the red border —
+          // another slot elsewhere in the table is not this form's problem.
           <ProviderEdit
             agent={agent}
             provider={currentProvider}
             allProviderNames={Object.keys(config.providers).filter(
               (k) => k !== editingProvider
             )}
-            nameConflict={displacedRef.current != null}
+            nameConflict={displacedRef.current.has(editingProvider)}
             models={Object.values(config.models).filter(
               (m) => m.provider === currentProvider.name
             )}
@@ -891,7 +962,7 @@ export default function App() {
                   (tail === "新模型" ||
                     tail.startsWith("新模型-") ||
                     (tail !== "" && modelId.startsWith(tail))) &&
-                  !(targetAlias in models)
+                  !Object.hasOwn(models, targetAlias)
                 ) {
                   effective = { ...model, alias: targetAlias };
                   delete models[model.alias];
@@ -943,7 +1014,7 @@ export default function App() {
                 // silently overwrite it.
                 let alias = `${safeProvider}/新模型`;
                 let n = 1;
-                while (alias in cfg.models) {
+                while (Object.hasOwn(cfg.models, alias)) {
                   alias = `${safeProvider}/新模型-${++n}`;
                 }
                 return {
@@ -974,7 +1045,7 @@ export default function App() {
                   if (dup) continue;
                   let alias = m.alias;
                   let n = 1;
-                  while (alias in updated) {
+                  while (Object.hasOwn(updated, alias)) {
                     alias = `${m.alias}-${n}`;
                     n++;
                   }
