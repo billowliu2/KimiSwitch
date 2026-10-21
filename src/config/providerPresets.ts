@@ -19,7 +19,9 @@ export type UsageKind =
   | "plan:kimi_coding"
   | "plan:zhipu"
   | "plan:minimax"
-  | "plan:opencode_go";
+  | "plan:opencode_go"
+  | "plan:goat"
+  | "plan:ollama_cloud";
 
 /** Billing model for a preset. Drives the tab filter in PresetPickerModal. */
 export type BillingMode = "subscription" | "pay_as_you_go";
@@ -38,6 +40,8 @@ export const SUPPORTED_USAGE_KINDS: ReadonlySet<string> = new Set<UsageKind>([
   "plan:zhipu",
   "plan:minimax",
   "plan:opencode_go",
+  "plan:goat",
+  "plan:ollama_cloud",
 ]);
 
 export type PresetCategory =
@@ -500,6 +504,54 @@ export const providerPresets: ProviderPreset[] = [
       { model: "deepseek-v4-pro", displayName: "DeepSeek V4 Pro" },
     ],
     billingMode: "pay_as_you_go",
+  },
+  {
+    id: "commandcode",
+    name: "Command Code GOAT",
+    nameKey: "presetNameCommandCode",
+    websiteUrl: "https://commandcode.ai",
+    apiKeyUrl: "https://commandcode.ai/settings/keys",
+    category: "third_party",
+    providerType: "anthropic",
+    // Docs: https://commandcode.ai/docs — the provider API serves OpenAI
+    // Chat Completions / Responses and Anthropic Messages under /provider/v1
+    // (verified live). Claude models only expose /messages, so this preset
+    // defaults to providerType "anthropic" + the Claude lineup; GPT models
+    // (gpt-6.1-sol etc., /chat/completions only) need a second "openai"
+    // provider entry with the same base URL.
+    // Anthropic base_url convention: API root WITHOUT /v1 — model discovery
+    // appends /v1/models and the CLI appends /v1/messages, so writing the
+    // /v1 here would produce /v1/v1/... (404).
+    baseUrl: "https://api.commandcode.ai/provider",
+    models: [
+      { model: "claude-sonnet-5-5" },
+      { model: "claude-opus-5-5" },
+      { model: "claude-haiku-5-5" },
+    ],
+    billingMode: "subscription",
+    // GET https://api.commandcode.ai/alpha/billing/credits（Bearer 账户 API Key）
+    usageKinds: ["plan:goat"],
+  },
+  {
+    id: "ollama-cloud",
+    name: "Ollama Cloud",
+    nameKey: "presetNameOllamaCloud",
+    websiteUrl: "https://ollama.com/cloud",
+    apiKeyUrl: "https://ollama.com/settings/keys",
+    category: "third_party",
+    providerType: "openai",
+    baseUrl: "https://ollama.com/v1",
+    icon: "ollama",
+    models: [
+      { model: "gpt-oss:120b" },
+      { model: "qwen3.5:397b" },
+      { model: "kimi-k3" },
+      { model: "glm-5.3" },
+      { model: "deepseek-v4-pro" },
+    ],
+    billingMode: "subscription",
+    // GET https://ollama.com/api/usage（Bearer API key）
+    usageKinds: ["plan:ollama_cloud"],
   },
 ];
 

@@ -20,9 +20,16 @@ export const BOOSTER_WALLET_PLAN = "booster_wallet";
  * 订阅行是 "subscription"（`unit="%"` 的配额占比），后者不在此列表内，正常走
  * 百分比渲染。判定只能看 planName —— sub2api 的 USD 行 unit 同样不是 "%"，但语义
  * 仍是「额度用了百分之多少」，按 unit 判定会把它误渲染成余额。
+ *
+ * `recent_spend` 是 Ollama Cloud 的近期消费行（订阅套餐无余额概念），只报一个
+ * 美元数字，同样按金额行处理。
  */
 export function isMoneyRow(d: { planName?: string | null }): boolean {
-  return d.planName === "NewAPI" || d.planName === BOOSTER_WALLET_PLAN;
+  return (
+    d.planName === "NewAPI" ||
+    d.planName === BOOSTER_WALLET_PLAN ||
+    d.planName === "recent_spend"
+  );
 }
 
 /** 额度/配额行：有 planName、非金额行，且报了 total 或 used。 */
@@ -58,9 +65,15 @@ export function percentOf(d: {
  * src-tauri/src/services/coding_plan.rs::percent_tier, whose names come only
  * from TIER_FIVE_HOUR / TIER_WEEKLY_LIMIT / TIER_MONTHLY_LIMIT /
  * TIER_MONTH_CODE — so the fixed tiers are covered here. The other cases come
- * from src-tauri/src/services/balance.rs: `booster_wallet` (Kimi 加力钱包) and
- * `subscription` (NewAPI 订阅套餐额度行). If a new tier id is added anywhere,
+ * from src-tauri/src/services/coding_plan.rs (`booster_wallet` Kimi 加力钱包、
+ * `recent_spend` Ollama Cloud 近期消费) and src-tauri/src/services/balance.rs
+ * (`subscription` NewAPI 订阅套餐额度行). If a new tier id is added anywhere,
  * add a case here too.
+ *
+ * 例外：GOAT（Command Code 余额行，coding_plan.rs::parse_goat 产出的
+ * `plan_name="GOAT"`）故意不进映射——它是品牌名而非 tier，走 default 原样显示；
+ * 同理 NewAPI / 币种代码也走 default。这类金额行的中文标签由调用方回退到
+ * 「余额」。
  */
 export function planLabel(name: string, t: TranslateFn): string {
   switch (name) {
@@ -78,6 +91,8 @@ export function planLabel(name: string, t: TranslateFn): string {
       return t("usageTierBoosterWallet");
     case "subscription":
       return t("usageTierSubscription");
+    case "recent_spend":
+      return t("usageTierRecentSpend");
     default:
       return name;
   }

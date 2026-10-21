@@ -119,9 +119,15 @@ export function UsageFooter({ usage, variant = "detail" }: UsageFooterProps) {
         color,
       };
     }
+    // 已知本地化 id（recent_spend / booster_wallet）用行标签，品牌名/币种
+    // （GOAT / NewAPI / CNY…）保持纯金额，不加「余额」前缀。
+    const moneyLabel =
+      d.planName && planLabel(d.planName, t) !== d.planName
+        ? `${planLabel(d.planName, t)} `
+        : "";
     return {
       icon: "💰",
-      text: formatAmount(d.remaining, d.unit),
+      text: `${moneyLabel}${formatAmount(d.remaining, d.unit)}`,
       color: "text-content-primary",
     };
   };
@@ -242,7 +248,11 @@ export function UsageFooter({ usage, variant = "detail" }: UsageFooterProps) {
                 ? `${label}${t("usageRemaining")} ${formatAmount(d.remaining, d.unit)}`
                 : label || "—";
         } else {
-          main = `${t("usageBalance")} ${formatAmount(d.remaining, d.unit)}`;
+          const moneyLabel =
+            d.planName && planLabel(d.planName, t) !== d.planName
+              ? planLabel(d.planName, t)
+              : t("usageBalance");
+          main = `${moneyLabel} ${formatAmount(d.remaining, d.unit)}`;
         }
 
         return (

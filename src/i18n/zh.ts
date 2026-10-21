@@ -463,6 +463,8 @@ export const zhTranslations = {
   presetNameVolcengine: "火山方舟",
   presetNameOpencodeGo: "OpenCode Go",
   presetNameOpencodeZen: "OpenCode Zen",
+  presetNameCommandCode: "Command Code GOAT",
+  presetNameOllamaCloud: "Ollama Cloud",
 
   // Provider usage
   usageBalance: "余额",
@@ -514,6 +516,7 @@ export const zhTranslations = {
   usageTierMonthCode: "30天（代码）",
   usageTierBoosterWallet: "加力钱包",
   usageTierSubscription: "订阅",
+  usageTierRecentSpend: "近期消费",
   usageThreshold: "预警阈值",
   usageThresholdHint: "任一用量窗口达到该百分比时高亮提醒，0 为关闭",
   usageThresholdAlert: "已达预警阈值",

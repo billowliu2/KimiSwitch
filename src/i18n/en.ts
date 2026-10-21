@@ -475,6 +475,8 @@ export const enTranslations: Record<TranslationKey, string> = {
   presetNameVolcengine: "Volcengine Ark",
   presetNameOpencodeGo: "OpenCode Go",
   presetNameOpencodeZen: "OpenCode Zen",
+  presetNameCommandCode: "Command Code GOAT",
+  presetNameOllamaCloud: "Ollama Cloud",
 
   // Provider usage
   usageBalance: "Balance",
@@ -526,6 +528,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   usageTierMonthCode: "Monthly (code)",
   usageTierBoosterWallet: "Booster",
   usageTierSubscription: "Subscription",
+  usageTierRecentSpend: "Recent spend",
   usageThreshold: "Alert threshold",
   usageThresholdHint: "Highlight any window that reaches this percentage; 0 = off",
   usageThresholdAlert: "Threshold reached",

@@ -50,22 +50,30 @@ fn millis_to_iso8601(ms: i64) -> Option<String> {
     chrono::DateTime::from_timestamp(secs, nsecs).map(|dt| dt.to_rfc3339())
 }
 
+/// 时间戳（秒或毫秒，浮点取整）→ ISO 8601；0/负值视为无重置时间。
+/// 秒级 < 1e12，毫秒 >= 1e12。
+fn timestamp_to_iso8601(n: f64) -> Option<String> {
+    if !n.is_finite() || n <= 0.0 {
+        return None;
+    }
+    let ms = if n < 1_000_000_000_000.0 { n * 1000.0 } else { n };
+    millis_to_iso8601(ms.round() as i64)
+}
+
 /// 从 JSON 值提取重置时间，兼容字符串和数字格式：
-/// - 字符串：直接返回（视为 ISO 8601）
-/// - 数字：自动判断秒/毫秒并转为 ISO 8601；0/负值视为无重置时间
+/// - 数字（含浮点，如 `1754000000.0`）：判断秒/毫秒并转为 ISO 8601；
+///   0/负值视为无重置时间
+/// - 字符串：能按数字解析的（如 `"1754000000"`）同上按时间戳处理，
+///   否则原样返回（视为 ISO 8601）
 pub(crate) fn extract_reset_time(value: &serde_json::Value) -> Option<String> {
     if let Some(s) = value.as_str() {
-        return Some(s.to_string());
+        return match s.trim().parse::<f64>() {
+            Ok(n) if n.is_finite() => timestamp_to_iso8601(n),
+            // 非数字字符串（ISO 8601）原样透传，前端 new Date() 直接可用。
+            _ => Some(s.to_string()),
+        };
     }
-    if let Some(n) = value.as_i64() {
-        if n <= 0 {
-            return None;
-        }
-        // 秒级时间戳 < 1e12，毫秒 >= 1e12
-        let ms = if n < 1_000_000_000_000 { n * 1000 } else { n };
-        return millis_to_iso8601(ms);
-    }
-    None
+    value.as_f64().and_then(timestamp_to_iso8601)
 }
 
 /// 解析 JSON 值为 f64，兼容数字和字符串格式（如 `100` 和 `"100"`）
@@ -73,6 +81,17 @@ fn parse_f64(value: &serde_json::Value) -> Option<f64> {
     value
         .as_f64()
         .or_else(|| value.as_str().and_then(|s| s.parse().ok()))
+}
+
+/// 响应里没有任何可解析条目时的确定性失败，附 400 字原始响应预览（仅用量
+/// 数字，无密钥）。`label` 是接口归类名，用于让用户知道是哪个端点结构变了。
+fn body_preview_failure(label: &str, body: &serde_json::Value) -> UsageResult {
+    let preview = serde_json::to_string(body)
+        .unwrap_or_else(|_| "<unserializable body>".into());
+    let trimmed: String = preview.chars().take(400).collect();
+    UsageResult::failure(format!(
+        "no plan data in {label} response, raw body: {trimmed}"
+    ))
 }
 
 // ── Kimi For Coding ─────────────────────────────────────────
@@ -485,6 +504,186 @@ fn parse_opencode_go(body: &serde_json::Value) -> Vec<UsageData> {
     tiers
 }
 
+// ── Command Code GOAT ───────────────────────────────────────
+// GET https://api.commandcode.ai/alpha/billing/credits
+// 鉴权用账户 API Key（Bearer，即 CLI 存在 ~/.commandcode/auth.json 的 user_… key），
+// 不是网页 cookie。
+// Response:
+//   { credits: { monthlyCredits, purchasedCredits, freeCredits },
+//     windowLimits: { fiveHour: { used, cap, resetAt },
+//                     weekly:   { used, cap, resetAt } } }
+// `credits` 可能整体缺失（此时 body 本身就是 credits 对象），解析时兜底。
+// 401/403 由 get_json 归成 Fetched::Failed（"Authentication failed (HTTP …)"
+// 前缀，前端 localizeUsageError 认这个前缀），这里原样透传。
+//
+// 只查 credits 这一个端点：/alpha/usage/summary 的 lifetime 总计与
+// /alpha/billing/subscriptions 的到期日需要给 UsageData 扩字段，本轮不做。
+
+const GOAT_BILLING_CREDITS_URL: &str = "https://api.commandcode.ai/alpha/billing/credits";
+
+pub async fn query_goat(api_key: &str, timeout: Duration) -> Result<UsageResult, String> {
+    match get_json(GOAT_BILLING_CREDITS_URL, api_key, AuthStyle::Bearer, timeout).await? {
+        Fetched::Body(body) => Ok(match parse_goat(&body) {
+            Ok(rows) => UsageResult::ok(rows),
+            Err(err) => err,
+        }),
+        Fetched::Failed(err) => Ok(err),
+    }
+}
+
+fn parse_goat(body: &serde_json::Value) -> Result<Vec<UsageData>, UsageResult> {
+    let mut rows = Vec::new();
+
+    // 额度：monthly → credits → balance → remaining → available 回退链
+    // （CLI 把月度/加购/赠送三份合成一个数字展示，此处同口径）。
+    // `credits` 可能缺失，也可能显式为 null（`{"credits": null, "monthlyCredits": …}`
+    // 这种扁平载荷），只有取到对象才用它，否则回退 body 本身。
+    let credits = body
+        .get("credits")
+        .filter(|v| v.is_object())
+        .unwrap_or(body);
+    let balance = [
+        "monthlyCredits",
+        "credits",
+        "balance",
+        "remainingCredits",
+        "availableCredits",
+    ]
+    .iter()
+    .find_map(|key| credits.get(*key).and_then(parse_f64));
+    if let Some(balance) = balance {
+        rows.push(UsageData {
+            plan_name: Some("GOAT".to_string()),
+            remaining: Some(balance),
+            unit: Some("USD".to_string()),
+            // 取到余额即视为有效数据：余额 0 是「用完了」，不是「Key 无效」。
+            is_valid: Some(true),
+            ..Default::default()
+        });
+    }
+
+    // 两个滚动窗口由服务端给 used/cap，换算成百分比。
+    for (name, key) in [(TIER_FIVE_HOUR, "fiveHour"), (TIER_WEEKLY_LIMIT, "weekly")] {
+        let Some(window) = body.get("windowLimits").and_then(|l| l.get(key)) else {
+            continue;
+        };
+        // cap 缺失或非正数时算不出比例，整窗跳过。
+        let Some(cap) = window.get("cap").and_then(parse_f64).filter(|&c| c > 0.0) else {
+            continue;
+        };
+        let used = window.get("used").and_then(parse_f64).unwrap_or(0.0);
+        let percent = (used / cap * 100.0).min(100.0);
+        let resets_at = window.get("resetAt").and_then(extract_reset_time);
+        rows.push(percent_tier(name, percent, resets_at));
+    }
+
+    if rows.is_empty() {
+        return Err(body_preview_failure("GOAT billing", body));
+    }
+    Ok(rows)
+}
+
+// ── Ollama Cloud ────────────────────────────────────────────
+// GET https://ollama.com/api/usage（Bearer API key）
+// Response: { activity: { cost, period }, limits: { session: { usage },
+//                                                 weekly:  { usage } } }
+// `usage` 是 0-1 的已用比例（个别载荷已给百分数）；接口既不返回 cap 也不返回
+// 重置时间。重置排期是固定的全局约定（ollama/ollama#12532）：session 窗口 5
+// 小时且与 epoch 对齐，weekly 窗口 7 天 + 4 天 epoch 偏移——故本地推算。
+
+/// 订阅套餐没有余额概念：`activity.cost` 是「近期消费」（通常 0），前端
+/// src/lib/usage-display.ts 的 planLabel() / isMoneyRow() 依赖此 id 本地化。
+const PLAN_RECENT_SPEND: &str = "recent_spend";
+
+const OLLAMA_SESSION_PERIOD_S: i64 = 18_000;
+const OLLAMA_WEEKLY_PERIOD_S: i64 = 604_800;
+const OLLAMA_WEEKLY_EPOCH_OFFSET_S: i64 = 4 * 86_400;
+
+/// 下一个 5 小时窗口边界（与 epoch 对齐）。
+fn ollama_session_reset_secs(now_sec: i64) -> i64 {
+    now_sec + (OLLAMA_SESSION_PERIOD_S - now_sec % OLLAMA_SESSION_PERIOD_S)
+}
+
+/// 下一个周窗口边界（7 天周期 + 4 天 epoch 偏移）。
+fn ollama_weekly_reset_secs(now_sec: i64) -> i64 {
+    now_sec
+        + (OLLAMA_WEEKLY_PERIOD_S
+            - (now_sec - OLLAMA_WEEKLY_EPOCH_OFFSET_S) % OLLAMA_WEEKLY_PERIOD_S)
+}
+
+/// 已用比例归一：<=1 视为 0-1 比例，>1 视为已给的百分数。
+fn ollama_usage_ratio(value: &serde_json::Value) -> Option<f64> {
+    let n = parse_f64(value)?;
+    Some(if n <= 1.0 { n } else { n / 100.0 })
+}
+
+pub async fn query_ollama_cloud(api_key: &str, timeout: Duration) -> Result<UsageResult, String> {
+    match get_json(
+        "https://ollama.com/api/usage",
+        api_key,
+        AuthStyle::Bearer,
+        timeout,
+    )
+    .await?
+    {
+        Fetched::Body(body) => Ok(match parse_ollama_cloud(&body, chrono::Utc::now().timestamp()) {
+            Ok(rows) => UsageResult::ok(rows),
+            Err(err) => err,
+        }),
+        Fetched::Failed(err) => Ok(err),
+    }
+}
+
+/// `now_sec` 由调用方传入而非函数内取时钟，便于离线单测重置时间推算。
+fn parse_ollama_cloud(
+    body: &serde_json::Value,
+    now_sec: i64,
+) -> Result<Vec<UsageData>, UsageResult> {
+    let mut rows = Vec::new();
+    let windows = [
+        (TIER_FIVE_HOUR, "session", ollama_session_reset_secs(now_sec)),
+        (TIER_WEEKLY_LIMIT, "weekly", ollama_weekly_reset_secs(now_sec)),
+    ];
+    for (name, key, reset_secs) in windows {
+        let Some(ratio) = body
+            .get("limits")
+            .and_then(|l| l.get(key))
+            .and_then(|w| w.get("usage"))
+            .and_then(ollama_usage_ratio)
+        else {
+            continue;
+        };
+        let percent = (ratio * 100.0).min(100.0);
+        rows.push(percent_tier(
+            name,
+            percent,
+            millis_to_iso8601(reset_secs * 1000),
+        ));
+    }
+
+    // 两个窗口都缺 = 响应结构变了（光有 cost 不构成有效用量），确定性失败。
+    if rows.is_empty() {
+        return Err(body_preview_failure("ollama cloud usage", body));
+    }
+
+    // 近期消费仅作上下文；订阅套餐上通常是 0，故排在窗口之后。
+    if let Some(cost) = body
+        .get("activity")
+        .and_then(|a| a.get("cost"))
+        .and_then(parse_f64)
+    {
+        rows.push(UsageData {
+            plan_name: Some(PLAN_RECENT_SPEND.to_string()),
+            remaining: Some(cost),
+            unit: Some("USD".to_string()),
+            is_valid: Some(true),
+            ..Default::default()
+        });
+    }
+
+    Ok(rows)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -643,6 +842,34 @@ mod tests {
     }
 
     #[test]
+    fn extract_reset_time_accepts_numeric_strings_and_floats() {
+        let expected = extract_reset_time(&json!(1_754_000_000i64)).unwrap();
+        // 字符串秒（某些接口把时间戳当字符串下发）
+        assert_eq!(
+            extract_reset_time(&json!("1754000000")).as_deref(),
+            Some(expected.as_str())
+        );
+        // 浮点秒（serde 里 1754000000.0 不是 i64）
+        assert_eq!(
+            extract_reset_time(&json!(1_754_000_000.0)).as_deref(),
+            Some(expected.as_str())
+        );
+        // 字符串毫秒
+        assert_eq!(
+            extract_reset_time(&json!("1754000000000")).as_deref(),
+            Some(expected.as_str())
+        );
+        // ISO 字符串原样返回（多家供应商共用此函数，行为不得变）
+        assert_eq!(
+            extract_reset_time(&json!("2026-08-01T00:00:00Z")).as_deref(),
+            Some("2026-08-01T00:00:00Z")
+        );
+        // 字符串 0 / 负数同样视为无重置时间
+        assert_eq!(extract_reset_time(&json!("0")), None);
+        assert_eq!(extract_reset_time(&json!("-1")), None);
+    }
+
+    #[test]
     fn zhipu_classifies_by_unit_field() {
         let body = json!({
             "success": true,
@@ -790,5 +1017,165 @@ mod tests {
         let msg = err.error.unwrap();
         assert!(msg.contains("原始返回"), "msg: {msg}");
         assert!(msg.contains(r#""message":"boom""#), "msg: {msg}");
+    }
+
+    #[test]
+    fn goat_parses_balance_and_two_windows() {
+        // resetAt 秒级时间戳与 ISO 字符串各来一个，验证 extract_reset_time 兼容。
+        let body = json!({
+            "credits": { "monthlyCredits": 100, "purchasedCredits": 5, "freeCredits": 2 },
+            "windowLimits": {
+                "fiveHour": { "used": 10, "cap": 50, "resetAt": 1_754_000_000i64 },
+                "weekly": { "used": "100", "cap": "500", "resetAt": "2026-10-01T00:00:00Z" }
+            }
+        });
+        let rows = parse_goat(&body).unwrap();
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0].plan_name.as_deref(), Some("GOAT"));
+        assert_eq!(rows[0].remaining, Some(100.0));
+        assert_eq!(rows[0].unit.as_deref(), Some("USD"));
+        assert_eq!(rows[0].is_valid, Some(true));
+        // 余额行没有窗口语义，total/used 留空
+        assert_eq!(rows[0].total, None);
+        assert_eq!(rows[0].used, None);
+        assert_eq!(rows[1].plan_name.as_deref(), Some("five_hour"));
+        assert_eq!(rows[1].used, Some(20.0));
+        assert_eq!(rows[1].remaining, Some(80.0));
+        assert!(rows[1].resets_at.is_some());
+        assert_eq!(rows[2].plan_name.as_deref(), Some("weekly_limit"));
+        assert_eq!(rows[2].used, Some(20.0));
+        assert_eq!(
+            rows[2].resets_at.as_deref(),
+            Some("2026-10-01T00:00:00Z")
+        );
+    }
+
+    #[test]
+    fn goat_balance_falls_back_through_field_chain() {
+        // credits 缺失时 body 本身就是 credits 对象；回退链最后一档命中。
+        let body = json!({ "availableCredits": "12.5" });
+        let rows = parse_goat(&body).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].plan_name.as_deref(), Some("GOAT"));
+        assert_eq!(rows[0].remaining, Some(12.5));
+
+        // monthlyCredits 优先于其余字段
+        let body = json!({ "credits": { "availableCredits": 3, "monthlyCredits": 7 } });
+        assert_eq!(parse_goat(&body).unwrap()[0].remaining, Some(7.0));
+
+        // 余额 0 是「用完了」，仍是取到了数据 → is_valid 为 true（否则前端会
+        // 显示「API Key 无效」，与同一份窗口数据自相矛盾）。
+        let body = json!({ "credits": { "balance": 0 } });
+        let rows = parse_goat(&body).unwrap();
+        assert_eq!(rows[0].remaining, Some(0.0));
+        assert_eq!(rows[0].is_valid, Some(true));
+    }
+
+    #[test]
+    fn goat_null_credits_falls_back_to_body() {
+        // credits 显式为 null 的扁平载荷：必须回退到 body 取额度字段。
+        let body = json!({ "credits": null, "monthlyCredits": 7 });
+        let rows = parse_goat(&body).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].plan_name.as_deref(), Some("GOAT"));
+        assert_eq!(rows[0].remaining, Some(7.0));
+        assert_eq!(rows[0].is_valid, Some(true));
+    }
+
+    #[test]
+    fn goat_skips_window_without_positive_cap() {
+        let body = json!({
+            "windowLimits": {
+                "fiveHour": { "used": 10, "cap": 0 },
+                "weekly": { "used": 10 }
+            }
+        });
+        // 两个窗口都算不出比例、也没有额度字段 → 确定性失败
+        let err = parse_goat(&body).unwrap_err();
+        assert!(!err.success);
+        assert!(err.error.unwrap().contains("raw body"));
+
+        // 有额度时只跳过窗口，余额行照出
+        let body = json!({
+            "credits": { "monthlyCredits": 5 },
+            "windowLimits": { "fiveHour": { "used": 10, "cap": 0 } }
+        });
+        let rows = parse_goat(&body).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].plan_name.as_deref(), Some("GOAT"));
+    }
+
+    #[test]
+    fn goat_clamps_window_percent_to_100() {
+        let body = json!({ "windowLimits": { "fiveHour": { "used": 80, "cap": 50 } } });
+        let rows = parse_goat(&body).unwrap();
+        assert_eq!(rows[0].used, Some(100.0));
+        assert_eq!(rows[0].remaining, Some(0.0));
+    }
+
+    #[test]
+    fn goat_empty_body_is_deterministic_failure() {
+        let body = json!({ "error": { "message": "boom" } });
+        let err = parse_goat(&body).unwrap_err();
+        assert!(!err.success);
+        assert!(err.data.is_none());
+        let msg = err.error.unwrap();
+        assert!(msg.contains("raw body"), "msg: {msg}");
+        assert!(msg.contains(r#""message":"boom""#), "msg: {msg}");
+    }
+
+    #[test]
+    fn ollama_cloud_parses_ratio_windows_and_cost() {
+        let body = json!({
+            "activity": { "cost": 0.0, "period": "month" },
+            "limits": { "session": { "usage": 0.42 }, "weekly": { "usage": 0.1 } }
+        });
+        let rows = parse_ollama_cloud(&body, 0).unwrap();
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0].plan_name.as_deref(), Some("five_hour"));
+        assert!((rows[0].used.unwrap() - 42.0).abs() < 0.001);
+        assert!((rows[0].remaining.unwrap() - 58.0).abs() < 0.001);
+        assert!(rows[0].resets_at.is_some());
+        assert_eq!(rows[1].plan_name.as_deref(), Some("weekly_limit"));
+        assert!((rows[1].used.unwrap() - 10.0).abs() < 0.001);
+        assert!(rows[1].resets_at.is_some());
+        // 近期消费行垫在窗口之后（订阅套餐没有余额概念）
+        assert_eq!(rows[2].plan_name.as_deref(), Some("recent_spend"));
+        assert_eq!(rows[2].remaining, Some(0.0));
+        assert_eq!(rows[2].unit.as_deref(), Some("USD"));
+    }
+
+    #[test]
+    fn ollama_cloud_ratio_above_one_is_already_percent() {
+        let body = json!({ "limits": { "session": { "usage": 42 }, "weekly": { "usage": "7" } } });
+        let rows = parse_ollama_cloud(&body, 0).unwrap();
+        assert_eq!(rows.len(), 2);
+        assert!((rows[0].used.unwrap() - 42.0).abs() < 0.001);
+        assert!((rows[1].used.unwrap() - 7.0).abs() < 0.001);
+        // 无 activity.cost → 不产金额行
+        assert!(rows.iter().all(|r| r.plan_name.as_deref() != Some("recent_spend")));
+    }
+
+    #[test]
+    fn ollama_cloud_reset_schedule_boundaries() {
+        // session：5 小时与 epoch 对齐，正好落在边界上时取下一个窗口。
+        assert_eq!(ollama_session_reset_secs(0), 18_000);
+        assert_eq!(ollama_session_reset_secs(1), 18_000);
+        assert_eq!(ollama_session_reset_secs(18_000), 36_000);
+        // weekly：7 天周期 + 4 天 epoch 偏移；offset 处即窗口起点。
+        assert_eq!(ollama_weekly_reset_secs(4 * 86_400), 4 * 86_400 + 604_800);
+        // t=0 时窗口已走了 -345600 mod 604800 → 距下一个边界 950400 秒
+        assert_eq!(ollama_weekly_reset_secs(0), 950_400);
+    }
+
+    #[test]
+    fn ollama_cloud_missing_windows_is_deterministic_failure_with_preview() {
+        // 只有 activity.cost、两个窗口都缺 → 确定性失败（附预览）
+        let body = json!({ "activity": { "cost": 1.5 } });
+        let err = parse_ollama_cloud(&body, 0).unwrap_err();
+        assert!(!err.success);
+        let msg = err.error.unwrap();
+        assert!(msg.contains("raw body"), "msg: {msg}");
+        assert!(msg.contains(r#""cost":1.5"#), "msg: {msg}");
     }
 }

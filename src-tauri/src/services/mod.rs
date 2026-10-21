@@ -3,7 +3,7 @@
 
 //! 供应商账单/用量查询统一入口。
 //!
-//! - [`UsageKind`]：11 种查询类型，字符串形式与前端 / SQLite settings 约定一致
+//! - [`UsageKind`]：14 种查询类型，字符串形式与前端 / SQLite settings 约定一致
 //!   （如 `"balance:deepseek"`、`"plan:kimi_coding"`）。
 //! - [`detect_provider`]：按 base_url host 子串匹配，旧用户无显式配置时自动识别。
 //! - [`query_kind`]：按 kind 路由到 balance / coding_plan 的具体实现。
@@ -29,6 +29,8 @@ pub enum UsageKind {
     PlanZhipu,
     PlanMinimax,
     PlanOpencodeGo,
+    PlanGoat,
+    PlanOllamaCloud,
 }
 
 impl UsageKind {
@@ -47,10 +49,12 @@ impl UsageKind {
             UsageKind::PlanZhipu => "plan:zhipu",
             UsageKind::PlanMinimax => "plan:minimax",
             UsageKind::PlanOpencodeGo => "plan:opencode_go",
+            UsageKind::PlanGoat => "plan:goat",
+            UsageKind::PlanOllamaCloud => "plan:ollama_cloud",
         }
     }
 
-    pub const ALL: [UsageKind; 12] = [
+    pub const ALL: [UsageKind; 14] = [
         UsageKind::BalanceDeepseek,
         UsageKind::BalanceSiliconflow,
         UsageKind::BalanceOpenrouter,
@@ -63,6 +67,8 @@ impl UsageKind {
         UsageKind::PlanZhipu,
         UsageKind::PlanMinimax,
         UsageKind::PlanOpencodeGo,
+        UsageKind::PlanGoat,
+        UsageKind::PlanOllamaCloud,
     ];
 }
 
@@ -83,6 +89,8 @@ impl std::str::FromStr for UsageKind {
             "plan:zhipu" => UsageKind::PlanZhipu,
             "plan:minimax" => UsageKind::PlanMinimax,
             "plan:opencode_go" => UsageKind::PlanOpencodeGo,
+            "plan:goat" => UsageKind::PlanGoat,
+            "plan:ollama_cloud" => UsageKind::PlanOllamaCloud,
             _ => return Err(()),
         })
     }
@@ -110,7 +118,9 @@ pub fn detect_provider(base_url: &str) -> Vec<UsageKind> {
     } else if url.contains("codingplan.site") {
         kinds.push(UsageKind::BalanceSub2Api);
     }
-    if url.contains("api.stepfun.com") {
+    // StepFun 按量余额：/step_plan 是套餐（Step Plan）推理端点，必须配套餐 key
+    // 访问；同一个 /v1/accounts 按量余额接口用它去查必然 401，故按路径排除。
+    if url.contains("api.stepfun.com") && !url.contains("/step_plan") {
         kinds.push(UsageKind::BalanceStepfun);
     }
     if url.contains("api.novita.ai") {
@@ -135,6 +145,17 @@ pub fn detect_provider(base_url: &str) -> Vec<UsageKind> {
     // OpenCode Go 套餐：只认 /zen/go 路径；/zen/v1（OpenCode Zen 按量付费）不得命中。
     if url.contains("/zen/go") {
         kinds.push(UsageKind::PlanOpencodeGo);
+    }
+    // Command Code GOAT 套餐：推理端点是官方公开的
+    // https://api.commandcode.ai/provider/v1（OpenAI/Anthropic 兼容；预设
+    // baseUrl 按 anthropic 约定写无 /v1 的 /provider 根），与
+    // /alpha/billing/credits 同源，故按 host 识别。
+    if url.contains("api.commandcode.ai") {
+        kinds.push(UsageKind::PlanGoat);
+    }
+    // Ollama Cloud 订阅（Free/Pro/Max）：按 host 识别，查询 /api/usage。
+    if url.contains("ollama.com") {
+        kinds.push(UsageKind::PlanOllamaCloud);
     }
     kinds
 }
@@ -210,6 +231,8 @@ pub async fn query_kind(
             coding_plan::query_minimax(api_key, !lower.contains("minimax.io"), timeout).await
         }
         UsageKind::PlanOpencodeGo => coding_plan::query_opencode_go(api_key, timeout).await,
+        UsageKind::PlanGoat => coding_plan::query_goat(api_key, timeout).await,
+        UsageKind::PlanOllamaCloud => coding_plan::query_ollama_cloud(api_key, timeout).await,
     }
 }
 
@@ -219,7 +242,7 @@ mod tests {
 
     #[test]
     fn detect_provider_maps_known_hosts() {
-        let cases: [(&str, UsageKind); 10] = [
+        let cases: [(&str, UsageKind); 14] = [
             ("https://api.deepseek.com/v1", UsageKind::BalanceDeepseek),
             ("https://api.siliconflow.cn/v1", UsageKind::BalanceSiliconflow),
             ("https://openrouter.ai/api/v1", UsageKind::BalanceOpenrouter),
@@ -233,6 +256,10 @@ mod tests {
             ),
             ("https://api.minimaxi.com/v1", UsageKind::PlanMinimax),
             ("https://opencode.ai/zen/go/v1", UsageKind::PlanOpencodeGo),
+            ("https://api.commandcode.ai", UsageKind::PlanGoat),
+            ("https://api.commandcode.ai/v1", UsageKind::PlanGoat),
+            ("https://ollama.com", UsageKind::PlanOllamaCloud),
+            ("https://ollama.com/v1", UsageKind::PlanOllamaCloud),
         ];
         for (url, expected) in cases {
             assert_eq!(
@@ -291,6 +318,21 @@ mod tests {
             detect_provider("https://opencode.ai/zen/go"),
             vec![UsageKind::PlanOpencodeGo]
         );
+    }
+
+    #[test]
+    fn detect_provider_stepfun_excludes_step_plan_path() {
+        // 按量余额端点只挂在 /v1 下：/v1/accounts 才能用按量 key 查。
+        assert_eq!(
+            detect_provider("https://api.stepfun.com/v1"),
+            vec![UsageKind::BalanceStepfun]
+        );
+        // /step_plan 是套餐推理端点（套餐 key），查按量余额必 401 → 不得命中。
+        assert!(
+            !detect_provider("https://api.stepfun.com/step_plan/v1")
+                .contains(&UsageKind::BalanceStepfun)
+        );
+        assert!(detect_provider("https://api.stepfun.com/step_plan/v1").is_empty());
     }
 
     #[test]
