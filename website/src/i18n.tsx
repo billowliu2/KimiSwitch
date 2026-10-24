@@ -10,7 +10,7 @@ export type Lang = "zh" | "en";
 
 /** Release the site advertises. `assets()` in sections/Download.tsx builds the
  *  per-platform download URLs from it, so a version bump is a one-line change. */
-export const VERSION = "0.8.5";
+export const VERSION = "0.8.8";
 export const VERSION_TAG = `v${VERSION}`;
 
 const zh = {
@@ -20,7 +20,7 @@ const zh = {
     showcase: "界面",
     changelog: "更新日志",
     download: "下载",
-    downloadBtn: "下载 v0.8.5",
+    downloadBtn: `下载 v${VERSION}`,
     theme: "主题",
     themeLight: "浅色",
     themeDark: "深色",
@@ -200,7 +200,7 @@ const zh = {
   },
   download: {
     title: "下载 Kimi Switch",
-    subtitle: "当前版本 v0.8.5 · Windows / macOS / Linux 三平台均已发布",
+    subtitle: `当前版本 v${VERSION} · Windows / macOS / Linux 三平台均已发布`,
     versionLabel: "最新版本",
     primaryLabel: "推荐",
     mirrorName: "国内镜像",
@@ -259,6 +259,39 @@ const zh = {
     syncedNote: "数据已同步 GitHub Releases",
     fallbackNote: "内置版本记录",
     entries: [
+      {
+        version: "v0.8.8",
+        date: "2026-10-24",
+        items: [
+          "模型表新增「思考等级」列：档位按模型 support_efforts 与 models.dev 能力自动确定，默认 high、模型不支持 high 时取其最高档；批量添加模型、应用预设、同步数据后自动补齐",
+          "数据安全修复（高危）：保存不再整表覆盖 config.toml——kimi-code 2.3.x 模型目录定时刷新、catalog 引导、/provider refresh 写入的 provider / model 从此不再被抹掉；provider 级官方 default_model 不再被当作私有键剥除",
+          "kimi-code 2.3.x 新字段适配：「禁用反馈调查」开关（disable_feedback_survey，仅勾选时写入）、模型行 upgrade「将停用」只读标记、危险命令防护文案更正为三类防护总闸",
+          "全局 [thinking] effort 未显式设置时不再写死 medium，不再压过模型级 default_effort",
+          "models.dev 快照引入 schema_version=2 并同步至 2026-10-23（8,872 模型 / 230 提供商）：旧格式的运行时副本不再遮住内置数据，点一次「立即同步」即切换为新格式",
+        ],
+      },
+      {
+        version: "v0.8.7",
+        date: "2026-10-17",
+        items: [
+          "撞名防护对抗性审查后补齐六处缺口：连续撞名改为多槽暂存（第二个被顶掉的条目也能找回）、用量配置弹窗接入保存守卫、重载失败不再清空暂存",
+          "重名变体拦截：TokenHub 与尾随空格这类 trim 后同名的变体，保存闸门增加 trim 级扫描，不再能落盘",
+          "撞名未解决时拦截顶栏导航，防止带着不完整暂存游走触发边角路径；普通未保存修改的导航体验不变",
+          "JSON 应用改名后同样自动还原被顶掉的条目；存在性判断全部改用 Object.hasOwn，constructor 之类的原型键名不再产生幽灵撞名",
+          "models.dev 快照同步至 2026-10-17（8,994 模型）；零 Rust 改动，升级 / 回退无迁移成本",
+        ],
+      },
+      {
+        version: "v0.8.6",
+        date: "2026-10-16",
+        items: [
+          "修复供应商名称撞车静默覆盖事故：新建第二个同名供应商（如两把 Key 都叫 TokenHub）会在无提示中顶掉旧条目，任意一次保存即把丢失状态写进 config.toml",
+          "四条写入点（编辑改名、JSON 应用、新建占位名、保存校验）全部增加名称查重；Ctrl+S 窗口级快捷键同样过检",
+          "撞名即时红框提示 + 三条保存入口硬阻止；被顶掉的供应商自动暂存保护，改名离开撞名状态时连同 Key 和模型映射一起还原",
+          "新建占位名循环取号不再回退撞名；粘贴 JSON 源头拒绝重名；复制提示显示真实新名",
+          "名称比较大小写敏感全等、首尾空白忽略；models.dev 快照同步至 2026-10-16（8,894 模型 / 230 提供商）",
+        ],
+      },
       {
         version: "v0.8.5",
         date: "2026-10-16",
@@ -447,12 +480,12 @@ const zh = {
     changelog: {
       title: "更新日志 - Kimi Switch",
       description:
-        "Kimi Switch 更新日志：每个版本的重要变更记录，含 v0.8.5 的设置页重构、体检账单缺口与更新下载修复，同步自 GitHub Releases。",
+        "Kimi Switch 更新日志：每个版本的重要变更记录，含 v0.8.8 的模型思考等级列与 kimi-code 2.3.1 适配，同步自 GitHub Releases。",
     },
     download: {
       title: "下载 - Kimi Switch",
       description:
-        "下载 Kimi Switch v0.8.5：Windows NSIS 安装包、macOS .dmg、Linux .deb / .AppImage / .rpm，提供 GitHub 与国内镜像双通道，免费开源 MIT。",
+        `下载 Kimi Switch v${VERSION}：Windows NSIS 安装包、macOS .dmg、Linux .deb / .AppImage / .rpm，提供 GitHub 与国内镜像双通道，免费开源 MIT。`,
     },
   },
   footer: {
@@ -486,7 +519,7 @@ const en: Dict = {
     showcase: "Screens",
     changelog: "Changelog",
     download: "Download",
-    downloadBtn: "Download v0.8.5",
+    downloadBtn: `Download v${VERSION}`,
     theme: "Theme",
     themeLight: "Light",
     themeDark: "Dark",
@@ -666,7 +699,7 @@ const en: Dict = {
   },
   download: {
     title: "Download Kimi Switch",
-    subtitle: "Current version v0.8.5 · released for Windows, macOS and Linux",
+    subtitle: `Current version v${VERSION} · released for Windows, macOS and Linux`,
     versionLabel: "Latest release",
     primaryLabel: "Recommended",
     mirrorName: "China mirror",
@@ -725,6 +758,39 @@ const en: Dict = {
     syncedNote: "Synced from GitHub Releases",
     fallbackNote: "Bundled release notes",
     entries: [
+      {
+        version: "v0.8.8",
+        date: "2026-10-24",
+        items: [
+          "New per-model thinking effort column: tiers come from the model's support_efforts and models.dev capability data — high by default, or the model's strongest tier when high is unsupported; bulk-added models, presets and data syncs are seeded automatically",
+          "Data-safety fixes (critical): saving no longer overwrites the whole config.toml tables — providers and models written by kimi-code 2.3.x's model catalog refresh, catalog onboarding and /provider refresh survive every save; the official provider-level default_model is no longer stripped as a private key",
+          "kimi-code 2.3.x adaptation: a Disable feedback survey switch (disable_feedback_survey, written only when checked), a read-only Retiring badge for models with an upgrade entry, and the dangerous-command guard copy now describes all three gated policies",
+          "The global [thinking] effort is no longer pinned to medium when unset, so a per-model default_effort is no longer shadowed",
+          "models.dev snapshots gain schema_version=2 and sync to 2026-10-23 (8,872 models / 230 providers): stale unversioned runtime copies no longer shadow the built-in data; one manual sync rewrites them in the new format",
+        ],
+      },
+      {
+        version: "v0.8.7",
+        date: "2026-10-17",
+        items: [
+          "Six gaps closed in the name-collision guard after an adversarial review: repeated collisions now use multi-slot stashing (a second displaced provider is also recoverable), the usage dialog goes through the save guard, and a failed reload no longer clears the stash",
+          "Trim-level duplicate scan: variants like TokenHub with a trailing space can no longer be saved",
+          "Navigation is blocked while a name collision is unresolved, preventing half-stashed state from wandering into edge paths; normal unsaved-change navigation is unchanged",
+          "Applying a rename via the config JSON now restores the displaced provider too; existence checks use Object.hasOwn, so prototype key names like constructor no longer trigger ghost collisions",
+          "models.dev snapshot synced to 2026-10-17 (8,994 models); zero Rust changes, no migration cost to upgrade or roll back",
+        ],
+      },
+      {
+        version: "v0.8.6",
+        date: "2026-10-16",
+        items: [
+          "Fixed the silent name-collision overwrite incident: adding a second provider with the same name (e.g. two keys both called TokenHub) displaced the original entry without any warning, and the next save wrote the loss to config.toml",
+          "All four write paths (edit rename, JSON apply, new placeholder names, save validation) now check for duplicate names; the window-level Ctrl+S shortcut goes through the same gate",
+          "Instant red-frame feedback plus hard blocks on all three save entries; the displaced provider is stashed and restored — keys and model mappings included — once the collision is resolved",
+          "Placeholder names cycle to the next free number; pasted JSON with a duplicate name is rejected at the source; duplicate toasts show the real new name",
+          "Name comparison is case-sensitive exact match with trimmed whitespace; models.dev snapshot synced to 2026-10-16 (8,894 models / 230 providers)",
+        ],
+      },
       {
         version: "v0.8.5",
         date: "2026-10-16",
@@ -913,12 +979,12 @@ const en: Dict = {
     changelog: {
       title: "Changelog - Kimi Switch",
       description:
-        "Kimi Switch changelog: notable changes in every release, including the v0.8.5 settings page rework, billing coverage fix and update download fix, synced from GitHub Releases.",
+        "Kimi Switch changelog: notable changes in every release, including the v0.8.8 per-model thinking effort column and kimi-code 2.3.1 adaptation, synced from GitHub Releases.",
     },
     download: {
       title: "Download - Kimi Switch",
       description:
-        "Download Kimi Switch v0.8.5: Windows NSIS installer, macOS .dmg, Linux .deb / .AppImage / .rpm, via GitHub or a China mirror. Free and open source under MIT.",
+        `Download Kimi Switch v${VERSION}: Windows NSIS installer, macOS .dmg, Linux .deb / .AppImage / .rpm, via GitHub or a China mirror. Free and open source under MIT.`,
     },
   },
   footer: {
