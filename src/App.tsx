@@ -20,6 +20,7 @@ import {
   type ProviderPreset,
 } from "./config/providerPresets";
 import { findTrimDuplicateProviderNames, validateProviders } from "./lib/validation";
+import { seedModelFromReference } from "./lib/thinking-efforts";
 import {
   copyModelsOnProviderDuplicate,
   rekeyModelsOnProviderRename,
@@ -352,6 +353,7 @@ export default function App() {
     const { provider, models, defaultModel } = presetToProviderAndModels(preset, {
       existingProviderNames: new Set(Object.keys(config.providers)),
       existingModelAliases: new Set(Object.keys(config.models)),
+      agent,
     });
     updateConfig((cfg) => {
       const providers = { ...cfg.providers, [provider.name]: provider };
@@ -732,6 +734,29 @@ export default function App() {
     }
   };
 
+  /**
+   * Seed every configured model from the (possibly freshly synced) models.dev
+   * reference data: capabilities when the entry declares none, then the
+   * thinking `default_effort`. Returns how many entries changed — 0 means the
+   * in-memory config already matches the reference data.
+   */
+  const handleSeedModelsFromReference = (): number => {
+    if (!config || agent !== "kimi_code") return 0;
+    let count = 0;
+    const models: Record<string, Model> = { ...config.models };
+    for (const [alias, m] of Object.entries(config.models)) {
+      const next = seedModelFromReference(m, getModelRef(m.model));
+      if (next !== m) {
+        models[alias] = next;
+        count += 1;
+      }
+    }
+    if (count > 0) {
+      updateConfig((cfg) => ({ ...cfg, models: { ...cfg.models, ...models } }));
+    }
+    return count;
+  };
+
   if (loading || !config) {
     return (
       <div className="p-4 space-y-2 text-content-primary">
@@ -891,6 +916,7 @@ export default function App() {
             onRawOtherChange={(nextRawOther) =>
               updateConfig((cfg) => ({ ...cfg, raw_other: nextRawOther }))
             }
+            onSeedModelsFromReference={handleSeedModelsFromReference}
           />
         ) : view === "subagent" ? (
           <SubagentSettingsPage

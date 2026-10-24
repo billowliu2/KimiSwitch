@@ -18,6 +18,8 @@ interface SettingsPageProps {
   models: Record<string, Model>;
   defaultModel: string | null;
   onRawOtherChange: (nextRawOther: unknown) => void;
+  /** Seed model capabilities/effort from the models.dev snapshot; returns count. */
+  onSeedModelsFromReference: () => number;
 }
 
 /**
@@ -37,6 +39,7 @@ export function SettingsPage({
   models,
   defaultModel,
   onRawOtherChange,
+  onSeedModelsFromReference,
 }: SettingsPageProps) {
   const { t } = useTranslation();
 
@@ -90,6 +93,7 @@ export function SettingsPage({
             rawOther={rawOther}
             models={models}
             onChange={onRawOtherChange}
+            onSeedModelsFromReference={onSeedModelsFromReference}
           />
         </div>
       </div>

@@ -292,9 +292,11 @@ fn load_config_inner(conn: &mut Connection, agent: &Agent) -> DbResult<Config> {
         providers,
         models,
         raw_other: Value::Null,
-        // The SQLite snapshot stores no import baseline; an empty baseline
-        // makes export's stale-key cleanup a no-op (safe degradation).
+        // The SQLite snapshot stores no import baseline; empty baselines make
+        // export's stale-key/provider/model cleanup a no-op (safe degradation).
         imported_section_keys: Vec::new(),
+        imported_provider_names: Vec::new(),
+        imported_model_aliases: Vec::new(),
     })
 }
 

@@ -389,6 +389,8 @@ pub fn pi_file_to_config(file: &PiModelsFile) -> Config {
         models,
         raw_other: file.extra.clone(),
         imported_section_keys: Vec::new(),
+        imported_provider_names: Vec::new(),
+        imported_model_aliases: Vec::new(),
     }
 }
 

@@ -65,8 +65,21 @@ describe("getAgentSettings — thinking.effort read mapping", () => {
     );
   });
 
-  it("keeps the default \"medium\" when the key is absent", () => {
-    expect(getAgentSettings({}).thinking?.effort).toBe("medium");
+  it("reads as undefined when the key is absent (no default materialized)", () => {
+    const thinking = getAgentSettings({}).thinking;
+    expect(thinking?.effort).toBeUndefined();
+    // The key must not exist at all — `effort: undefined` would still travel
+    // into a spread-built patch and get written as a key.
+    expect(thinking && "effort" in thinking).toBe(false);
+    // `enabled` / `keep` stay materialized (unchanged behavior).
+    expect(thinking?.enabled).toBe(true);
+    expect(thinking?.keep).toBe("all");
+  });
+
+  it("drops a non-string effort from a corrupted config", () => {
+    expect(
+      getAgentSettings({ thinking: { effort: 3 } }).thinking?.effort
+    ).toBeUndefined();
   });
 
   it("round-trips an arbitrary hand-written tier on save", () => {
@@ -74,6 +87,60 @@ describe("getAgentSettings — thinking.effort read mapping", () => {
       thinking: { effort: "ultra" },
     });
     expect(thinkingOf(next).effort).toBe("ultra");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Writing — effort: an absent global key is never materialized (it would
+// outrank a per-model `[models.*] default_effort`), an explicit one survives
+// ---------------------------------------------------------------------------
+
+describe("setAgentSettings — effort serialization", () => {
+  it("does not write effort when the raw config has none and the patch leaves it alone", () => {
+    const next = setAgentSettings({ thinking: { enabled: true } }, {
+      thinking: { enabled: true },
+    });
+    expect(thinkingOf(next)).not.toHaveProperty("effort");
+    // A save that touches an unrelated section must not materialize it either.
+    const other = setAgentSettings({ thinking: { enabled: true } }, {
+      loop_control: { reserved_context_size: 60000 },
+    });
+    expect(thinkingOf(other)).not.toHaveProperty("effort");
+  });
+
+  it("keeps an existing effort tier on saves that do not touch it", () => {
+    const next = setAgentSettings({ thinking: { effort: "high" } }, {
+      thinking: { keep: "off" },
+    });
+    expect(thinkingOf(next).effort).toBe("high");
+    const unrelated = setAgentSettings({ thinking: { effort: "high" } }, {});
+    expect(thinkingOf(unrelated).effort).toBe("high");
+  });
+
+  it("writes effort when the patch sets it (absent on disk)", () => {
+    const next = setAgentSettings({ thinking: { enabled: true } }, {
+      thinking: { effort: "high" },
+    });
+    expect(thinkingOf(next).effort).toBe("high");
+  });
+
+  it("writes effort through a panel-shaped patch (spread of getAgentSettings)", () => {
+    // Mirrors AgentSettingsPanel.updateThinking: the patch is
+    // `{ ...settings.thinking, ...{ effort } }`, so an undefined effort on
+    // read must not swallow the explicit pick.
+    const raw = { thinking: { enabled: true } };
+    const settings = getAgentSettings(raw);
+    const next = setAgentSettings(raw, {
+      thinking: { ...settings.thinking, effort: "max" },
+    });
+    expect(thinkingOf(next).effort).toBe("max");
+  });
+
+  it("overwrites an existing tier when the patch picks a different one", () => {
+    const next = setAgentSettings({ thinking: { effort: "low" } }, {
+      thinking: { effort: "xhigh" },
+    });
+    expect(thinkingOf(next).effort).toBe("xhigh");
   });
 });
 
@@ -288,6 +355,71 @@ describe("top-level boolean switches", () => {
       { thinking: { effort: "high" } }
     ) as Record<string, unknown>;
     expect(next.auto_session_title).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// disable_feedback_survey (kimi-code 2.3.0, moved from tui.toml): upstream
+// default FALSE (survey on), read as `=== true` — so true is written
+// explicitly and everything else removes the key.
+// ---------------------------------------------------------------------------
+
+describe("disable_feedback_survey", () => {
+  it("reads as false when the key is absent (survey on by default)", () => {
+    expect(getAgentSettings({}).disable_feedback_survey).toBe(false);
+  });
+
+  it("reads only a literal true as disabled", () => {
+    expect(
+      getAgentSettings({ disable_feedback_survey: true }).disable_feedback_survey
+    ).toBe(true);
+    expect(
+      getAgentSettings({ disable_feedback_survey: false })
+        .disable_feedback_survey
+    ).toBe(false);
+    // Values upstream's `=== true` check would not accept stay "not disabled".
+    expect(
+      getAgentSettings({ disable_feedback_survey: "true" })
+        .disable_feedback_survey
+    ).toBe(false);
+  });
+
+  it("does not export the key by default", () => {
+    const next = setAgentSettings({}, {}) as Record<string, unknown>;
+    expect("disable_feedback_survey" in next).toBe(false);
+    // An unrelated save must not materialize the key either.
+    const unrelated = setAgentSettings({ thinking: { effort: "high" } }, {
+      thinking: { effort: "high" },
+    }) as Record<string, unknown>;
+    expect("disable_feedback_survey" in unrelated).toBe(false);
+  });
+
+  it("writes true when the patch disables the survey", () => {
+    const next = setAgentSettings({}, {
+      disable_feedback_survey: true,
+    }) as Record<string, unknown>;
+    expect(next.disable_feedback_survey).toBe(true);
+  });
+
+  it("removes the key when the patch turns the survey back on", () => {
+    const raw = { disable_feedback_survey: false };
+    const next = setAgentSettings(raw, {
+      disable_feedback_survey: false,
+    }) as Record<string, unknown>;
+    expect("disable_feedback_survey" in next).toBe(false);
+    const unset = setAgentSettings(
+      { disable_feedback_survey: true },
+      { disable_feedback_survey: false }
+    ) as Record<string, unknown>;
+    expect("disable_feedback_survey" in unset).toBe(false);
+  });
+
+  it("keeps an explicit true on saves that do not touch it", () => {
+    const next = setAgentSettings(
+      { disable_feedback_survey: true },
+      { thinking: { effort: "high" } }
+    ) as Record<string, unknown>;
+    expect(next.disable_feedback_survey).toBe(true);
   });
 });
 

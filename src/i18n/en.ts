@@ -130,6 +130,12 @@ export const enTranslations: Record<TranslationKey, string> = {
   contextSize: "Context size",
   maxOutputSize: "Max output",
   maxOutputRef: "Ref {value}",
+  thinkingEffort: "Thinking effort",
+  effortDefaultHint: "Default {value}",
+  effortNotSupported: "N/A",
+  modelUpcomingRetirement: "Retiring",
+  modelUpgradeMigrateTo: "Suggested replacement: {model}",
+  modelUpgradeRetirementAt: "Retirement date: {date}",
   default: "Default",
   operation: "Operation",
   isDefault: "Default",
@@ -202,6 +208,9 @@ export const enTranslations: Record<TranslationKey, string> = {
   repeatBreaker: "Repeat breaker",
   repeatBreakerDesc:
     "Remind and force-stop on consecutively repeated identical tool calls (on by default). The KIMI_CODE_REPEAT_BREAKER environment variable overrides this setting.",
+  disableFeedbackSurvey: "Disable feedback survey",
+  disableFeedbackSurveyDesc:
+    "Turn off the rating / survey prompt shown when a session ends (the survey is on by default upstream; only a checked box writes disable_feedback_survey = true to config.toml, unchecked leaves the key out).",
   permissionRules: "Permission Rules",
   permissionDecision: "Decision",
   permissionPattern: "Pattern",
@@ -210,7 +219,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   permissionAsk: "Ask",
   permissionDangerousGuard: "Dangerous Command Guard",
   permissionDangerousGuardDesc:
-    "When on (default): Manual/YOLO modes force a prompt for dangerous commands (rm -rf, shutdown, dd of=, ...) and commands that cannot be statically analyzed; Auto (never-ask) mode no longer intercepts them since kimi-code 0.41.0. Turning it off restores the previous behavior. Env KIMI_CODE_DANGEROUS_COMMAND_GUARD overrides this config",
+    "When on (default): Manual/YOLO modes force a prompt for dangerous commands (rm -rf, shutdown, dd of=, ...) and commands that cannot be statically analyzed; since kimi-code 2.3.0 the same switch also gates sensitive-file access (e.g. .env, id_rsa) and .git control-path access. Auto (never-ask) mode no longer intercepts them since kimi-code 0.41.0. Turning it off restores the previous behavior. Env KIMI_CODE_DANGEROUS_COMMAND_GUARD overrides this config",
   addRule: "+ Add rule",
   addCommonRules: "Add common rules",
   hooks: "Lifecycle Hooks",
@@ -638,6 +647,8 @@ export const enTranslations: Record<TranslationKey, string> = {
   modelsDataSyncing: "Syncing...",
   modelsDataSyncOk: "Synced — model parameters and pricing refreshed",
   modelsDataSyncFailed: "Sync failed",
+  modelsDevSeeded:
+    "Seeded capabilities and thinking effort for {count} models — save to apply",
   modelsDataRestore: "Restore Built-in Data",
   modelsDataRestoreConfirm:
     "Delete the local synced copy and fall back to the snapshot bundled with this release? You can sync again at any time.",

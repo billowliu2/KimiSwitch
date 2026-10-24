@@ -1,7 +1,7 @@
 import { useEffect, useId, useReducer, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
-import { useTranslation } from "../i18n";
+import { useTranslation, type Language } from "../i18n";
 import type { TranslationKey } from "../i18n/zh";
 import { findPresetForProvider } from "../config/providerPresets";
 import { getDefaultMaxContextSize } from "../lib/model-defaults";
@@ -12,6 +12,16 @@ import {
   withMaxOutputSize,
 } from "../lib/model-max-output";
 import { capabilitiesFromRef, getModelRef, modelsDevReady } from "../lib/models-dev";
+import {
+  PREFERRED_EFFORT,
+  THINKING_EFFORTS,
+  TIER_RANK,
+  effectiveDefaultEffort,
+  readDefaultEffort,
+  resolveModelEfforts,
+  seedModelFromReference,
+  setModelEffort,
+} from "../lib/thinking-efforts";
 import { validateProviderName } from "../lib/validation";
 import { getIconMetadata } from "../icons/extracted/metadata";
 import { KimiOAuthDialog } from "./KimiOAuthDialog";
@@ -676,7 +686,7 @@ function ModelMapping({
       // Priority: API-provided value > models.dev reference > regex fallback
       const max_context_size =
         dm.max_context_size ?? ref?.context ?? getDefaultMaxContextSize(dm.id);
-      toAdd.push({
+      const model: Model = {
         alias,
         provider: provider.name,
         model: dm.id,
@@ -701,7 +711,12 @@ function ModelMapping({
               ),
             }
           : {}),
-      });
+      };
+      // kimi_code additionally seeds capabilities + default_effort from the
+      // reference data, so bulk-added models land with a usable thinking tier.
+      toAdd.push(
+        agent === "kimi_code" ? seedModelFromReference(model, ref) : model
+      );
     }
     onBulkAdd(toAdd);
     setDiscovered(null);
@@ -818,7 +833,7 @@ function ModelMapping({
       )}
 
       <div className="bg-panel border border-border rounded-xl overflow-auto">
-        <table className="w-full min-w-[640px] text-sm">
+        <table className="w-full min-w-[760px] text-sm">
           <thead className="bg-input text-content-muted">
             <tr>
               <th className="text-left px-4 py-3 font-medium">{t("displayName")}</th>
@@ -826,6 +841,9 @@ function ModelMapping({
               <th className="text-left px-4 py-3 font-medium w-28">{t("contextSize")}</th>
               {agent === "kimi_code" && (
                 <th className="text-left px-4 py-3 font-medium w-32">{t("maxOutputSize")}</th>
+              )}
+              {agent === "kimi_code" && (
+                <th className="text-left px-4 py-3 font-medium w-32">{t("thinkingEffort")}</th>
               )}
               {agent === "kimi_code" && (
                 <th className="text-left px-4 py-3 font-medium">{t("capabilities")}</th>
@@ -841,6 +859,7 @@ function ModelMapping({
                   <span className="text-sm text-content-muted">
                     {m.model ? `${m.model}[${m.provider}]` : m.alias}
                   </span>
+                  {agent === "kimi_code" && <UpgradeBadge model={m} />}
                 </td>
                 <td className="px-4 py-2">
                   <input
@@ -873,6 +892,11 @@ function ModelMapping({
                       model={m}
                       onChange={(next) => onModelChange(next)}
                     />
+                  </td>
+                )}
+                {agent === "kimi_code" && (
+                  <td className="px-4 py-2">
+                    <EffortCell model={m} onChange={(next) => onModelChange(next)} />
                   </td>
                 )}
                 {agent === "kimi_code" && (
@@ -1092,5 +1116,143 @@ function MaxOutputCell({
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * Thinking-effort picker (`[models."<alias>"] default_effort`).
+ *
+ * The offered tiers follow the resolution chain in lib/thinking-efforts.ts:
+ * the model's own `support_efforts`, else models.dev `reasoning_options`, else
+ * the built-in tier set. A select value that no stored tier produced is the
+ * computed default — it is only written to the config when the user picks it.
+ */
+function EffortCell({
+  model,
+  onChange,
+}: {
+  model: Model;
+  onChange: (next: Model) => void;
+}) {
+  const { t } = useTranslation();
+  const ref = getModelRef(model.model);
+  const { tiers, thinkingSupported } = resolveModelEfforts(model, ref);
+  const stored = readDefaultEffort(model);
+  // Never leave the select without a selection: an unknown tier list still
+  // defaults to the preferred tier, so the control shows the tier the CLI would
+  // use (high) instead of silently rendering the first option as if it were
+  // chosen.
+  const value = effectiveDefaultEffort(tiers, stored) ?? PREFERRED_EFFORT;
+
+  if (!thinkingSupported) {
+    return (
+      <span className="text-content-muted" title={t("effortNotSupported")}>
+        —
+      </span>
+    );
+  }
+
+  // Unknown tiers rank below every known one, keeping their original order.
+  const rank = (tier: string): number =>
+    TIER_RANK[tier.trim().toLowerCase()] ?? Number.POSITIVE_INFINITY;
+  const options = [...(tiers ?? THINKING_EFFORTS)].sort(
+    (a, b) => rank(a) - rank(b)
+  );
+  const storedSupported =
+    stored !== undefined &&
+    (tiers ?? []).some(
+      (tier) => tier.trim().toLowerCase() === stored.trim().toLowerCase()
+    );
+
+  return (
+    <div>
+      <select
+        className="w-full bg-input border border-border rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        value={value ?? ""}
+        onChange={(e) => onChange(setModelEffort(model, e.target.value, tiers))}
+      >
+        {options.map((tier) => (
+          <option key={tier} value={tier}>
+            {tier}
+          </option>
+        ))}
+      </select>
+      {value !== undefined && !storedSupported && (
+        <div className="mt-1 text-[11px] text-content-muted">
+          {t("effortDefaultHint", { value })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * `[models."<alias>"] upgrade` (kimi-code 2.3.0) — the model is scheduled for
+ * retirement and points at a replacement. Read-only here: the table already
+ * round-trips through `raw_other`, so nothing is written back.
+ */
+interface ModelUpgradeHint {
+  /** Recommended replacement model (upstream requires it; tolerated absent). */
+  model?: string;
+  /** ISO retirement timestamp, as written in the config. */
+  retirementAt?: string;
+}
+
+function readNonEmptyString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : trimmed;
+}
+
+function readModelUpgrade(rawOther: unknown): ModelUpgradeHint | undefined {
+  if (!rawOther || typeof rawOther !== "object" || Array.isArray(rawOther)) {
+    return undefined;
+  }
+  const upgrade = (rawOther as Record<string, unknown>).upgrade;
+  if (!upgrade || typeof upgrade !== "object" || Array.isArray(upgrade)) {
+    return undefined;
+  }
+  const fields = upgrade as Record<string, unknown>;
+  return {
+    model: readNonEmptyString(fields.model),
+    retirementAt: readNonEmptyString(fields.retirement_at),
+  };
+}
+
+/** A parsable timestamp renders as a local date; anything else verbatim. */
+function formatRetirementDate(value: string, lang: Language): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString(lang === "zh" ? "zh-CN" : "en-US");
+}
+
+/**
+ * Retirement badge for the model row. The badge itself only says the model is
+ * going away; the tooltip names the suggested replacement and the date.
+ */
+function UpgradeBadge({ model }: { model: Model }) {
+  const { t, lang } = useTranslation();
+  const upgrade = readModelUpgrade(model.raw_other);
+  if (!upgrade) return null;
+  const date = upgrade.retirementAt
+    ? formatRetirementDate(upgrade.retirementAt, lang)
+    : undefined;
+  const title = [
+    upgrade.model
+      ? t("modelUpgradeMigrateTo", { model: upgrade.model })
+      : undefined,
+    date ? t("modelUpgradeRetirementAt", { date }) : undefined,
+  ]
+    .filter((part): part is string => part !== undefined)
+    .join("\n");
+
+  return (
+    <span
+      className="ml-2 shrink-0 whitespace-nowrap rounded-md bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 text-[10px] text-amber-700 dark:text-amber-300"
+      title={title || undefined}
+    >
+      {t("modelUpcomingRetirement")}
+      {date ? ` (${date})` : ""}
+    </span>
   );
 }

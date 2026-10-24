@@ -40,6 +40,13 @@ interface SettingsAdvancedTabProps {
   /** All configured models (alias → entry) for the secondary-model picker. */
   models: Record<string, Model>;
   onChange: (nextRawOther: unknown) => void;
+  /**
+   * Seed model capabilities/effort from the models.dev snapshot; returns how
+   * many models changed. Optional because the standalone subagent settings
+   * page reuses this tab without a config-level seed hook (seeding is a no-op
+   * there).
+   */
+  onSeedModelsFromReference?: () => number;
 }
 
 // Effort tiers the CLI accepts; the value is forwarded verbatim upstream, and
@@ -156,6 +163,7 @@ export function SettingsAdvancedTab({
   rawOther,
   models,
   onChange,
+  onSeedModelsFromReference = () => 0,
 }: SettingsAdvancedTabProps) {
   const { t } = useTranslation();
   const [env, setEnv] = useState<ExperimentalEnvStatus | null>(null);
@@ -172,6 +180,8 @@ export function SettingsAdvancedTab({
   /** Last sync error (inline) and success flag (auto-cleared on next action). */
   const [syncError, setSyncError] = useState<string | null>(null);
   const [syncOk, setSyncOk] = useState(false);
+  /** Models whose capabilities/effort were seeded from the reference data. */
+  const [seededCount, setSeededCount] = useState(0);
 
   useEffect(() => {
     invoke<ExperimentalEnvStatus>("get_experimental_env_status")
@@ -192,6 +202,7 @@ export function SettingsAdvancedTab({
     setModelsDevBusy(true);
     setSyncError(null);
     setSyncOk(false);
+    setSeededCount(0);
     try {
       const st = await invoke<ModelsDevStatus>("sync_models_dev");
       setModelsDevStatus(st);
@@ -200,6 +211,9 @@ export function SettingsAdvancedTab({
       const raw = await invoke<string | null>("get_models_dev_snapshot");
       if (raw) applyModelsDevSnapshot(JSON.parse(raw) as Record<string, unknown>);
       setSyncOk(true);
+      // The index changed — fill in what the configured models are missing.
+      const seeded = onSeedModelsFromReference();
+      setSeededCount(seeded);
     } catch (err) {
       setSyncError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -212,10 +226,12 @@ export function SettingsAdvancedTab({
     setModelsDevBusy(true);
     setSyncError(null);
     setSyncOk(false);
+    setSeededCount(0);
     try {
       const st = await invoke<ModelsDevStatus>("reset_models_dev");
       setModelsDevStatus(st);
       await reloadModelsDev();
+      setSeededCount(onSeedModelsFromReference());
     } catch (err) {
       setSyncError(err instanceof Error ? err.message : String(err));
       refreshModelsDevStatus();
@@ -474,6 +490,11 @@ export function SettingsAdvancedTab({
         {syncOk && (
           <div className="bg-green-100 dark:bg-green-900/20 border border-green-300 dark:border-green-500/30 rounded-lg px-3 py-2 text-xs text-green-700 dark:text-green-400">
             {t("modelsDataSyncOk")}
+          </div>
+        )}
+        {seededCount > 0 && (
+          <div className="text-xs text-content-muted mt-1">
+            {t("modelsDevSeeded", { count: seededCount })}
           </div>
         )}
         {syncError && (

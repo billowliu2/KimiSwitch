@@ -2,9 +2,10 @@
 // Preset data structure inspired by cc-switch (MIT, © Jason Young)
 // https://github.com/farion1231/cc-switch
 
-import type { Model, Provider, ProviderType } from "../types";
+import type { Agent, Model, Provider, ProviderType } from "../types";
 import { getModelRef, capabilitiesFromRef } from "../lib/models-dev";
 import { getDefaultMaxContextSize } from "../lib/model-defaults";
+import { seedModelFromReference } from "../lib/thinking-efforts";
 
 /** Usage query kinds supported by the Rust usage layer (v1 union). */
 export type UsageKind =
@@ -572,12 +573,16 @@ export interface PresetConversionResult {
  * - max_context_size priority: preset override → models.dev snapshot →
  *   regex rules → DEFAULT_MAX_CONTEXT_SIZE (the last two are both handled
  *   inside getDefaultMaxContextSize).
+ * - For kimi_code the entries are additionally seeded with the thinking
+ *   `default_effort` derived from the reference data.
  */
 export function presetToProviderAndModels(
   preset: ProviderPreset,
   options: {
     existingProviderNames: Set<string>;
     existingModelAliases: Set<string>;
+    /** Target agent; kimi_code gets thinking-effort seeding. */
+    agent?: Agent;
   },
 ): PresetConversionResult {
   let name = preset.id;
@@ -600,7 +605,7 @@ export function presetToProviderAndModels(
     const maxContextSize =
       m.maxContextSize ?? ref?.context ?? getDefaultMaxContextSize(m.model);
 
-    return {
+    const model: Model = {
       alias,
       provider: name,
       model: m.model,
@@ -610,6 +615,9 @@ export function presetToProviderAndModels(
       supports_1m: maxContextSize >= 1_000_000,
       raw_other: {},
     };
+    // kimi_code also seeds the thinking default_effort (capabilities are
+    // already filled above, so the seed only adds the missing effort keys).
+    return options.agent === "kimi_code" ? seedModelFromReference(model, ref) : model;
   });
 
   const provider: Provider = {

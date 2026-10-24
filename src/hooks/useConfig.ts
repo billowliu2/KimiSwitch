@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "../i18n";
+import { materializeModelEfforts } from "../lib/thinking-efforts";
 import type { Agent, Config } from "../types";
 
 interface UseConfigReturn {
@@ -77,7 +78,12 @@ export function useConfig(agent: Agent): UseConfigReturn {
     if (!opts?.silent) setLoading(true);
     setError(null);
     try {
-      await invoke("save_agent_config_command", { agent, config: current });
+      // Fill in missing thinking-effort defaults so every saved model carries a
+      // `default_effort` the CLI will accept — computed from the resolved tier
+      // list, never overwriting a valid stored value.
+      const payload =
+        agent === "kimi_code" ? materializeModelEfforts(current) : current;
+      await invoke("save_agent_config_command", { agent, config: payload });
       await refresh({ silent: opts?.silent });
     } catch (err) {
       const raw = err instanceof Error ? err.message : String(err);

@@ -235,6 +235,13 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
     // sections the user removed in the UI — sections the CLI adds after
     // import are not in the baseline and survive the round-trip.
     let imported_section_keys: Vec<String> = rest.keys().cloned().collect();
+    // Same baseline idea for the two tables that live outside raw_other: the
+    // provider names and model aliases parsed above, in file order. Export
+    // only drops entries that were in these sets (the user removed them in
+    // the UI); entries the CLI adds after import are not in the sets and are
+    // merged back from the file on save.
+    let imported_provider_names: Vec<String> = providers.keys().cloned().collect();
+    let imported_model_aliases: Vec<String> = models.keys().cloned().collect();
     let raw_other = toml_value_to_json(&TomlValue::Table(rest));
 
     Config {
@@ -243,6 +250,8 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
         models,
         raw_other,
         imported_section_keys,
+        imported_provider_names,
+        imported_model_aliases,
     }
 }
 
@@ -273,7 +282,8 @@ fn ensure_opencode_go_session_header(provider: &Provider, pt: &mut Table) {
 /// Export Kimi Switch's internal `Config` to a Kimi Code TOML config value.
 ///
 /// If `existing` is provided, unknown top-level sections (e.g. `services`) are
-/// preserved; otherwise a fresh TOML table is used.
+/// preserved, as are provider and model entries the CLI added after our import
+/// (see [`merge_cli_added_entries`]); otherwise a fresh TOML table is used.
 pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> TomlValue {
     let mut root = existing
         .and_then(|v| v.as_table().cloned())
@@ -358,15 +368,13 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
             pt.insert("oauth".to_string(), oauth);
         }
         // Merge remaining raw fields (oauth, env and api_key_env are handled
-        // explicitly above).
+        // explicitly above). `default_model` is a first-class Kimi Code
+        // provider field (catalog onboarding writes "<provider>/<model>"
+        // there), so it lives in raw_other and is written back verbatim.
         if let TomlValue::Table(mut extra) = json_to_toml(&provider.raw_other).unwrap_or(TomlValue::Table(Table::new())) {
             extra.remove("oauth");
             extra.remove("env");
             extra.remove("api_key_env");
-            // Strip Kimi-Switch-private field: the remembered per-provider
-            // default model is stored in raw_other.default_model and must NOT
-            // leak into the agent's config.toml.
-            extra.remove("default_model");
             for (k, v) in extra {
                 pt.insert(k, v);
             }
@@ -374,6 +382,15 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
         ensure_opencode_go_session_header(provider, &mut pt);
         providers_table.insert(name.clone(), TomlValue::Table(pt));
     }
+    // Union with the on-disk table so provider blocks the CLI added after our
+    // import (catalog onboarding, `/provider` command) are not wiped by the
+    // full-table write below.
+    merge_cli_added_entries(
+        &mut providers_table,
+        existing,
+        "providers",
+        &config.imported_provider_names,
+    );
     root.insert("providers".to_string(), TomlValue::Table(providers_table));
 
     // Write all models — each provider's models are kept so the CLI's
@@ -409,6 +426,14 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
         }
         models_table.insert(alias.clone(), TomlValue::Table(mt));
     }
+    // Same union for the models table: `[models."alias"]` entries the CLI
+    // added after our import (model catalog refresh) must survive the save.
+    merge_cli_added_entries(
+        &mut models_table,
+        existing,
+        "models",
+        &config.imported_model_aliases,
+    );
     root.insert("models".to_string(), TomlValue::Table(models_table));
 
     // Sync UI-managed top-level sections (thinking, experimental,
@@ -449,6 +474,37 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
     }
 
     TomlValue::Table(root)
+}
+
+/// Union a UI-built table (`[providers]` / `[models]`) with the same table on
+/// disk, so entries the CLI wrote after our import are not lost to the
+/// full-table write.
+///
+/// Per disk entry: a key the UI table defines is left alone (the UI version
+/// wins), a key absent from the UI table but present in `baseline` (the
+/// import-time key set) was removed by the user and is dropped, and a key
+/// absent from both was added by the CLI and is copied over verbatim. An
+/// empty baseline (`Config` not built via import) keeps every disk-only
+/// entry — same rule as the top-level stale-key cleanup above.
+fn merge_cli_added_entries(
+    ui_table: &mut Table,
+    existing: Option<&TomlValue>,
+    section: &str,
+    baseline: &[String],
+) {
+    let disk_entries = match existing.and_then(|v| v.get(section)).and_then(|v| v.as_table()) {
+        Some(t) => t,
+        None => return,
+    };
+    for (key, value) in disk_entries {
+        if ui_table.contains_key(key) {
+            continue;
+        }
+        if baseline.iter().any(|b| b == key) {
+            continue;
+        }
+        ui_table.insert(key.clone(), value.clone());
+    }
 }
 
 fn toml_value_to_json(value: &TomlValue) -> Value {
@@ -627,6 +683,8 @@ api_key = ""
             models,
             raw_other: Value::Null,
             imported_section_keys: Vec::new(),
+            imported_provider_names: Vec::new(),
+            imported_model_aliases: Vec::new(),
         };
 
         let exported = config_to_kimi_code(&config, None);
@@ -700,6 +758,8 @@ api_key = ""
             models,
             raw_other: Value::Null,
             imported_section_keys: Vec::new(),
+            imported_provider_names: Vec::new(),
+            imported_model_aliases: Vec::new(),
         };
 
         let exported = config_to_kimi_code(&config, None);
@@ -741,6 +801,8 @@ api_key = ""
             models,
             raw_other: Value::Null,
             imported_section_keys: Vec::new(),
+            imported_provider_names: Vec::new(),
+            imported_model_aliases: Vec::new(),
         };
         let exported = config_to_kimi_code(&config, None);
         let root = exported.as_table().unwrap();
@@ -785,6 +847,8 @@ api_key = ""
                 models: IndexMap::new(),
                 raw_other: Value::Null,
                 imported_section_keys: Vec::new(),
+                imported_provider_names: Vec::new(),
+                imported_model_aliases: Vec::new(),
             };
             let exported = config_to_kimi_code(&config, None);
             let root = exported.as_table().unwrap().clone();
@@ -935,6 +999,8 @@ default_effort = "low"
             models,
             raw_other: Value::Null,
             imported_section_keys: Vec::new(),
+            imported_provider_names: Vec::new(),
+            imported_model_aliases: Vec::new(),
         };
 
         let exported = config_to_kimi_code(&config, None);
@@ -1051,6 +1117,8 @@ max_context_size = 1048576
             models: IndexMap::new(),
             raw_other: Value::Null,
             imported_section_keys: Vec::new(),
+            imported_provider_names: Vec::new(),
+            imported_model_aliases: Vec::new(),
         };
 
         let exported = config_to_kimi_code(&config, None);
@@ -1062,50 +1130,83 @@ max_context_size = 1048576
     }
 
     #[test]
-    fn kimi_code_export_strips_private_default_model() {
-        // The remembered per-provider default model (raw_other.default_model)
-        // is a Kimi-Switch-private field and must NOT leak into config.toml.
-        let mut providers = IndexMap::new();
-        providers.insert(
-            "p".to_string(),
-            Provider {
-                name: "p".to_string(),
-                provider_type: ProviderType::Anthropic,
-                base_url: None,
-                api_key: Some("sk-x".to_string()),
-                api_key_env: None,
-                env: IndexMap::new(),
-                note: None,
-                official_url: None,
-                managed: false,
-                enabled: true,
-                active: true,
-                icon: None,
-                icon_color: None,
-                raw_other: serde_json::json!({"default_model": "some-alias"}),
-                usage_kinds: None,
-                usage_config: None,
-            },
-        );
-        let config = Config {
-            default_model: None,
-            providers,
-            models: IndexMap::new(),
-            raw_other: Value::Null,
-            imported_section_keys: Vec::new(),
-        };
+    fn kimi_code_provider_default_model_roundtrip() {
+        // `default_model` on a provider block is a first-class Kimi Code field
+        // (catalog onboarding writes "<provider>/<model>" there), not a
+        // Kimi-Switch-private key: it must land in raw_other on import and be
+        // written back verbatim on export.
+        let toml_str = r#"
+default_model = "p/m1"
 
-        let exported = config_to_kimi_code(&config, None);
-        let root = exported.as_table().unwrap();
-        let provider = root
+[providers.p]
+type = "openai"
+api_key = "sk-x"
+default_model = "p/m2"
+
+[models."p/m1"]
+provider = "p"
+model = "m1"
+max_context_size = 128000
+
+[models."p/m2"]
+provider = "p"
+model = "m2"
+max_context_size = 128000
+"#;
+        let value: TomlValue = toml_str.parse().unwrap();
+        let config = kimi_code_to_config(&value);
+
+        let provider = config.providers.get("p").unwrap();
+        assert_eq!(
+            provider.raw_other.get("default_model").and_then(|v| v.as_str()),
+            Some("p/m2"),
+            "provider default_model must be readable from raw_other after import"
+        );
+
+        let exported = config_to_kimi_code(&config, Some(&value));
+        let pt = exported
+            .as_table().unwrap()
             .get("providers").unwrap()
             .as_table().unwrap()
             .get("p").unwrap()
-            .as_table().unwrap();
-        assert!(
-            !provider.contains_key("default_model"),
-            "private default_model must not leak into config.toml"
+            .as_table()
+            .unwrap();
+        assert_eq!(
+            pt.get("default_model").and_then(|v| v.as_str()),
+            Some("p/m2"),
+            "provider default_model must be written back to config.toml"
         );
+
+        // The value also survives a real serialize → parse round-trip (the
+        // path save_kimi_code_config / load_kimi_code_config use).
+        let text = toml::to_string_pretty(&exported).unwrap();
+        let reparsed: TomlValue = text.parse().unwrap();
+        let reloaded = kimi_code_to_config(&reparsed);
+        assert_eq!(
+            reloaded
+                .providers
+                .get("p").unwrap()
+                .raw_other.get("default_model").and_then(|v| v.as_str()),
+            Some("p/m2")
+        );
+
+        // A value set in the UI (App.tsx writes raw_other.default_model)
+        // reaches the file the same way.
+        let mut ui_config = kimi_code_to_config(&value);
+        ui_config
+            .providers
+            .get_mut("p")
+            .unwrap()
+            .raw_other["default_model"] = serde_json::json!("p/m1");
+        let exported = config_to_kimi_code(&ui_config, None);
+        let pt = exported
+            .as_table().unwrap()
+            .get("providers").unwrap()
+            .as_table().unwrap()
+            .get("p").unwrap()
+            .as_table()
+            .unwrap();
+        assert_eq!(pt.get("default_model").and_then(|v| v.as_str()), Some("p/m1"));
     }
 
     #[test]
@@ -1145,6 +1246,8 @@ max_context_size = 1048576
             models: IndexMap::new(),
             raw_other: Value::Null,
             imported_section_keys: Vec::new(),
+            imported_provider_names: Vec::new(),
+            imported_model_aliases: Vec::new(),
         };
         let exported = config_to_kimi_code(&config, None);
         let provider = exported
@@ -1165,6 +1268,8 @@ max_context_size = 1048576
             models: IndexMap::new(),
             raw_other: Value::Null,
             imported_section_keys: Vec::new(),
+            imported_provider_names: Vec::new(),
+            imported_model_aliases: Vec::new(),
         };
         let exported = config_to_kimi_code(&config, None);
         let provider = exported
@@ -1377,6 +1482,8 @@ max_context_size = 128000
                 models: IndexMap::new(),
                 raw_other: Value::Null,
                 imported_section_keys: Vec::new(),
+                imported_provider_names: Vec::new(),
+                imported_model_aliases: Vec::new(),
             };
             config_to_kimi_code(&config, None)
                 .as_table().unwrap()
@@ -1585,6 +1692,202 @@ retirement_at = "2027-01-15T00:00:00Z"
         assert_eq!(
             upgrade.get("retirement_at").and_then(|v| v.as_str()),
             Some("2027-01-15T00:00:00Z")
+        );
+    }
+
+    #[test]
+    fn kimi_code_export_keeps_cli_added_providers_and_models() {
+        // The CLI keeps writing config.toml behind our back (model catalog
+        // refresh, catalog onboarding adding [providers.*]/[models.*]). A save
+        // that runs after such a write must not wipe those entries: they are
+        // not in the import-time baseline, so the export union keeps them.
+        let imported_str = r#"
+default_model = "p1/m1"
+
+[providers.p1]
+type = "openai"
+api_key = "sk-1"
+
+[models."p1/m1"]
+provider = "p1"
+model = "m1"
+max_context_size = 128000
+
+[models."p1/m2"]
+provider = "p1"
+model = "m2"
+max_context_size = 200000
+"#;
+        let imported: TomlValue = imported_str.parse().unwrap();
+        let config = kimi_code_to_config(&imported);
+        assert_eq!(config.imported_provider_names, vec!["p1".to_string()]);
+        assert_eq!(
+            config.imported_model_aliases,
+            vec!["p1/m1".to_string(), "p1/m2".to_string()]
+        );
+
+        // On disk the CLI onboarded provider p2 and its model after our import.
+        let cli_updated: TomlValue = format!(
+            "{}\n[providers.p2]\ntype = \"openai\"\nbase_url = \"https://cli.example.com/v1\"\napi_key = \"sk-2\"\n\n[models.\"p2/m3\"]\nprovider = \"p2\"\nmodel = \"m3\"\nmax_context_size = 64000\n",
+            imported_str.trim_end()
+        )
+        .parse()
+        .unwrap();
+
+        let exported = config_to_kimi_code(&config, Some(&cli_updated));
+        let root = exported.as_table().unwrap();
+
+        let providers = root.get("providers").unwrap().as_table().unwrap();
+        assert!(providers.contains_key("p1"), "UI provider must still be written");
+        let p2 = providers
+            .get("p2")
+            .expect("CLI-added provider must survive the save")
+            .as_table()
+            .unwrap();
+        assert_eq!(p2.get("api_key").and_then(|v| v.as_str()), Some("sk-2"));
+        assert_eq!(
+            p2.get("base_url").and_then(|v| v.as_str()),
+            Some("https://cli.example.com/v1"),
+            "the CLI's provider block must be kept verbatim"
+        );
+
+        let models = root.get("models").unwrap().as_table().unwrap();
+        assert!(models.contains_key("p1/m2"));
+        let m3 = models
+            .get("p2/m3")
+            .expect("CLI-added model must survive the save")
+            .as_table()
+            .unwrap();
+        assert_eq!(m3.get("provider").and_then(|v| v.as_str()), Some("p2"));
+        assert_eq!(
+            m3.get("max_context_size").and_then(|v| v.as_integer()),
+            Some(64000)
+        );
+    }
+
+    #[test]
+    fn kimi_code_export_drops_user_removed_provider_and_its_models() {
+        // A provider that WAS in the import baseline and is gone from the UI
+        // (the user deleted it) must still be dropped, together with the
+        // models that only it owned.
+        let toml_str = r#"
+default_model = "p1/m1"
+
+[providers.p1]
+type = "openai"
+api_key = "sk-1"
+
+[providers.p2]
+type = "openai"
+api_key = "sk-2"
+
+[models."p1/m1"]
+provider = "p1"
+model = "m1"
+max_context_size = 128000
+
+[models."p1/m2"]
+provider = "p1"
+model = "m2"
+max_context_size = 200000
+
+[models."p2/m9"]
+provider = "p2"
+model = "m9"
+max_context_size = 64000
+"#;
+        let value: TomlValue = toml_str.parse().unwrap();
+        let mut config = kimi_code_to_config(&value);
+        assert!(config.imported_provider_names.contains(&"p1".to_string()));
+        assert!(config.imported_model_aliases.contains(&"p1/m2".to_string()));
+
+        config.providers.retain(|name, _| name != "p1");
+        config.models.retain(|_, m| m.provider != "p1");
+        config.default_model = Some("p2/m9".to_string());
+
+        let exported = config_to_kimi_code(&config, Some(&value));
+        let root = exported.as_table().unwrap();
+
+        let providers = root.get("providers").unwrap().as_table().unwrap();
+        assert!(
+            !providers.contains_key("p1"),
+            "user-removed provider must be dropped on export"
+        );
+        assert!(providers.contains_key("p2"));
+
+        let models = root.get("models").unwrap().as_table().unwrap();
+        assert!(
+            !models.keys().any(|k| k.starts_with("p1/")),
+            "models of the removed provider must be dropped on export"
+        );
+        assert!(models.contains_key("p2/m9"));
+    }
+
+    #[test]
+    fn kimi_code_export_keeps_disk_entries_with_empty_baseline() {
+        // A Config that was not built via import carries empty baselines, i.e.
+        // "we know nothing about what the user deleted", which must delete
+        // nothing from the on-disk tables (same rule as the top-level
+        // stale-key cleanup).
+        let existing: TomlValue = r#"
+default_model = "disk-p/disk-m"
+
+[providers.disk-p]
+type = "openai"
+api_key = "sk-disk"
+
+[models."disk-p/disk-m"]
+provider = "disk-p"
+model = "disk-m"
+max_context_size = 128000
+"#
+        .parse()
+        .unwrap();
+
+        let config = Config {
+            default_model: None,
+            providers: IndexMap::from([(
+                "ui-p".to_string(),
+                Provider {
+                    name: "ui-p".to_string(),
+                    provider_type: ProviderType::Openai,
+                    base_url: Some("https://ui.example.com/v1".to_string()),
+                    api_key: Some("sk-ui".to_string()),
+                    api_key_env: None,
+                    env: IndexMap::new(),
+                    note: None,
+                    official_url: None,
+                    managed: false,
+                    enabled: true,
+                    active: true,
+                    icon: None,
+                    icon_color: None,
+                    raw_other: Value::Null,
+                    usage_kinds: None,
+                    usage_config: None,
+                },
+            )]),
+            models: IndexMap::new(),
+            raw_other: Value::Null,
+            imported_section_keys: Vec::new(),
+            imported_provider_names: Vec::new(),
+            imported_model_aliases: Vec::new(),
+        };
+
+        let exported = config_to_kimi_code(&config, Some(&existing));
+        let root = exported.as_table().unwrap();
+
+        let providers = root.get("providers").unwrap().as_table().unwrap();
+        assert!(providers.contains_key("ui-p"));
+        assert!(
+            providers.contains_key("disk-p"),
+            "an empty baseline must not drop disk-only providers"
+        );
+
+        let models = root.get("models").unwrap().as_table().unwrap();
+        assert!(
+            models.contains_key("disk-p/disk-m"),
+            "an empty baseline must not drop disk-only models"
         );
     }
 }

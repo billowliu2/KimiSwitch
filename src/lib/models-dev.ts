@@ -28,6 +28,15 @@ export interface ModelRef {
   /** Upper bound on generated tokens (`limit.output` on models.dev). */
   output?: number;
   reasoning?: boolean;
+  /**
+   * Effort tiers parsed from models.dev `reasoning_options` (written by
+   * fetch-models-dev.mjs / models_dev.rs). Absent = unknown, not "no tiers".
+   */
+  efforts?: string[];
+  /** The "off" tier value when the model exposes an explicit off switch. */
+  off_effort?: string;
+  /** `reasoning_options` contains a `toggle` entry (thinking on/off switch). */
+  toggle?: boolean;
   tool_call?: boolean;
   structured_output?: boolean;
   image?: boolean;
@@ -124,7 +133,14 @@ export function onModelsDevReady(cb: () => void): void {
 
 /**
  * Look up reference data for a provider model id.
- * Matches exact key first, then any "<lab>/<id>" suffix.
+ *
+ * models.dev keys are `<provider>/<model>`, while a configured id can be bare
+ * (`claude-sonnet-5`), vendor-prefixed (`deepseek/deepseek-v4.1-flash`) or even
+ * carry our own provider name (`commandcode/deepseek-v4.1-flash`). The lookup
+ * therefore tries the exact key first, then every trailing segment of the id
+ * as a `/<segment…>` suffix, longest first — so a prefixed id still resolves to
+ * its reference entry instead of "unknown".
+ *
  * Returns undefined when nothing matches — callers fall back to
  * getDefaultMaxContextSize / manual capabilities.
  */
@@ -133,9 +149,12 @@ export function getModelRef(modelId: string): ModelRef | undefined {
   if (!id || !byLowerKey) return undefined;
   const exact = byLowerKey[id];
   if (exact) return exact;
-  const suffix = `/${id}`;
-  for (const [key, value] of Object.entries(byLowerKey)) {
-    if (key.endsWith(suffix)) return value;
+  const segments = id.split("/").filter((s) => s.length > 0);
+  for (let start = 0; start < segments.length; start += 1) {
+    const suffix = `/${segments.slice(start).join("/")}`;
+    for (const [key, value] of Object.entries(byLowerKey)) {
+      if (key.endsWith(suffix)) return value;
+    }
   }
   return undefined;
 }
@@ -143,7 +162,8 @@ export function getModelRef(modelId: string): ModelRef | undefined {
 /**
  * Map reference data to Kimi Code capability flags.
  * Multimodal (image_in/video_in) comes from models.dev input modalities;
- * always_thinking cannot be derived and stays manual.
+ * always_thinking is derived from `reasoning_options`: a model with effort
+ * tiers but neither an "off" tier nor a toggle always thinks.
  */
 export function capabilitiesFromRef(ref: ModelRef): string[] {
   const caps: string[] = [];
@@ -151,5 +171,13 @@ export function capabilitiesFromRef(ref: ModelRef): string[] {
   if (ref.tool_call) caps.push("tool_use");
   if (ref.image) caps.push("image_in");
   if (ref.video) caps.push("video_in");
+  if (
+    Array.isArray(ref.efforts) &&
+    ref.efforts.length > 0 &&
+    !ref.off_effort &&
+    !ref.toggle
+  ) {
+    caps.push("always_thinking");
+  }
   return caps;
 }

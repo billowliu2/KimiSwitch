@@ -69,6 +69,16 @@ if (proxy && process.env.NODE_USE_ENV_PROXY !== "1") {
 }
 
 const SOURCE_URL = "https://models.dev/api.json";
+/**
+ * Compact-snapshot schema version, written into both generated files.
+ * v1 = no stamp; v2 = per-model `efforts` / `off_effort` / `toggle` parsed
+ * from `reasoning_options`. models_dev.rs refuses a runtime-synced copy
+ * (~/.kimi-switch/models-dev.json) whose stamp is missing or older, so a stale
+ * v1 copy cannot shadow the newer built-in snapshot; the settings page's
+ * "sync now" rewrites it in the current format.
+ * MUST match SNAPSHOT_SCHEMA_VERSION in src-tauri/src/models_dev.rs.
+ */
+const SCHEMA_VERSION = 2;
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SNAPSHOT = join(ROOT, "src", "lib", "models-dev.json");
 // Static-asset copy served to the frontend (see header — must equal SNAPSHOT).
@@ -88,6 +98,55 @@ function pickCost(cost) {
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
+/**
+ * Parse models.dev `reasoning_options` into the fields the app reads.
+ *
+ * Shape: an array whose elements are either `{type:"effort",values:[...]}`
+ * (strings = tiers; `"none"` or `null` = an explicit "off" tier) or
+ * `{type:"toggle"}` (the model has a thinking on/off switch).
+ * Returns undefined when nothing usable is found — an absent key means
+ * "unknown", never "no tiers".
+ */
+function pickReasoningOptions(m) {
+  const options = m?.reasoning_options;
+  if (!Array.isArray(options)) return undefined;
+  const efforts = [];
+  const seen = new Set();
+  let off = false;
+  let toggle = false;
+  for (const opt of options) {
+    if (!opt || typeof opt !== "object") continue;
+    const type = typeof opt.type === "string" ? opt.type.toLowerCase() : "";
+    if (type === "toggle") {
+      toggle = true;
+      continue;
+    }
+    if (type !== "effort" || !Array.isArray(opt.values)) continue;
+    for (const value of opt.values) {
+      // A null entry is the "off" tier spelled without a label.
+      if (value === null) {
+        off = true;
+        continue;
+      }
+      if (typeof value !== "string") continue;
+      const tier = value.trim();
+      if (!tier) continue;
+      if (tier.toLowerCase() === "none") {
+        off = true;
+        continue;
+      }
+      if (seen.has(tier)) continue;
+      seen.add(tier);
+      efforts.push(tier);
+    }
+  }
+  const out = {};
+  if (efforts.length > 0) out.efforts = efforts;
+  if (off) out.off_effort = "none";
+  if (toggle) out.toggle = true;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 async function main() {
   const res = await fetch(SOURCE_URL, {
     headers: { Accept: "application/json" },
@@ -102,12 +161,20 @@ async function main() {
 
   // ── snapshot: "<provider>/<model>" → compact fields (frontend) ────────────
   // Keeps the shape callers already consume (getModelRef / capabilitiesFromRef)
-  // and adds `cost`. A single `last_updated` key is appended for freshness.
-  const snapshot = { last_updated: new Date().toISOString().slice(0, 10) };
+  // and adds `cost`. The `schema_version` / `last_updated` scalars head the
+  // file; both sides skip non-object entries when indexing.
+  const snapshot = {
+    schema_version: SCHEMA_VERSION,
+    last_updated: new Date().toISOString().slice(0, 10),
+  };
 
   // ── full list: provider → { name, models: [...] } incl. pricing ───────────
   // Human-readable complete inventory for price benchmarking / debugging.
-  const full = { last_updated: snapshot.last_updated, providers: {} };
+  const full = {
+    schema_version: SCHEMA_VERSION,
+    last_updated: snapshot.last_updated,
+    providers: {},
+  };
 
   let modelCount = 0;
   for (const [providerId, provider] of Object.entries(raw)) {
@@ -148,6 +215,9 @@ async function main() {
       }
       const cost = pickCost(m.cost);
       if (cost) entry.cost = cost;
+      // Thinking tiers / off switch / toggle — see pickReasoningOptions.
+      const reasoningOptions = pickReasoningOptions(m);
+      if (reasoningOptions) Object.assign(entry, reasoningOptions);
       snapshot[key] = entry;
 
       // full-list entry
@@ -155,6 +225,7 @@ async function main() {
         id: modelId,
         name: typeof m.name === "string" ? m.name : modelId,
         ...(cost ? { cost } : {}),
+        ...(reasoningOptions ?? {}),
         ...(typeof m.limit?.context === "number" && m.limit.context > 0
           ? { context: m.limit.context }
           : {}),

@@ -4,7 +4,9 @@
 //! scripts/fetch-models-dev.mjs before every build). This module lets the
 //! user refresh it at runtime from https://models.dev/api.json without
 //! rebuilding: the synced copy lives at `~/.kimi-switch/models-dev.json` and
-//! takes precedence whenever it exists and parses. The dashboard price index
+//! takes precedence whenever it exists, parses *and* carries the current
+//! `schema_version` (a v1 copy without the stamp is ignored so it cannot
+//! shadow a newer built-in snapshot). The dashboard price index
 //! (see dashboard::models_dev_cost_index) re-checks that file's mtime so new
 //! prices take effect without an app restart.
 
@@ -26,21 +28,40 @@ const BUILTIN_SNAPSHOT: &str = include_str!("../../src/lib/models-dev.json");
 const SOURCE_URL: &str = "https://models.dev/api.json";
 const SYNCED_FILE: &str = "models-dev.json";
 
+/// Snapshot schema version this build understands. MUST match `SCHEMA_VERSION`
+/// in scripts/fetch-models-dev.mjs. v1 = the old format without a stamp; v2
+/// adds per-model `efforts` / `off_effort` / `toggle` parsed from
+/// `reasoning_options`.
+const SNAPSHOT_SCHEMA_VERSION: u64 = 2;
+
 /// Where the runtime-synced snapshot lives. The dashboard stats this path's
 /// mtime to decide when to rebuild its price index.
 pub fn synced_path() -> PathBuf {
     kimi_switch_data_dir().join(SYNCED_FILE)
 }
 
-/// Read + validate the synced copy. Anything unparsable or missing
-/// `last_updated` is treated as absent so the built-in snapshot takes over.
+/// Read + validate the synced copy. Anything unparsable, missing
+/// `last_updated`, or carrying an older/unknown `schema_version` is treated as
+/// absent so the built-in snapshot takes over.
 fn read_synced() -> Option<String> {
     let raw = fs::read_to_string(synced_path()).ok()?;
-    let v: Value = serde_json::from_str(&raw).ok()?;
-    if v.get("last_updated").and_then(|x| x.as_str()).is_some() {
-        Some(raw)
-    } else {
-        None
+    parse_synced(&raw)
+}
+
+/// Validation half of `read_synced` (pure, unit-tested): a synced copy is only
+/// usable when it carries `last_updated` and its schema version matches this
+/// build. A v1 copy (no stamp, no `efforts` data) must NOT shadow the newer
+/// built-in snapshot — it is ignored here, and the settings page's "sync now"
+/// rewrites it in the current format. No automatic re-sync: falling back to the
+/// built-in snapshot is enough and needs no network.
+fn parse_synced(raw: &str) -> Option<String> {
+    let v: Value = serde_json::from_str(raw).ok()?;
+    if v.get("last_updated").and_then(|x| x.as_str()).is_none() {
+        return None;
+    }
+    match v.get("schema_version").and_then(|x| x.as_u64()) {
+        Some(version) if version == SNAPSHOT_SCHEMA_VERSION => Some(raw.to_string()),
+        _ => None,
     }
 }
 
@@ -61,14 +82,17 @@ pub struct ModelsDevStatus {
 }
 
 /// Count models / providers and read the `last_updated` stamp from a
-/// snapshot string ("<provider>/<model>" keys, plus the `last_updated` meta).
+/// snapshot string ("<provider>/<model>" keys, plus the `schema_version` /
+/// `last_updated` metadata scalars, which are skipped).
 fn status_of(source: &'static str, raw: &str) -> ModelsDevStatus {
     let v: Value = serde_json::from_str(raw).unwrap_or(Value::Null);
     let mut model_count = 0u64;
     let mut providers = HashSet::new();
     if let Some(obj) = v.as_object() {
         for (k, entry) in obj {
-            if k == "last_updated" || !entry.is_object() {
+            // Metadata scalars: `last_updated` by name, `schema_version` by
+            // shape (it is a number, so `is_object` already rejects it).
+            if k == "last_updated" || k == "schema_version" || !entry.is_object() {
                 continue;
             }
             model_count += 1;
@@ -109,12 +133,74 @@ fn num(v: f64) -> Value {
     }
 }
 
+/// Parse models.dev `reasoning_options` into `efforts` / `off_effort` /
+/// `toggle` (field names match scripts/fetch-models-dev.mjs exactly).
+///
+/// Elements are either `{type:"effort",values:[...]}` (strings are tiers;
+/// `"none"` or `null` marks an explicit "off" tier) or `{type:"toggle"}`.
+/// Nothing usable → no keys written, keeping "absent = unknown".
+fn insert_reasoning_options(entry: &mut serde_json::Map<String, Value>, m: &Value) {
+    let Some(options) = m.get("reasoning_options").and_then(|x| x.as_array()) else {
+        return;
+    };
+    let mut efforts: Vec<Value> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut off = false;
+    let mut toggle = false;
+    for opt in options {
+        let kind = opt
+            .get("type")
+            .and_then(|x| x.as_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        match kind.as_str() {
+            "toggle" => toggle = true,
+            "effort" => {
+                let Some(values) = opt.get("values").and_then(|x| x.as_array()) else {
+                    continue;
+                };
+                for value in values {
+                    // A null entry is the "off" tier spelled without a label.
+                    if value.is_null() {
+                        off = true;
+                        continue;
+                    }
+                    let Some(tier) = value.as_str().map(str::trim) else {
+                        continue;
+                    };
+                    if tier.is_empty() {
+                        continue;
+                    }
+                    if tier.eq_ignore_ascii_case("none") {
+                        off = true;
+                        continue;
+                    }
+                    if seen.insert(tier.to_string()) {
+                        efforts.push(Value::String(tier.to_string()));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    if !efforts.is_empty() {
+        entry.insert("efforts".into(), Value::Array(efforts));
+    }
+    if off {
+        entry.insert("off_effort".into(), Value::String("none".into()));
+    }
+    if toggle {
+        entry.insert("toggle".into(), Value::Bool(true));
+    }
+}
+
 /// Transform models.dev api.json into the compact snapshot shape produced by
 /// scripts/fetch-models-dev.mjs (the canonical field-picking logic lives
 /// there; this is the runtime port). Pure — unit-tested below.
 fn build_snapshot(raw: &Value) -> Result<Value, String> {
     let providers = raw.as_object().ok_or("api.json is not a JSON object")?;
     let mut snapshot = serde_json::Map::new();
+    snapshot.insert("schema_version".into(), Value::from(SNAPSHOT_SCHEMA_VERSION));
     snapshot.insert(
         "last_updated".into(),
         Value::String(Utc::now().format("%Y-%m-%d").to_string()),
@@ -171,6 +257,7 @@ fn build_snapshot(raw: &Value) -> Result<Value, String> {
                     entry.insert("cost".into(), Value::Object(c));
                 }
             }
+            insert_reasoning_options(&mut entry, m);
             snapshot.insert(format!("{provider_id}/{model_id}"), Value::Object(entry));
         }
     }
@@ -290,7 +377,17 @@ mod tests {
                         "tool_call": true,
                         "structured_output": true,
                         "modalities": { "input": ["text", "image"], "output": ["text"] },
+                        "reasoning_options": [
+                            { "type": "toggle" },
+                            { "type": "effort", "values": ["none", "low", "medium", "high"] }
+                        ],
                         "cost": { "input": 3.0, "output": 15.0, "cache_read": 0.3, "cache_write": 0.0 }
+                    },
+                    "kimi-always": {
+                        "name": "Kimi Always",
+                        "reasoning_options": [
+                            { "type": "effort", "values": ["low", "medium", "high"] }
+                        ]
                     },
                     "kimi-image": {
                         "name": "Kimi Image",
@@ -313,6 +410,9 @@ mod tests {
         let snap = build_snapshot(&raw).unwrap();
         let obj = snap.as_object().unwrap();
         assert!(obj.contains_key("last_updated"));
+        // The runtime port must stamp the same schema version as the mjs
+        // script, otherwise a synced copy written here would be rejected.
+        assert_eq!(obj["schema_version"], json!(SNAPSHOT_SCHEMA_VERSION));
 
         let k3 = &obj["moonshotai/kimi-k3"];
         assert_eq!(k3["name"], "Kimi K3");
@@ -326,6 +426,16 @@ mod tests {
         assert_eq!(k3["cost"]["input"], 3.0);
         assert_eq!(k3["cost"]["cache_read"], 0.3);
         assert_eq!(k3["cost"]["cache_write"], 0.0);
+        // reasoning_options: "none" → off_effort, toggle → true.
+        assert_eq!(k3["efforts"], json!(["low", "medium", "high"]));
+        assert_eq!(k3["off_effort"], "none");
+        assert_eq!(k3["toggle"], true);
+
+        // Effort tiers only: the toggle / off keys stay absent ("unknown").
+        let always = &obj["moonshotai/kimi-always"];
+        assert_eq!(always["efforts"], json!(["low", "medium", "high"]));
+        assert!(always.get("off_effort").is_none());
+        assert!(always.get("toggle").is_none());
 
         // Context 0 / output 0 → dropped; video modality → flagged.
         let img = &obj["moonshotai/kimi-image"];
@@ -333,6 +443,7 @@ mod tests {
         assert!(img.get("output").is_none());
         assert_eq!(img["video"], true);
         assert!(img.get("cost").is_none());
+        assert!(img.get("efforts").is_none());
 
         // Explicit false is omitted (same as the mjs script).
         let glm = &obj["zhipuai/glm-5.3"];
@@ -343,6 +454,7 @@ mod tests {
     #[test]
     fn status_counts_models_and_providers() {
         let raw = r#"{
+            "schema_version": 2,
             "last_updated": "2026-09-21",
             "moonshotai/kimi-k3": { "cost": { "input": 3.0 } },
             "moonshotai/kimi-k2": { "name": "K2" },
@@ -350,8 +462,50 @@ mod tests {
         }"#;
         let st = status_of("builtin", raw);
         assert_eq!(st.last_updated, "2026-09-21");
+        // Metadata scalars (schema_version / last_updated) are not models.
         assert_eq!(st.model_count, 3);
         assert_eq!(st.provider_count, 2);
+    }
+
+    /// The synced copy only wins when its schema version matches this build —
+    /// a v1 copy (no stamp, no `efforts`) must not shadow the built-in one.
+    #[test]
+    fn parse_synced_accepts_only_the_current_schema() {
+        let v2 = r#"{"schema_version": 2, "last_updated": "2026-10-23", "a/b": {}}"#;
+        assert_eq!(parse_synced(v2).as_deref(), Some(v2));
+
+        // v1: no stamp at all — the pre-upgrade format under ~/.kimi-switch/.
+        let v1 = r#"{"last_updated": "2026-10-23", "a/b": {}}"#;
+        assert!(parse_synced(v1).is_none());
+
+        // A newer / older stamp is equally unusable.
+        let older = r#"{"schema_version": 1, "last_updated": "2026-10-23"}"#;
+        assert!(parse_synced(older).is_none());
+        let newer = r#"{"schema_version": 3, "last_updated": "2026-10-23"}"#;
+        assert!(parse_synced(newer).is_none());
+        let stringy = r#"{"schema_version": "2", "last_updated": "2026-10-23"}"#;
+        assert!(parse_synced(stringy).is_none());
+
+        // Missing stamps / garbage stay unusable too.
+        assert!(parse_synced(r#"{"schema_version": 2}"#).is_none());
+        assert!(parse_synced(r#"{"schema_version": 2, "last_updated": 5}"#).is_none());
+        assert!(parse_synced("not json").is_none());
+    }
+
+    /// The write path (sync / "立即同步") must produce a copy that `parse_synced`
+    /// accepts — i.e. stamped with the current version, not just last_updated.
+    #[test]
+    fn sync_write_path_is_stamped_for_parse_synced() {
+        let snapshot = build_snapshot(&json!({
+            "moonshotai": { "models": { "kimi-k3": { "name": "Kimi K3" } } }
+        }))
+        .unwrap();
+        let json = serde_json::to_string_pretty(&snapshot).unwrap() + "\n";
+        assert_eq!(parse_synced(&json).as_deref(), Some(json.as_str()));
+        // Round-trips through the status counter without inflating the count.
+        let st = status_of("synced", &json);
+        assert_eq!(st.model_count, 1);
+        assert_eq!(st.provider_count, 1);
     }
 
     #[test]

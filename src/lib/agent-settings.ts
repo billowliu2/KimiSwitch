@@ -3,7 +3,10 @@ import type { AgentSettings } from "../types";
 const DEFAULT_SETTINGS: AgentSettings = {
   thinking: {
     enabled: true,
-    effort: "medium",
+    // No `effort` here on purpose: the global `[thinking] effort` outranks a
+    // per-model `[models.*] default_effort` upstream, so a materialized
+    // default would shadow the model-level tier. Absent stays absent (see
+    // getAgentSettings / setAgentSettings); the UI shows "medium" itself.
     keep: "all",
   },
   loop_control: {
@@ -21,6 +24,9 @@ const DEFAULT_SETTINGS: AgentSettings = {
   },
   permission: { rules: [] },
   hooks: [],
+  // Top-level key (kimi-code 2.3.0): upstream default false means the survey
+  // is ON — this is the UI's "not disabled" default, never a written value.
+  disable_feedback_survey: false,
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -56,10 +62,22 @@ export function getAgentSettings(rawOther: unknown): AgentSettings {
   ) {
     loop.max_attempts_per_step = sectionLoop.max_retries_per_step;
   }
+  const sectionThinking = getSection<AgentSettings["thinking"]>(
+    rawOther,
+    "thinking"
+  );
   const thinking = {
     ...DEFAULT_SETTINGS.thinking,
-    ...getSection<AgentSettings["thinking"]>(rawOther, "thinking"),
+    ...sectionThinking,
   };
+  // `effort` is only reported when the config carries a string: the global
+  // `[thinking] effort` outranks a per-model `[models.*] default_effort`
+  // upstream, so an absent key must not be back-filled with a default that a
+  // plain save would then pin and shadow the model-level tier with. The panel
+  // shows "medium" on its own when the tier is undefined.
+  if (typeof sectionThinking?.effort !== "string") {
+    delete thinking.effort;
+  }
   // Upstream engines only accept string off values ("off"/"none"/"no"; see
   // KEEP_OFF_VALUES) — a `false` from an old config fails the v2 validator
   // and the v1 strict parse. Normalize every legacy off value to "off" for
@@ -104,6 +122,10 @@ export function getAgentSettings(rawOther: unknown): AgentSettings {
       typeof root.repeat_breaker === "boolean"
         ? root.repeat_breaker
         : undefined,
+    // Top-level key (kimi-code 2.3.0, moved from tui.toml): upstream default
+    // false = survey on, and the session-rating host reads it as
+    // `disableFeedbackSurvey === true`, so only a literal true counts.
+    disable_feedback_survey: root.disable_feedback_survey === true,
   };
 }
 
@@ -139,6 +161,16 @@ export function setAgentSettings(
   const patchHasKeep = patch.thinking !== undefined && "keep" in patch.thinking;
   if (!("keep" in rawThinking) && !patchHasKeep) {
     delete next.thinking?.keep;
+  }
+  // `effort` follows the same rule, and here it matters beyond cosmetics: the
+  // global `[thinking] effort` outranks a per-model `[models.*] default_effort`
+  // upstream, so materializing "medium" on every save would silently shadow a
+  // model-level "high". Written only when the config already carries the key
+  // or the patch sets it; otherwise the key stays out and upstream decides.
+  const patchHasEffort =
+    patch.thinking !== undefined && "effort" in patch.thinking;
+  if (!("effort" in rawThinking) && !patchHasEffort) {
+    delete next.thinking?.effort;
   }
 
   // The v2 engine (default) only reads max_attempts_per_step; the legacy v1
@@ -188,6 +220,19 @@ export function setAgentSettings(
     } else {
       delete root[key];
     }
+  }
+
+  // `disable_feedback_survey` runs the other way round: its upstream default
+  // is false (survey on) and kimi-code's session-rating host reads it as
+  // `get('disableFeedbackSurvey') === true`, so only a checked box is written
+  // — unchecking removes the key so the config follows the upstream default
+  // rather than pinning a `false` that means the same thing.
+  const disableFeedbackSurvey =
+    patch.disable_feedback_survey ?? current.disable_feedback_survey;
+  if (disableFeedbackSurvey === true) {
+    root.disable_feedback_survey = true;
+  } else {
+    delete root.disable_feedback_survey;
   }
 
   return root;

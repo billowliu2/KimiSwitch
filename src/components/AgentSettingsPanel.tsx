@@ -138,7 +138,11 @@ export function AgentSettingsPanel({ rawOther, onChange, models, defaultModel }:
   };
 
   // Upstream takes a free-form string: keep a hand-written tier visible and
-  // selectable instead of dropping it from the control.
+  // selectable instead of dropping it from the control. The "medium" fallback
+  // is display-only — `settings.thinking.effort` stays undefined while the
+  // config has no `[thinking] effort` key, so picking a tier here is what
+  // writes it (an unmaterialized default must not shadow a per-model
+  // `default_effort`; see lib/agent-settings.ts).
   const effort = settings.thinking?.effort ?? "medium";
   const effortOptions: {
     key: string;
@@ -251,8 +255,11 @@ export function AgentSettingsPanel({ rawOther, onChange, models, defaultModel }:
       </Card>
 
       <Card title={t("behaviorSettings")}>
-        {/* Top-level booleans, both default true upstream: false is written
-            explicitly, true removes the key (see setAgentSettings). */}
+        {/* Top-level booleans. auto_session_title / repeat_breaker default to
+            true upstream: false is written explicitly, true removes the key.
+            disable_feedback_survey (kimi-code 2.3.0) is the inverse — its
+            upstream default is false (survey on), so only true is written and
+            unchecking removes the key (see setAgentSettings). */}
         <Checkbox
           label={t("autoSessionTitle")}
           checked={settings.auto_session_title ?? true}
@@ -265,6 +272,14 @@ export function AgentSettingsPanel({ rawOther, onChange, models, defaultModel }:
           onChange={(checked) => update({ repeat_breaker: checked })}
         />
         <p className="text-xs text-content-muted">{t("repeatBreakerDesc")}</p>
+        <Checkbox
+          label={t("disableFeedbackSurvey")}
+          checked={settings.disable_feedback_survey ?? false}
+          onChange={(checked) => update({ disable_feedback_survey: checked })}
+        />
+        <p className="text-xs text-content-muted">
+          {t("disableFeedbackSurveyDesc")}
+        </p>
       </Card>
 
       <Card title={t("permissionRules")}>
@@ -274,7 +289,9 @@ export function AgentSettingsPanel({ rawOther, onChange, models, defaultModel }:
             minimal scope). Absent key = upstream default on. Since
             kimi-code 0.41.0 the guard only gates Manual/YOLO modes —
             Auto (never-ask) mode no longer intercepts dangerous
-            commands. */}
+            commands. Since kimi-code 2.3.0 the switch gates all three
+            built-in ask policies — dangerous command, sensitive file, and
+            git control path — not just the dangerous-command guard. */}
         <Checkbox
           label={t("permissionDangerousGuard")}
           checked={settings.permission?.dangerous_command_guard ?? true}

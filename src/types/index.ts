@@ -76,6 +76,18 @@ export interface Config {
    * user removed in the UI); CLI-added sections are preserved.
    */
   imported_section_keys?: string[];
+  /**
+   * Provider names captured in the `[providers]` table at import time by the
+   * Rust side. Export drops only baseline names absent from the UI's provider
+   * table (providers the user removed); CLI-added providers are preserved.
+   */
+  imported_provider_names?: string[];
+  /**
+   * Model aliases captured in the `[models]` table at import time by the Rust
+   * side. Export drops only baseline aliases absent from the UI's model table;
+   * CLI-added models are preserved.
+   */
+  imported_model_aliases?: string[];
 }
 
 /**
@@ -179,6 +191,11 @@ export interface AgentSettings {
    *  consecutively repeated identical tool calls. Default true; env
    *  KIMI_CODE_REPEAT_BREAKER outranks this config. */
   repeat_breaker?: boolean;
+  /** Top-level config.toml key (kimi-code 2.3.0, moved here from tui.toml):
+   *  turn off the session-end rating / feedback survey. Upstream default is
+   *  false — the survey is on — and the consumer reads it as `=== true`, so
+   *  only an explicit true is ever written to the config. */
+  disable_feedback_survey?: boolean;
   permission?: {
     rules?: PermissionRule[];
     /** kimi-code `[permission]` key. Default true when the key is

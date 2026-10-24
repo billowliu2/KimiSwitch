@@ -251,6 +251,16 @@ pub struct Config {
     /// absent from the current raw_other are dropped on export.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub imported_section_keys: Vec<String>,
+    /// Provider names captured in the `[providers]` table at import time.
+    /// Export uses this baseline to distinguish "user removed this provider in
+    /// the UI" from "the CLI added this provider after we imported" — only
+    /// baseline names absent from the current provider map are dropped.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub imported_provider_names: Vec<String>,
+    /// Model aliases captured in the `[models]` table at import time. Same
+    /// baseline semantics as `imported_provider_names`, for the models table.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub imported_model_aliases: Vec<String>,
 }
 
 impl PartialEq for Config {
@@ -260,6 +270,8 @@ impl PartialEq for Config {
             && self.models == other.models
             && self.raw_other == other.raw_other
             && self.imported_section_keys == other.imported_section_keys
+            && self.imported_provider_names == other.imported_provider_names
+            && self.imported_model_aliases == other.imported_model_aliases
     }
 }
 

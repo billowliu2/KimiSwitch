@@ -126,6 +126,12 @@ export const zhTranslations = {
   contextSize: "上下文长度",
   maxOutputSize: "最大输出",
   maxOutputRef: "参考 {value}",
+  thinkingEffort: "思考等级",
+  effortDefaultHint: "默认 {value}",
+  effortNotSupported: "不支持",
+  modelUpcomingRetirement: "将停用",
+  modelUpgradeMigrateTo: "建议迁移至 {model}",
+  modelUpgradeRetirementAt: "停用时间：{date}",
   default: "默认",
   operation: "操作",
   isDefault: "已默认",
@@ -194,6 +200,9 @@ export const zhTranslations = {
   repeatBreaker: "重复调用拦截",
   repeatBreakerDesc:
     "连续重复相同工具调用时提醒并强制停止（默认开启）。环境变量 KIMI_CODE_REPEAT_BREAKER 会覆盖本配置。",
+  disableFeedbackSurvey: "禁用反馈调查",
+  disableFeedbackSurveyDesc:
+    "关闭会话结束后的评分 / 调查提示（上游默认开启调查；仅勾选时向 config.toml 写入 disable_feedback_survey = true，未勾选则不写入该键）。",
   permissionRules: "权限规则",
   permissionDecision: "处置",
   permissionPattern: "模式",
@@ -202,7 +211,7 @@ export const zhTranslations = {
   permissionAsk: "询问",
   permissionDangerousGuard: "危险命令防护",
   permissionDangerousGuardDesc:
-    "开启（默认）时：Manual/YOLO 模式下，危险命令（rm -rf、shutdown、dd of= 等）和无法静态分析的命令会强制询问；自动（永不询问）模式自 kimi-code 0.41.0 起不再拦截。关闭后回归旧行为。环境变量 KIMI_CODE_DANGEROUS_COMMAND_GUARD 会覆盖本配置",
+    "开启（默认）时：Manual/YOLO 模式下，危险命令（rm -rf、shutdown、dd of= 等）和无法静态分析的命令会强制询问；敏感文件访问（如 .env、id_rsa）与 .git 内部路径访问自 kimi-code 2.3.0 起同样受本开关门控。自动（永不询问）模式自 kimi-code 0.41.0 起不再拦截。关闭后回归旧行为。环境变量 KIMI_CODE_DANGEROUS_COMMAND_GUARD 会覆盖本配置",
   addRule: "+ 添加规则",
   addCommonRules: "添加常用规则",
   hooks: "生命周期钩子",
@@ -623,6 +632,7 @@ export const zhTranslations = {
   modelsDataSyncing: "同步中...",
   modelsDataSyncOk: "已同步，模型参数与单价已刷新",
   modelsDataSyncFailed: "同步失败",
+  modelsDevSeeded: "已用参考数据补齐 {count} 个模型的能力/思考等级，保存后生效",
   modelsDataRestore: "恢复内置数据",
   modelsDataRestoreConfirm:
     "删除本地同步副本并回退到随版本内置的快照数据？之后可随时重新同步。",

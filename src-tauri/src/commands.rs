@@ -142,8 +142,8 @@ fn load_agent_config_uncached(agent: Agent) -> Result<Config, String> {
             // config.toml is the authoritative source for provider/model data
             // because the user can add or edit providers at any time via the
             // CLI's /provider command. SQLite only enriches with Kimi
-            // Switch-private metadata (note, official_url, remembered default
-            // model) and fills gaps when config.toml is incomplete.
+            // Switch-private metadata (note, official_url, icons) and fills
+            // gaps when config.toml is incomplete.
             let mut config = crate::kimi_code_io::load_kimi_code_config_as_config()
                 .map_err(fmt_anyhow)?;
 
@@ -157,17 +157,22 @@ fn load_agent_config_uncached(agent: Agent) -> Result<Config, String> {
                         // the agent's config.toml.
                         p.icon = db_p.icon.clone();
                         p.icon_color = db_p.icon_color.clone();
-                        // Restore the remembered per-provider default model
-                        // (Kimi-Switch-private, stored in raw_other).
-                        if let Some(dm) = db_p.raw_other.get("default_model") {
-                            match &mut p.raw_other {
-                                serde_json::Value::Object(obj) => {
-                                    obj.insert("default_model".to_string(), dm.clone());
-                                }
-                                _ => {
-                                    let mut obj = serde_json::Map::new();
-                                    obj.insert("default_model".to_string(), dm.clone());
-                                    p.raw_other = serde_json::Value::Object(obj);
+                        // The per-provider `default_model` is an official Kimi
+                        // Code field carried in raw_other, so config.toml wins
+                        // whenever it defines one. SQLite only backfills it for
+                        // rows saved while it was still stored as
+                        // Kimi-Switch-private data.
+                        if p.raw_other.get("default_model").is_none() {
+                            if let Some(dm) = db_p.raw_other.get("default_model") {
+                                match &mut p.raw_other {
+                                    serde_json::Value::Object(obj) => {
+                                        obj.insert("default_model".to_string(), dm.clone());
+                                    }
+                                    _ => {
+                                        let mut obj = serde_json::Map::new();
+                                        obj.insert("default_model".to_string(), dm.clone());
+                                        p.raw_other = serde_json::Value::Object(obj);
+                                    }
                                 }
                             }
                         }
@@ -324,6 +329,10 @@ fn build_active_config(config: &Config) -> Config {
         models,
         raw_other: config.raw_other.clone(),
         imported_section_keys: config.imported_section_keys.clone(),
+        // This narrowed config is Pi-only and never exported to a Kimi Code
+        // config.toml, so no provider/model baseline applies to it.
+        imported_provider_names: Vec::new(),
+        imported_model_aliases: Vec::new(),
     }
 }
 
@@ -2641,6 +2650,37 @@ max_context_size = 1000000
     }
 
     #[test]
+    fn cli_added_provider_and_model_survive_a_later_save() {
+        // End-to-end for the save path: the CLI keeps writing config.toml
+        // (catalog onboarding adds [providers.*]/[models.*]) between our load
+        // and our save. Those entries are not in the import-time baseline, so
+        // the save must keep them instead of overwriting both tables.
+        with_env_homes(|home| {
+            std::fs::write(home.join("config.toml"), TOML_WITH_STALE_MODELS).unwrap();
+            let config = load_agent_config_uncached(Agent::KimiCode).unwrap();
+
+            // The CLI onboards another provider + model behind our back.
+            let cli_updated = format!(
+                "{}\n[providers.cli-added]\ntype = \"openai\"\nbase_url = \"https://cli.example.com/v1\"\napi_key = \"sk-cli\"\n\n[models.\"cli-added/cli-model\"]\nprovider = \"cli-added\"\nmodel = \"cli-model\"\nmax_context_size = 64000\n",
+                TOML_WITH_STALE_MODELS.trim_end()
+            );
+            std::fs::write(home.join("config.toml"), cli_updated).unwrap();
+
+            // Saving the stale in-memory config must not wipe the CLI entries.
+            save_agent_config_command(Agent::KimiCode, config).unwrap();
+
+            let toml_text = std::fs::read_to_string(home.join("config.toml")).unwrap();
+            assert!(
+                toml_text.contains("[providers.cli-added]"),
+                "CLI-added provider must survive the save:\n{toml_text}"
+            );
+            assert!(toml_text.contains("\"cli-added/cli-model\""));
+            // The UI-managed blocks are still written as before.
+            assert!(toml_text.contains("[providers.opencode-go]"));
+        });
+    }
+
+    #[test]
     fn sqlite_models_whose_provider_was_deleted_do_not_resurrect() {
         with_env_homes(|home| {
             // config.toml already clean: only the live provider + model.
@@ -2703,6 +2743,8 @@ max_context_size = 1000000
                 models,
                 raw_other: serde_json::Value::Null,
                 imported_section_keys: vec![],
+                imported_provider_names: vec![],
+                imported_model_aliases: vec![],
             };
             db::save_config(&Agent::KimiCode, &seeded).unwrap();
 
@@ -2803,6 +2845,8 @@ max_context_size = 1000000
                     models: IndexMap::new(),
                     raw_other: serde_json::Value::Null,
                     imported_section_keys: vec![],
+                    imported_provider_names: vec![],
+                    imported_model_aliases: vec![],
                 },
             )
             .unwrap();
