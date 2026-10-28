@@ -10,7 +10,7 @@ export type Lang = "zh" | "en";
 
 /** Release the site advertises. `assets()` in sections/Download.tsx builds the
  *  per-platform download URLs from it, so a version bump is a one-line change. */
-export const VERSION = "0.8.8";
+export const VERSION = "0.8.9";
 export const VERSION_TAG = `v${VERSION}`;
 
 const zh = {
@@ -260,6 +260,16 @@ const zh = {
     fallbackNote: "内置版本记录",
     entries: [
       {
+        version: "v0.8.9",
+        date: "2026-10-28",
+        items: [
+          "新增 OpenDesign Go 套餐预设：预填 amr-link 推理网关与 DeepSeek、Claude、GPT、GLM、Kimi 等 12 个模型，选定即可写入 config.toml",
+          "Command Code GOAT 用量补强：credits 接口返回 windowLimits.monthly 时，卡片在余额、5 小时与每周窗口之外追加月度窗口占比；接口未返回该窗口时静默跳过",
+          "Command Code GOAT 与 OpenDesign Go 预设补齐官方品牌图标，供应商卡片与预设选择器不再回退显示首字母",
+          "OpenDesign Go 暂不支持用量查询：官方额度窗口仅对本机 vela CLI 桌面登录态开放，没有可用的公开 HTTP 查询端点，本版如实隐藏该卡片的用量行",
+        ],
+      },
+      {
         version: "v0.8.8",
         date: "2026-10-24",
         items: [
@@ -480,7 +490,7 @@ const zh = {
     changelog: {
       title: "更新日志 - Kimi Switch",
       description:
-        "Kimi Switch 更新日志：每个版本的重要变更记录，含 v0.8.8 的模型思考等级列与 kimi-code 2.3.1 适配，同步自 GitHub Releases。",
+        "Kimi Switch 更新日志：每个版本的重要变更记录，含 v0.8.9 的 OpenDesign Go 预设与 Command Code GOAT 月度用量窗口，同步自 GitHub Releases。",
     },
     download: {
       title: "下载 - Kimi Switch",
@@ -759,6 +769,16 @@ const en: Dict = {
     fallbackNote: "Bundled release notes",
     entries: [
       {
+        version: "v0.8.9",
+        date: "2026-10-28",
+        items: [
+          "New OpenDesign Go plan preset: pre-fills the amr-link inference gateway and 12 models including DeepSeek, Claude, GPT, GLM and Kimi, ready to write into config.toml",
+          "Command Code GOAT usage boost: when the credits endpoint returns windowLimits.monthly, the card adds a monthly quota row beside the balance, 5-hour and weekly windows; a missing window is skipped silently",
+          "Command Code GOAT and OpenDesign Go presets now ship their official brand icons instead of falling back to initials",
+          "OpenDesign Go intentionally has no usage query yet: its quota windows are only exposed to the local vela CLI desktop login and there is no public HTTP endpoint, so the usage row stays hidden",
+        ],
+      },
+      {
         version: "v0.8.8",
         date: "2026-10-24",
         items: [
@@ -979,7 +999,7 @@ const en: Dict = {
     changelog: {
       title: "Changelog - Kimi Switch",
       description:
-        "Kimi Switch changelog: notable changes in every release, including the v0.8.8 per-model thinking effort column and kimi-code 2.3.1 adaptation, synced from GitHub Releases.",
+        "Kimi Switch changelog: notable changes in every release, including the v0.8.9 OpenDesign Go preset and Command Code GOAT monthly usage window, synced from GitHub Releases.",
     },
     download: {
       title: "Download - Kimi Switch",
