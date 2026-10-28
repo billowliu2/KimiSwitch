@@ -3313,9 +3313,11 @@ mod pricing_tests {
         let (id, ch, input, output, est) = match_price("zhipuai-coding-plan/glm-5.2");
         assert!(!est);
         assert_eq!(id, "zhipuai/glm-5.2");
-        assert_eq!(input, 1.4);
-        assert_eq!(output, 4.4);
-        assert_eq!(ch, 0.26);
+        // 价格跟随 models-dev 快照（上游 2026-10 下调）；快照刷新后需同步
+        // 这里的期望值。
+        assert_eq!(input, 1.19516);
+        assert_eq!(output, 4.18306);
+        assert_eq!(ch, 0.29879);
 
         // Kimi For Coding has no priced counterpart at all → curated flagship.
         let (id, _, input, _, est) = match_price("kimi-code/kimi-for-coding");
@@ -3327,7 +3329,7 @@ mod pricing_tests {
         let (id, _, input, _, est) = match_price("zhipuai-coding-plan/glm-5.2-highspeed");
         assert!(!est);
         assert_eq!(id, "zhipuai/glm-5.2");
-        assert_eq!(input, 1.4);
+        assert_eq!(input, 1.19516);
         assert_eq!(
             strip_variant_suffix("glm-5.2-highspeed").as_deref(),
             Some("glm-5.2")

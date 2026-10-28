@@ -474,6 +474,7 @@ export const zhTranslations = {
   presetNameOpencodeZen: "OpenCode Zen",
   presetNameCommandCode: "Command Code GOAT",
   presetNameOllamaCloud: "Ollama Cloud",
+  presetNameOpendesignGo: "OpenDesign Go",
 
   // Provider usage
   usageBalance: "余额",

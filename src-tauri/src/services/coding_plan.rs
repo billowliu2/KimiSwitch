@@ -562,8 +562,13 @@ fn parse_goat(body: &serde_json::Value) -> Result<Vec<UsageData>, UsageResult> {
         });
     }
 
-    // 两个滚动窗口由服务端给 used/cap，换算成百分比。
-    for (name, key) in [(TIER_FIVE_HOUR, "fiveHour"), (TIER_WEEKLY_LIMIT, "weekly")] {
+    // 滚动窗口由服务端给 used/cap，换算成百分比。月度窗口（GOAT 月限额
+    // $100）存在才产出，缺失不影响 5h/周两窗。
+    for (name, key) in [
+        (TIER_FIVE_HOUR, "fiveHour"),
+        (TIER_WEEKLY_LIMIT, "weekly"),
+        (TIER_MONTHLY_LIMIT, "monthly"),
+    ] {
         let Some(window) = body.get("windowLimits").and_then(|l| l.get(key)) else {
             continue;
         };
@@ -1020,17 +1025,18 @@ mod tests {
     }
 
     #[test]
-    fn goat_parses_balance_and_two_windows() {
+    fn goat_parses_balance_and_windows() {
         // resetAt 秒级时间戳与 ISO 字符串各来一个，验证 extract_reset_time 兼容。
         let body = json!({
             "credits": { "monthlyCredits": 100, "purchasedCredits": 5, "freeCredits": 2 },
             "windowLimits": {
                 "fiveHour": { "used": 10, "cap": 50, "resetAt": 1_754_000_000i64 },
-                "weekly": { "used": "100", "cap": "500", "resetAt": "2026-10-01T00:00:00Z" }
+                "weekly": { "used": "100", "cap": "500", "resetAt": "2026-10-01T00:00:00Z" },
+                "monthly": { "used": 40, "cap": 100 }
             }
         });
         let rows = parse_goat(&body).unwrap();
-        assert_eq!(rows.len(), 3);
+        assert_eq!(rows.len(), 4);
         assert_eq!(rows[0].plan_name.as_deref(), Some("GOAT"));
         assert_eq!(rows[0].remaining, Some(100.0));
         assert_eq!(rows[0].unit.as_deref(), Some("USD"));
@@ -1048,6 +1054,11 @@ mod tests {
             rows[2].resets_at.as_deref(),
             Some("2026-10-01T00:00:00Z")
         );
+        // 月度窗口（GOAT 月限额 $100）：无 resetAt 照常产出
+        assert_eq!(rows[3].plan_name.as_deref(), Some("monthly_limit"));
+        assert_eq!(rows[3].used, Some(40.0));
+        assert_eq!(rows[3].remaining, Some(60.0));
+        assert!(rows[3].resets_at.is_none());
     }
 
     #[test]

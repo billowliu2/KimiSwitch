@@ -486,6 +486,7 @@ export const enTranslations: Record<TranslationKey, string> = {
   presetNameOpencodeZen: "OpenCode Zen",
   presetNameCommandCode: "Command Code GOAT",
   presetNameOllamaCloud: "Ollama Cloud",
+  presetNameOpendesignGo: "OpenDesign Go",
 
   // Provider usage
   usageBalance: "Balance",

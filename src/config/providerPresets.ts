@@ -554,6 +554,38 @@ export const providerPresets: ProviderPreset[] = [
     // GET https://ollama.com/api/usage（Bearer API key）
     usageKinds: ["plan:ollama_cloud"],
   },
+  {
+    id: "opendesign-go",
+    name: "OpenDesign Go",
+    nameKey: "presetNameOpendesignGo",
+    websiteUrl: "https://open-design.ai",
+    category: "third_party",
+    providerType: "openai",
+    // amr-link 是 OpenDesign 的推理网关（OpenAI 兼容，Bearer API Key）。
+    baseUrl: "https://amr-link.open-design.ai/v1",
+    // 快照里没有 opendesign / vela 键，全部显式给 displayName + 上下文。
+    models: [
+      { model: "deepseek-v4.1-flash", displayName: "DeepSeek V4.1 Flash", maxContextSize: 1_000_000 },
+      { model: "deepseek-v4-flash", displayName: "DeepSeek V4 Flash", maxContextSize: 1_000_000 },
+      {
+        model: "deepseek-v4-flash-vision-exp",
+        displayName: "DeepSeek V4 Flash Vision Exp",
+        maxContextSize: 1_000_000,
+      },
+      { model: "deepseek-v4-pro", displayName: "DeepSeek V4 Pro", maxContextSize: 1_000_000 },
+      { model: "claude-haiku-5.5", displayName: "Claude Haiku 5.5", maxContextSize: 1_000_000 },
+      { model: "gpt-6-luna", displayName: "GPT-6 Luna", maxContextSize: 1_050_000 },
+      { model: "glm-5.3-flash", displayName: "GLM-5.3 Flash", maxContextSize: 1_000_000 },
+      { model: "glm-5.3-flashx", displayName: "GLM-5.3 Flash-X", maxContextSize: 1_000_000 },
+      { model: "kimi-k2.7-code", displayName: "Kimi K2.7 Code", maxContextSize: 262_144 },
+      { model: "mimo-v2.6-flash", displayName: "MiMo V2.6 Flash", maxContextSize: 1_000_000 },
+      { model: "mimo-v2.6-pro", displayName: "MiMo V2.6 Pro", maxContextSize: 1_000_000 },
+      { model: "hy4-preview", displayName: "Hunyuan H4 Preview", maxContextSize: 1_000_000 },
+    ],
+    billingMode: "subscription",
+    // 无 usageKinds：额度窗口只开放给本机 vela CLI（OpenDesign 桌面登录态），
+    // 没有公开 HTTP 端点可查（对照 dsh-opendesign-go 插件的做法）。
+  },
 ];
 
 export interface PresetConversionResult {
