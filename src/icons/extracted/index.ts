@@ -10,6 +10,8 @@ import _ccsub from "./ccsub.svg?url";
 import _claudecn from "./claudecn.png";
 import _cherryin from "./cherryin.png";
 import _code0 from "./code0.png";
+import _commandcode from "./commandcode.png";
+import _opendesign from "./opendesign.png";
 import _eflowcode from "./eflowcode.png";
 import _etok from "./etok.png";
 import _fenno from "./fenno-icon.webp";
@@ -113,6 +115,8 @@ export const iconUrls: Record<string, string> = {
   claudecn: _claudecn,
   cherryin: _cherryin,
   code0: _code0,
+  commandcode: _commandcode,
+  opendesign: _opendesign,
   eflowcode: _eflowcode,
   etok: _etok,
   fenno: _fenno,

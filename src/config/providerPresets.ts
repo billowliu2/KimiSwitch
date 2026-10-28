@@ -524,6 +524,7 @@ export const providerPresets: ProviderPreset[] = [
     // appends /v1/models and the CLI appends /v1/messages, so writing the
     // /v1 here would produce /v1/v1/... (404).
     baseUrl: "https://api.commandcode.ai/provider",
+    icon: "commandcode",
     models: [
       { model: "claude-sonnet-5-5" },
       { model: "claude-opus-5-5" },
@@ -563,6 +564,7 @@ export const providerPresets: ProviderPreset[] = [
     providerType: "openai",
     // amr-link 是 OpenDesign 的推理网关（OpenAI 兼容，Bearer API Key）。
     baseUrl: "https://amr-link.open-design.ai/v1",
+    icon: "opendesign",
     // 快照里没有 opendesign / vela 键，全部显式给 displayName + 上下文。
     models: [
       { model: "deepseek-v4.1-flash", displayName: "DeepSeek V4.1 Flash", maxContextSize: 1_000_000 },
