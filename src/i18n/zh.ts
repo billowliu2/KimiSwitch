@@ -186,9 +186,59 @@ export const zhTranslations = {
   reservedContextSize: "上下文预留大小",
   compactionMaxAttempts: "压缩最大尝试次数",
   compactionMaxAttemptsHint: "上下文压缩失败后的重试上限，留空或 0 表示不写入该项（上游默认 5）。",
-  backgroundSettings: "后台任务",
+  backgroundSettings: "后台任务（[task]）",
   maxRunningTasks: "最大并发数",
+  maxRunningTasksDesc: "同时运行的最大后台任务数；Tower 的 worker 与 reviewer 也受它限制。",
   keepAliveOnExit: "退出时保持运行",
+  keepAliveOnExitDesc: "会话结束时保留仍在运行的后台任务（默认关闭）。",
+  bashAutoBackgroundOnTimeout: "超时后自动转后台",
+  bashAutoBackgroundOnTimeoutDesc:
+    "前台 Bash 命令超时后转为后台任务继续运行（默认开启）；关闭后超时即终止。",
+  bashTaskTimeoutS: "后台任务默认超时（秒）",
+  bashTaskTimeoutSDesc:
+    "后台 Bash 任务的默认超时，0 表示不限时运行到结束；显式传入的 timeout 不受影响。留空则不写入该键（交互模式上游默认 600 秒，print 模式默认 0）。",
+  killGracePeriodMs: "终止宽限期（毫秒）",
+  killGracePeriodMsDesc:
+    "任务被请求正常终止后，等待其自行结束的时间，超时后强制停止。留空则不写入该键（上游默认 5000）。",
+  taskPrintModeSection: "print 模式（kimi -p）专用",
+  taskPrintModeSectionDesc:
+    "以下配置只在非交互的 print 模式下生效，普通交互式会话不受影响。",
+  printBackgroundMode: "后台任务处理方式",
+  printBackgroundModeDesc:
+    "主 Agent 结束后仍有未决后台任务时的处理方式：退出=立即退出；等待=等任务结束但不回馈结果；续跑=每个任务完成都合成一条消息继续 turn，直到没有未决任务（默认）。",
+  printBackgroundExit: "退出",
+  printBackgroundDrain: "等待",
+  printBackgroundSteer: "续跑",
+  printWaitCeilingS: "等待上限（秒）",
+  printWaitCeilingSDesc:
+    "等待 / 续跑循环的墙钟上限，防止一直不退出。留空则不写入该键（上游默认约 2147483 秒，相当于不设限）。",
+  printMaxTurns: "续跑轮次上限",
+  printMaxTurnsDesc:
+    "后台任务触发新 turn 的数量上限，防止续跑循环失控。留空则不写入该键（上游默认 100000）。",
+  workspaceTrustSettings: "工作区信任",
+  workspaceRequireTrust: "首次打开工作区时要求信任确认",
+  workspaceRequireTrustDesc:
+    "开启（默认）时，首次打开尚未受信任的工作区会要求信任确认并记录该工作区。留空／开启都不写入配置，只有关闭时才写入 require_trust = false。",
+  workspaceRequireTrustWarning:
+    "安全提示：关闭后将跳过工作区信任确认，项目级 MCP server 以及其他受信任机制保护的项目配置会不经确认直接加载。请仅在所有工作区均可信时关闭；该开关不会改变权限模式、工具审批或危险命令防护。",
+  databaseSettings: "会话数据库",
+  databaseGlobalSearch: "启用全局全文搜索索引",
+  databaseGlobalSearchDesc:
+    "构建全局搜索索引并提供搜索接口（kimi-code 2.5.0 起默认关闭）。关闭时不扫描历史会话、不启动搜索 worker；只有勾选时才写入 global_search = true。环境变量 KIMI_CODE_GLOBAL_SEARCH 会覆盖本配置。",
+  mcpSettings: "MCP 连接",
+  mcpReconnectInitialDelayMs: "重连初始等待（毫秒）",
+  mcpReconnectInitialDelayMsDesc:
+    "workspace 级 MCP server 首次连接失败或意外断连后，第一次自动重连前的等待时间，之后每次失败翻倍。留空则不写入该键（上游默认 5000）。环境变量 KIMI_MCP_RECONNECT_INITIAL_DELAY_MS 会覆盖本配置。",
+  mcpReconnectMaxDelayMs: "重连最大等待（毫秒）",
+  mcpReconnectMaxDelayMsDesc:
+    "自动重连退避的等待上限。留空则不写入该键（上游默认 300000，即 5 分钟）。环境变量 KIMI_MCP_RECONNECT_MAX_DELAY_MS 会覆盖本配置。",
+  readSettings: "读取额度",
+  readMaxChars: "单次读取最大字符数",
+  readMaxCharsDesc:
+    "Read 工具单次调用可申请的字符额度（含正文、行号与状态信息），kimi-code 2.4.1 起默认值从 500000 降到 100000。留空则不写入该键。注意单次调用还会在估算 token 数达到 max_chars 的四分之一时提前截断（非 ASCII 字符按 1 token、每 4 个 ASCII 字符按 1 token 估算），所以中文等文本每次返回的字符数更少。",
+  readDefaultMaxChars: "默认读取字符数",
+  readDefaultMaxCharsDesc:
+    "调用未指定 max_chars 时使用的字符额度，会被上面的最大值截断。留空则不写入该键（上游默认 100000）。",
   watchSettings: "文件监听",
   watchEnabled: "启用文件监听",
   watchEnabledDesc:
@@ -599,20 +649,18 @@ export const zhTranslations = {
   secondaryPoolDescPlaceholder: "该模型的子代理路由描述…",
   secondaryPoolDescHint:
     "描述会渲染进主 Agent 的工具描述（Agent/AgentSwarm），直接影响主模型挑选子代理模型的路由质量",
-  secondaryPoolForce: "强制使用默认模型",
-  secondaryPoolForceDesc:
-    "开启后所有子代理固定使用默认模型；force 与模型池条目互斥，条目将被移除",
-  secondaryPoolForceOn: "force 已开启：子代理固定使用「{alias}」",
-  secondaryPoolForceConfirm:
-    "开启 force 将移除模型池中的所有条目，只保留默认模型。确定继续？",
+  secondaryPoolPinsSingleModel:
+    "模型池只有「{alias}」一个条目：所有子代理固定使用它，派发时不会提供 model 选择参数。想要可选的模型，请把第二个别名加入模型池。",
+  secondaryDeprecatedKeysTitle: "以下键在 kimi-code 2.5.0 已不再生效：{keys}",
+  secondaryDeprecatedKeysDesc:
+    "这些键在当前版本会被忽略，保存本页时会自动从 [secondary_model] 移除。模型能力、上下文与输出上限等参数请改在 [models.\"<别名>\"] 条目上配置。",
+  secondaryDeprecatedForceDesc:
+    "force 已被移除：单独设置 default_model 本身就能把所有子代理固定到同一个模型，不再需要 force。",
   secondaryModelClear: "不再配置",
-  secondaryModelForceBadge: "force 已开启：子代理固定使用该模型",
   secondaryPoolErrorPrimaryReserved: "「{alias}」是保留别名，不能用作模型池条目",
   secondaryPoolErrorDefaultRequired: "存在模型池条目时 default_model 必填",
   secondaryPoolErrorDefaultNotInPool: "默认模型「{alias}」不在模型池中",
   secondaryPoolErrorAliasNotInModels: "模型「{alias}」未在 [models] 中注册",
-  secondaryPoolErrorForceRequiresDefault: "开启 force 前必须设置默认模型",
-  secondaryPoolErrorForceExcludesModels: "force 与模型池条目互斥",
 
   // Kimi Code WebUI quick open
   webuiSection: "Kimi Code WebUI",
@@ -649,6 +697,8 @@ export const zhTranslations = {
   pluginCustomInstall: "自定义安装",
   pluginUpdateAvailable: "有更新",
   pluginCapabilityRequired: "需在 kimi-code 内安装（/plugins）",
+  pluginPlatformsHint: "该插件在 catalog 中声明的支持平台",
+  pluginPlatformUnsupported: "该插件不支持当前系统（支持：{platforms}）",
   pluginInstall: "安装",
   pluginUpdate: "更新",
   pluginEnable: "启用",

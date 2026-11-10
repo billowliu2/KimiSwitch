@@ -194,9 +194,61 @@ export const enTranslations: Record<TranslationKey, string> = {
   compactionMaxAttempts: "Max compaction attempts",
   compactionMaxAttemptsHint:
     "Retry limit after a failed context compaction. Empty or 0 leaves the key out of the config (upstream default 5).",
-  backgroundSettings: "Background Tasks",
+  backgroundSettings: "Background Tasks ([task])",
   maxRunningTasks: "Max running tasks",
+  maxRunningTasksDesc:
+    "Most background tasks running at once; Tower workers and reviewers are capped by it too.",
   keepAliveOnExit: "Keep alive on exit",
+  keepAliveOnExitDesc:
+    "Keep still-running background tasks when the session ends (off by default).",
+  bashAutoBackgroundOnTimeout: "Move to background on timeout",
+  bashAutoBackgroundOnTimeoutDesc:
+    "A foreground Bash command that times out moves to the background instead of being killed (on by default). Turn it off to kill on timeout again.",
+  bashTaskTimeoutS: "Background task timeout (s)",
+  bashTaskTimeoutSDesc:
+    "Default timeout for background Bash tasks; 0 means no timeout at all. Explicit per-call timeouts are unaffected. Empty leaves the key out (upstream default 600 in interactive mode, 0 in print mode).",
+  killGracePeriodMs: "Kill grace period (ms)",
+  killGracePeriodMsDesc:
+    "How long a task may finish on its own after a stop request before it is force-killed. Empty leaves the key out (upstream default 5000).",
+  taskPrintModeSection: "print mode only (kimi -p)",
+  taskPrintModeSectionDesc:
+    "The settings below apply to non-interactive print mode only; interactive sessions are unaffected.",
+  printBackgroundMode: "Pending background tasks",
+  printBackgroundModeDesc:
+    "What happens to pending background tasks once the main agent finishes: exit = quit immediately; drain = wait for the final state without feeding results back; steer = turn each finished task into a synthetic message that keeps the turn going (default).",
+  printBackgroundExit: "Exit",
+  printBackgroundDrain: "Drain",
+  printBackgroundSteer: "Steer",
+  printWaitCeilingS: "Wait ceiling (s)",
+  printWaitCeilingSDesc:
+    "Wall-clock ceiling for the wait / steer loop, so it cannot keep the process alive forever. Empty leaves the key out (upstream default ~2147483 s, effectively unlimited).",
+  printMaxTurns: "Max steered turns",
+  printMaxTurnsDesc:
+    "Cap on turns triggered by background tasks, so the steer loop cannot run away. Empty leaves the key out (upstream default 100000).",
+  workspaceTrustSettings: "Workspace Trust",
+  workspaceRequireTrust: "Require a trust confirmation for new workspaces",
+  workspaceRequireTrustDesc:
+    "When on (the default), the first launch in an untrusted workspace asks for a trust confirmation and records it. An absent key already means on, so only turning it off writes require_trust = false.",
+  workspaceRequireTrustWarning:
+    "Security notice: turning this off skips the workspace trust prompt, so project-level MCP servers and other trust-gated project config load without confirmation. Only disable it when every workspace you open is trustworthy. It does not change permission modes, tool approvals, or the dangerous-command guard.",
+  databaseSettings: "Session Database",
+  databaseGlobalSearch: "Build the global full-text search index",
+  databaseGlobalSearchDesc:
+    "Builds the global search index and exposes the search endpoint (off by default since kimi-code 2.5.0). While off, no session scan and no search worker runs; only a checked box writes global_search = true. The KIMI_CODE_GLOBAL_SEARCH environment variable overrides this setting.",
+  mcpSettings: "MCP Connections",
+  mcpReconnectInitialDelayMs: "Initial reconnect delay (ms)",
+  mcpReconnectInitialDelayMsDesc:
+    "Wait before the first automatic reconnect of a workspace-level MCP server after a failed or dropped connection; it doubles after every further failure. Empty leaves the key out (upstream default 5000). The KIMI_MCP_RECONNECT_INITIAL_DELAY_MS environment variable overrides this setting.",
+  mcpReconnectMaxDelayMs: "Max reconnect delay (ms)",
+  mcpReconnectMaxDelayMsDesc:
+    "Upper bound for the reconnect backoff. Empty leaves the key out (upstream default 300000, i.e. 5 minutes). The KIMI_MCP_RECONNECT_MAX_DELAY_MS environment variable overrides this setting.",
+  readSettings: "Read Budget",
+  readMaxChars: "Max characters per read",
+  readMaxCharsDesc:
+    "Largest character budget a single Read call may request (body, line numbers and status line included); the upstream default dropped from 500000 to 100000 in kimi-code 2.4.1. Empty leaves the key out. A single call also stops once its estimated token count reaches a quarter of max_chars (1 token per non-ASCII character, 1 per 4 ASCII characters), so CJK-heavy text returns fewer characters per call.",
+  readDefaultMaxChars: "Default read characters",
+  readDefaultMaxCharsDesc:
+    "Budget used when the call does not pass max_chars, clamped to the maximum above. Empty leaves the key out (upstream default 100000).",
   watchSettings: "File Watching",
   watchEnabled: "Enable file watching",
   watchEnabledDesc:
@@ -611,23 +663,20 @@ export const enTranslations: Record<TranslationKey, string> = {
   secondaryPoolDescPlaceholder: "Subagent routing description for this model…",
   secondaryPoolDescHint:
     "The description is rendered into the main agent's tool description (Agent/AgentSwarm) and directly affects how well the main model routes to subagent models",
-  secondaryPoolForce: "Force default model",
-  secondaryPoolForceDesc:
-    "When enabled, all subagents are forced onto the default model; force excludes pool entries, which are removed",
-  secondaryPoolForceOn: "Force is on: subagents always use \"{alias}\"",
-  secondaryPoolForceConfirm:
-    "Enabling force removes every pool entry, keeping only the default model. Continue?",
+  secondaryPoolPinsSingleModel:
+    "The pool has a single entry (\"{alias}\"): every subagent uses it and no model parameter is offered at spawn time. Add a second alias to the pool to make the model selectable.",
+  secondaryDeprecatedKeysTitle:
+    "These keys no longer take effect in kimi-code 2.5.0: {keys}",
+  secondaryDeprecatedKeysDesc:
+    "The current version ignores them, and saving this page removes them from [secondary_model]. Configure model capabilities, context size and output limits on the [models.\"<alias>\"] entry instead.",
+  secondaryDeprecatedForceDesc:
+    "force was removed: a lone default_model already pins every subagent to that model, so force has nothing left to express.",
   secondaryModelClear: "Clear subagent config",
-  secondaryModelForceBadge: "Force on: subagents always use this model",
   secondaryPoolErrorPrimaryReserved:
     "\"{alias}\" is a reserved alias and cannot be a pool entry",
   secondaryPoolErrorDefaultRequired: "default_model is required when pool entries exist",
   secondaryPoolErrorDefaultNotInPool: "Default model \"{alias}\" is not in the pool",
   secondaryPoolErrorAliasNotInModels: "Model \"{alias}\" is not registered in [models]",
-  secondaryPoolErrorForceRequiresDefault:
-    "A default model is required before enabling force",
-  secondaryPoolErrorForceExcludesModels:
-    "force is mutually exclusive with pool entries",
 
   // Kimi Code WebUI quick open
   webuiSection: "Kimi Code WebUI",
@@ -665,6 +714,9 @@ export const enTranslations: Record<TranslationKey, string> = {
   pluginCustomInstall: "Custom",
   pluginUpdateAvailable: "Update available",
   pluginCapabilityRequired: "Install inside kimi-code (/plugins)",
+  pluginPlatformsHint: "Platforms this plugin declares in the catalog",
+  pluginPlatformUnsupported:
+    "This plugin does not support the current OS (supported: {platforms})",
   pluginInstall: "Install",
   pluginUpdate: "Update",
   pluginEnable: "Enable",

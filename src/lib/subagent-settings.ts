@@ -142,6 +142,12 @@ export function setExperimentalFlag(
  * Parsed subagent model pool (`[secondary_model]` v2 keys). The currently
  * effective default is `defaultModel ?? model` (v2 pool key first, legacy v1
  * recipe key as fallback).
+ *
+ * kimi-code 2.5.0 (#4418) changed what the pool *means*: subagents run only on
+ * listed entries, `primary` is no longer an implicit choice (it is reserved for
+ * Tower spawn), and a single-entry pool (or a lone `default_model`) pins every
+ * spawn without offering a `model` parameter at all. `force` is gone: a lone
+ * `default_model` already pins every subagent.
  */
 export interface SubagentModelPool {
   /** v2 pool default (`default_model`). */
@@ -150,17 +156,70 @@ export interface SubagentModelPool {
   model?: string;
   /** `[models]` table (alias → description); non-string values dropped. */
   models: Record<string, string>;
-  /** Force subagents onto the default alias. */
-  force: boolean;
 }
 
-/** Known v1 patch fields, dropped when re-picking without a pool so stale
- *  patches are cleaned up. */
-const PATCH_FIELDS: ReadonlySet<string> = new Set([
-  "default_effort",
-  "max_output_size",
+/**
+ * Keys the kimi-code 2.5.0 engine no longer reads anywhere in
+ * `[secondary_model]` (#4418): `force`, plus the model-tuning overrides that
+ * never took effect in the v2 engine — subagents bind the `[models]` entry as
+ * configured, so tuning belongs on `[models.<alias>]`.
+ *
+ * Every write path drops these instead of carrying them forward, so a save
+ * migrates the section and the CLI stops warning about them. Reads report them
+ * separately (see `getDeprecatedSecondaryModelKeys`) so the UI can explain the
+ * cleanup before it happens rather than silently editing the user's file.
+ * `default_effort` is deliberately absent: it is still valid.
+ */
+const DEPRECATED_SECONDARY_MODEL_KEYS: ReadonlySet<string> = new Set([
+  "force",
   "max_context_size",
+  "max_input_size",
+  "max_output_size",
+  "capabilities",
+  "display_name",
+  "reasoning_key",
+  "adaptive_thinking",
+  "support_efforts",
+  "off_effort",
 ]);
+
+/** Upstream's own ordering, so the UI lists keys the way the CLI's warning
+ *  does (`force` first, then the tuning keys). */
+const DEPRECATED_SECONDARY_MODEL_ORDER: readonly string[] = [
+  "force",
+  "max_context_size",
+  "max_input_size",
+  "max_output_size",
+  "capabilities",
+  "display_name",
+  "reasoning_key",
+  "adaptive_thinking",
+  "support_efforts",
+  "off_effort",
+];
+
+/** Copy a `[secondary_model]` section, dropping the keys 2.5.0 removed.
+ *  Every writer funnels through this so the cleanup cannot be forgotten. */
+function carrySecondaryModelSection(
+  section: Record<string, unknown>
+): Record<string, unknown> {
+  const next: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(section)) {
+    if (DEPRECATED_SECONDARY_MODEL_KEYS.has(k)) continue;
+    next[k] = v;
+  }
+  return next;
+}
+
+/**
+ * Keys present in `[secondary_model]` that kimi-code 2.5.0 ignores, in the
+ * order the CLI's warning lists them. Empty when the section is absent or
+ * carries nothing deprecated.
+ */
+export function getDeprecatedSecondaryModelKeys(rawOther: unknown): string[] {
+  const section = asRecord(asRecord(rawOther)["secondary_model"]);
+  return DEPRECATED_SECONDARY_MODEL_ORDER.filter((key) => key in section);
+}
 
 /** Read `[secondary_model]` from raw_other; `{}` when absent. */
 export function getSecondaryModel(rawOther: unknown): SecondaryModelConfig {
@@ -176,13 +235,8 @@ export function getSecondaryModel(rawOther: unknown): SecondaryModelConfig {
     if (typeof v === "string") pool[k] = v;
   }
   if (Object.keys(pool).length > 0) out.models = pool;
-  if (cfg.force === true) out.force = true;
   if (typeof cfg.default_effort === "string" && cfg.default_effort !== "")
     out.default_effort = cfg.default_effort;
-  if (typeof cfg.max_output_size === "number" && cfg.max_output_size > 0)
-    out.max_output_size = cfg.max_output_size;
-  if (typeof cfg.max_context_size === "number" && cfg.max_context_size > 0)
-    out.max_context_size = cfg.max_context_size;
   return out;
 }
 
@@ -198,7 +252,7 @@ export function getSubagentModelPool(
   for (const [k, v] of Object.entries(asRecord(section["models"]))) {
     if (typeof v === "string") models[k] = v;
   }
-  const out: SubagentModelPool = { models, force: section["force"] === true };
+  const out: SubagentModelPool = { models };
   if (typeof section["default_model"] === "string" && section["default_model"] !== "")
     out.defaultModel = section["default_model"];
   if (typeof section["model"] === "string" && section["model"] !== "")
@@ -212,13 +266,12 @@ export function getSubagentModelPool(
  * Pool-aware: when a pool exists (`models` table or `default_model` present)
  * the alias becomes the v2 default (added to the `models` table with an empty
  * description when missing) and the legacy `model` key is synced; the rest of
- * the section — `force`, patch fields, unknown fields — is preserved. This
- * keeps usage records keyed on the real model alias instead of the
- * synthesized `__secondary__` derived entry.
+ * the section — unknown fields, `default_effort` — is preserved while the keys
+ * 2.5.0 removed are dropped. This keeps usage records keyed on the real model
+ * alias instead of the synthesized `__secondary__` derived entry.
  *
  * Without a pool the legacy single-model form is written: only `model`, with
- * the known patch fields (`default_effort`, `max_output_size`,
- * `max_context_size`) dropped so stale patches are cleaned up when the model
+ * every deprecated key dropped so stale patches are cleaned up when the model
  * is re-picked; unknown fields are preserved.
  */
 export function setSecondaryModelOnly(
@@ -227,11 +280,10 @@ export function setSecondaryModelOnly(
 ): unknown {
   const root = { ...asRecord(rawOther) };
   const section = asRecord(asRecord(rawOther)["secondary_model"]);
-  const next: Record<string, unknown> = {};
+  const next: Record<string, unknown> = carrySecondaryModelSection(section);
   const hasPool =
     section["models"] !== undefined || section["default_model"] !== undefined;
   if (hasPool) {
-    for (const [k, v] of Object.entries(section)) next[k] = v;
     next.default_model = alias;
     next.model = alias;
     const models: Record<string, unknown> = {};
@@ -239,9 +291,6 @@ export function setSecondaryModelOnly(
     if (!(alias in models)) models[alias] = "";
     next.models = models;
   } else {
-    for (const [k, v] of Object.entries(section)) {
-      if (!PATCH_FIELDS.has(k)) next[k] = v;
-    }
     next.model = alias;
   }
   root.secondary_model = next;
@@ -251,10 +300,10 @@ export function setSecondaryModelOnly(
 /**
  * Rebuild the subagent model pool atomically. `default_model` and `model` are
  * written with the same value — the effective default, `defaultModel ?? model`
- * — plus the `models` table and `force`; unknown fields in the section are
- * preserved. An empty `models` table is omitted: the engine requires
- * `default_model` to be a key of the table, so an empty table can never be
- * valid, and omitting it keeps the implicit single-entry form.
+ * — plus the `models` table; unknown fields in the section are preserved while
+ * the keys 2.5.0 removed are dropped. An empty `models` table is omitted: the
+ * engine requires `default_model` to be a key of the table, so an empty table
+ * can never be valid, and omitting it keeps the implicit single-entry form.
  */
 export function setSubagentModelPool(
   rawOther: unknown,
@@ -262,8 +311,7 @@ export function setSubagentModelPool(
 ): unknown {
   const root = { ...asRecord(rawOther) };
   const section = asRecord(asRecord(rawOther)["secondary_model"]);
-  const next: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(section)) next[k] = v;
+  const next: Record<string, unknown> = carrySecondaryModelSection(section);
   const effective = pool.defaultModel ?? pool.model;
   if (effective) {
     next.default_model = effective;
@@ -277,7 +325,6 @@ export function setSubagentModelPool(
   } else {
     delete next.models;
   }
-  next.force = pool.force === true;
   root.secondary_model = next;
   return root;
 }
@@ -286,7 +333,8 @@ export function setSubagentModelPool(
  *  the implicit single-entry form (a `default_model`/`model` but no table),
  *  the effective default is materialized into the table first — otherwise the
  *  new table would fail the engine rule "default_model must be a pool key".
- *  The rest of the section (force, unknown fields) is preserved untouched. */
+ *  The rest of the section (unknown fields, `default_effort`) is preserved
+ *  while the keys 2.5.0 removed are dropped. */
 export function upsertSubagentPoolEntry(
   rawOther: unknown,
   alias: string,
@@ -294,8 +342,7 @@ export function upsertSubagentPoolEntry(
 ): unknown {
   const root = { ...asRecord(rawOther) };
   const section = asRecord(asRecord(rawOther)["secondary_model"]);
-  const next: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(section)) next[k] = v;
+  const next: Record<string, unknown> = carrySecondaryModelSection(section);
   const models: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(asRecord(next.models))) models[k] = v;
   const effectiveDefault =
@@ -329,8 +376,7 @@ export function removeSubagentPoolEntry(
 ): unknown {
   const root = { ...asRecord(rawOther) };
   const section = asRecord(asRecord(rawOther)["secondary_model"]);
-  const next: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(section)) next[k] = v;
+  const next: Record<string, unknown> = carrySecondaryModelSection(section);
   const models: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(asRecord(next.models))) {
     if (k !== alias) models[k] = v;
@@ -357,8 +403,7 @@ export function setSubagentDefault(
 ): unknown {
   const root = { ...asRecord(rawOther) };
   const section = asRecord(asRecord(rawOther)["secondary_model"]);
-  const next: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(section)) next[k] = v;
+  const next: Record<string, unknown> = carrySecondaryModelSection(section);
   const models: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(asRecord(next.models))) models[k] = v;
   if (!(alias in models)) models[alias] = "";
@@ -369,36 +414,12 @@ export function setSubagentDefault(
   return root;
 }
 
-/**
- * Set the `force` flag. Turning force on drops the `models` table — `force`
- * and the pool table are mutually exclusive per the engine (the implicit
- * `default_model`/`model` form stays); turning it off leaves the table
- * untouched. Everything else in the section is preserved.
- */
-export function setSubagentForce(
-  rawOther: unknown,
-  force: boolean
-): unknown {
-  const root = { ...asRecord(rawOther) };
-  const section = asRecord(asRecord(rawOther)["secondary_model"]);
-  const next: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(section)) {
-    if (force && k === "models") continue;
-    next[k] = v;
-  }
-  next.force = force;
-  root.secondary_model = next;
-  return root;
-}
-
 /** Keys of validation errors, mirroring the kimi-code engine checks. */
 export type ValidationErrorKey =
   | "primaryReserved"
   | "defaultRequired"
   | "defaultNotInPool"
-  | "aliasNotInModels"
-  | "forceRequiresDefault"
-  | "forceExcludesModels";
+  | "aliasNotInModels";
 
 /** A pool validation error; `params` carries the offending alias. */
 export interface PoolValidationError {
@@ -412,9 +433,12 @@ export interface PoolValidationError {
  * 1. `"primary"` is reserved and cannot be a pool key;
  * 2. a `models` table requires `default_model`;
  * 3. `default_model` must be a key of the `models` table;
- * 4. every pool key must resolve in the top-level `[models]` registry;
- * 5. `force` requires a default (`default_model` or the `model` fallback);
- * 6. `force` and a `models` table are mutually exclusive.
+ * 4. every pool key must resolve in the top-level `[models]` registry.
+ *
+ * The two former `force` rules are gone with the key itself (kimi-code 2.5.0,
+ * #4418): a lone `default_model` already pins every subagent, so there is
+ * nothing left for `force` to express and a leftover `force` key is ignored by
+ * the engine rather than treated as a config error.
  *
  * `availableAliases` is the set of top-level `[models]` aliases. A pool
  * without a `models` table is the implicit single-entry form: only the
@@ -425,7 +449,7 @@ export function validateSubagentPool(
   availableAliases: string[]
 ): PoolValidationError[] {
   const errors: PoolValidationError[] = [];
-  const { defaultModel, model, models, force } = pool;
+  const { defaultModel, model, models } = pool;
   const effectiveDefault = defaultModel ?? model;
   const poolKeys = Object.keys(models);
   const hasPoolTable = poolKeys.length > 0;
@@ -460,16 +484,6 @@ export function validateSubagentPool(
   // Rule 4: every pool key must resolve in the `[models]` registry.
   for (const key of poolKeys) aliasError(key);
   if (!hasPoolTable && effectiveDefault) aliasError(effectiveDefault);
-
-  // Rule 5: `force` requires a default (`default_model` or `model` fallback).
-  if (force && !effectiveDefault) {
-    errors.push({ key: "forceRequiresDefault" });
-  }
-
-  // Rule 6: `force` and a `models` table are mutually exclusive.
-  if (force && hasPoolTable) {
-    errors.push({ key: "forceExcludesModels" });
-  }
 
   return errors;
 }

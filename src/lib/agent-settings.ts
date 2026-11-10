@@ -1,4 +1,11 @@
-import type { AgentSettings } from "../types";
+import type {
+  AgentSettings,
+  DatabaseConfig,
+  McpConfig,
+  ReadConfig,
+  TaskConfig,
+  WorkspaceConfig,
+} from "../types";
 
 const DEFAULT_SETTINGS: AgentSettings = {
   thinking: {
@@ -13,7 +20,10 @@ const DEFAULT_SETTINGS: AgentSettings = {
     max_attempts_per_step: 3,
     reserved_context_size: 50000,
   },
-  background: {
+  // `[task]` (kimi-code 2.4.0; formerly `[background]`). `keep_alive_on_exit`
+  // is the only key we model a default for; every other key stays absent
+  // unless the config carries it, so upstream defaults are never pinned.
+  task: {
     keep_alive_on_exit: false,
   },
   // `[watch] enabled` — kimi-code 2.0.1 added the key; 2.0.2 flipped the
@@ -41,6 +51,80 @@ function getSection<T>(rawOther: unknown, key: string): T | undefined {
   const section = root[key];
   if (section === undefined || section === null) return undefined;
   return section as T;
+}
+
+/**
+ * Effective `[task]` config: upstream `resolveAgentTaskConfig` merges the
+ * legacy `[background]` section with the current `[task]` section field by
+ * field, `[task]` winning, and falls back to whichever one exists. Mirroring
+ * the merge here means the panel shows the values the CLI actually applies
+ * even when a config only carries the legacy section (or both).
+ */
+export function resolveTaskSection(rawOther: unknown): TaskConfig | undefined {
+  const legacy = getSection<TaskConfig>(rawOther, "background");
+  const current = getSection<TaskConfig>(rawOther, "task");
+  if (legacy === undefined) return current;
+  if (current === undefined) return legacy;
+  return { ...legacy, ...current };
+}
+
+/** Read one of the optional scalar sections (`[workspace]`, `[database]`,
+ *  `[mcp]`, `[read]`). Only keys the config actually carries are returned —
+ *  callers compare against the upstream default themselves, so no default is
+ *  ever materialized into a patch. */
+function readScalarSection<T extends object>(rawOther: unknown, key: string): T | undefined {
+  const section = getSection<T>(rawOther, key);
+  if (section === undefined) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(asRecord(section))) {
+    if (typeof v === "boolean" || (typeof v === "number" && Number.isFinite(v))) {
+      out[k] = v;
+    }
+  }
+  return Object.keys(out).length > 0 ? (out as T) : undefined;
+}
+
+/** Write one of the optional scalar sections. Keys the patch does not mention
+ *  are carried over verbatim (including ones we do not model), and a key whose
+ *  value equals its upstream default is dropped so the config keeps tracking
+ *  the default instead of pinning a copy of it. */
+function writeScalarSection(
+  root: Record<string, unknown>,
+  rawOther: unknown,
+  sectionKey: string,
+  patchSection: object | undefined,
+  defaults: Record<string, boolean | number>,
+  opts?: { dropNonPositive?: boolean }
+): void {
+  const next: Record<string, unknown> = {
+    ...asRecord(getSection(rawOther, sectionKey)),
+  };
+  for (const [key, value] of Object.entries(asRecord(patchSection))) {
+    // An explicit undefined (cleared number field) removes the key.
+    if (
+      value === undefined ||
+      (typeof value === "number" && !Number.isFinite(value))
+    ) {
+      delete next[key];
+    } else {
+      next[key] = value;
+    }
+  }
+  for (const [key, def] of Object.entries(defaults)) {
+    if (!(key in next)) continue;
+    // Upstream validates these as positive integers: 0 / negative would fail
+    // the section schema, so it removes the key like an empty field does.
+    if (opts?.dropNonPositive && typeof next[key] === "number" && (next[key] as number) < 1) {
+      delete next[key];
+      continue;
+    }
+    if (next[key] === def) delete next[key];
+  }
+  if (Object.keys(next).length > 0) {
+    root[sectionKey] = next;
+  } else {
+    delete root[sectionKey];
+  }
 }
 
 export function getAgentSettings(rawOther: unknown): AgentSettings {
@@ -89,17 +173,27 @@ export function getAgentSettings(rawOther: unknown): AgentSettings {
     rawOther,
     "permission"
   );
+  // Effective `[task]`: the legacy `[background]` section merged in, with
+  // `[task]` keys winning (see resolveTaskSection). The spread keeps unmodeled
+  // keys (print_*, future additions) so they survive a save back out.
+  const taskSection = resolveTaskSection(rawOther);
   return {
     thinking,
     loop_control: loop,
-    background: {
-      ...DEFAULT_SETTINGS.background,
-      ...getSection<AgentSettings["background"]>(rawOther, "background"),
+    task: {
+      ...DEFAULT_SETTINGS.task,
+      ...taskSection,
     },
     watch: {
       ...DEFAULT_SETTINGS.watch,
       ...getSection<AgentSettings["watch"]>(rawOther, "watch"),
     },
+    // Optional scalar sections: only keys the config carries are reported;
+    // each UI control falls back to the documented upstream default itself.
+    workspace: readScalarSection<WorkspaceConfig>(rawOther, "workspace"),
+    database: readScalarSection<DatabaseConfig>(rawOther, "database"),
+    mcp: readScalarSection<McpConfig>(rawOther, "mcp"),
+    read: readScalarSection<ReadConfig>(rawOther, "read"),
     permission: {
       rules: sectionPermission?.rules ?? [],
       // `dangerous_command_guard` stays undefined unless the config carries
@@ -148,8 +242,12 @@ export function setAgentSettings(
   const next: AgentSettings = {
     thinking: { ...current.thinking, ...patch.thinking },
     loop_control: { ...current.loop_control, ...patch.loop_control },
-    background: { ...current.background, ...patch.background },
+    task: { ...current.task, ...patch.task },
     watch: { ...current.watch, ...patch.watch },
+    workspace: { ...current.workspace, ...patch.workspace },
+    database: { ...current.database, ...patch.database },
+    mcp: { ...current.mcp, ...patch.mcp },
+    read: { ...current.read, ...patch.read },
     permission,
     hooks: patch.hooks ?? current.hooks ?? [],
   };
@@ -186,8 +284,79 @@ export function setAgentSettings(
   }
   if (next.thinking) root.thinking = next.thinking;
   if (next.loop_control) root.loop_control = next.loop_control;
-  if (next.background) root.background = next.background;
   if (next.watch) root.watch = next.watch;
+
+  // `[task]` (kimi-code 2.4.0; `[background]` is the legacy name upstream
+  // still merges in). Always write the legacy section's content into `[task]`
+  // — including keys we do not model (print_*, future additions) — and drop
+  // `[background]`, so a save migrates the config instead of leaving two
+  // copies of the same settings behind.
+  const rawLegacyTask = asRecord(getSection(rawOther, "background"));
+  const rawTask = asRecord(getSection(rawOther, "task"));
+  const writtenTask: Record<string, unknown> = { ...rawLegacyTask, ...rawTask };
+  for (const [key, value] of Object.entries(asRecord(patch.task))) {
+    if (value === undefined || (typeof value === "number" && !Number.isFinite(value))) {
+      delete writtenTask[key];
+    } else {
+      writtenTask[key] = value;
+    }
+  }
+  // Key upstream validates as min(1): a cleared field (or 0) removes the key
+  // instead of writing a value the config validator would reject.
+  for (const key of ["max_running_tasks", "print_wait_ceiling_s", "print_max_turns"]) {
+    const value = writtenTask[key];
+    if (typeof value === "number" && value < 1) delete writtenTask[key];
+  }
+  // Upstream defaults: writing them back would pin a value the config
+  // otherwise tracks automatically, so a default-equal key is dropped (an
+  // explicit one included — same rule as the top-level booleans below).
+  // `bash_task_timeout_s` has no single default (600 interactively, 0 in print
+  // mode) and 0 is meaningful there, so it is never pruned by value.
+  if (writtenTask.keep_alive_on_exit === false) delete writtenTask.keep_alive_on_exit;
+  if (writtenTask.bash_auto_background_on_timeout === true) {
+    delete writtenTask.bash_auto_background_on_timeout;
+  }
+  if (writtenTask.kill_grace_period_ms === 5000) delete writtenTask.kill_grace_period_ms;
+  if (writtenTask.print_background_mode === "steer") {
+    delete writtenTask.print_background_mode;
+  }
+  if (Object.keys(writtenTask).length > 0) {
+    root.task = writtenTask;
+  } else {
+    delete root.task;
+  }
+  delete root.background;
+
+  // `[workspace]` (kimi-code 2.5.0): require_trust defaults to true, so only
+  // an explicit false is written.
+  writeScalarSection(root, rawOther, "workspace", patch.workspace, {
+    require_trust: true,
+  });
+  // `[database]`: global_search defaults to false since 2.5.0 (it used to be
+  // on), so only an explicit true is written.
+  writeScalarSection(root, rawOther, "database", patch.database, {
+    global_search: false,
+  });
+  // `[mcp]` reconnect backoff (kimi-code 2.4.0, upstream #4283): both keys have
+  // non-zero defaults, so an unset field must leave the key out.
+  writeScalarSection(
+    root,
+    rawOther,
+    "mcp",
+    patch.mcp,
+    { reconnect_initial_delay_ms: 5000, reconnect_max_delay_ms: 300000 },
+    { dropNonPositive: true }
+  );
+  // `[read]` (2.4.1 lowered max_chars from 500000 to 100000). Both keys are
+  // positive ints upstream; 0 or a cleared field removes the key.
+  writeScalarSection(
+    root,
+    rawOther,
+    "read",
+    patch.read,
+    { max_chars: 100000, default_max_chars: 100000 },
+    { dropNonPositive: true }
+  );
   // Keep `[permission]` when it carries rules *or* an explicit
   // dangerous_command_guard — dropping the section would silently lose a
   // guard=false write (absent key = upstream default on). An empty rules

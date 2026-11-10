@@ -306,11 +306,14 @@ describe("[watch] enabled", () => {
   });
 
   it("does not disturb the other managed sections", () => {
+    // A legacy `[background]` section is migrated into `[task]` on save
+    // (see the [task] block below), so the value survives under the new name.
     const next = setAgentSettings(
       { background: { max_running_tasks: 2 } },
       { watch: { enabled: true } }
-    ) as { background?: Record<string, unknown> };
-    expect(next.background?.max_running_tasks).toBe(2);
+    ) as { task?: Record<string, unknown>; background?: unknown };
+    expect(next.task?.max_running_tasks).toBe(2);
+    expect(next.background).toBeUndefined();
     expect(watchOf(next).enabled).toBe(true);
   });
 });

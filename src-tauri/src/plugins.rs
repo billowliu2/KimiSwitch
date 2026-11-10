@@ -1,13 +1,15 @@
 // ---------------------------------------------------------------------------
 // Plugin marketplace backend (Rust side of the KimiSwitch plugin market).
 //
-// Mirrors the plugin semantics of kimi-code 0.36
-// (packages/agent-core-v2/src/app/plugin/{marketplace,manager,archive,
-// manifest,source,store,github-resolver}.ts):
+// Mirrors the plugin semantics of kimi-code 2.5.0
+// (packages/agent-core-v2/src/app/plugin/{marketplace,marketplaceService,
+// manager,archive,manifest,source,store,github-resolver}.ts):
 //
-// * marketplace catalog: fetched from `KIMI_CODE_PLUGIN_MARKETPLACE_URL` (or
-//   the public default), cached to `$KIMI_CODE_HOME/plugins/marketplace-cache.json`,
-//   with the cache as fallback when the fetch fails.
+// * marketplace catalog: fetched from `KIMI_CODE_PLUGIN_MARKETPLACE_URL`, else
+//   from `${KIMI_CODE_BASE_URL}/plugins/marketplace` (the 2.5.0 derivation),
+//   else the pre-2.5.0 public URL; cached to
+//   `$KIMI_CODE_HOME/plugins/marketplace-cache.json`, with the cache as
+//   fallback when the fetch fails.
 // * installed state: `$KIMI_CODE_HOME/plugins/installed.json`, the exact v1
 //   format kimi-code's store.ts writes (`{ "version": 1, "plugins": [...] }`,
 //   camelCase record fields). Reads/writes are read-modify-write with an atomic
@@ -35,8 +37,15 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use tokio::io::AsyncWriteExt;
 
+/// Last-resort catalog URL, only used when neither env var is set. kimi-code
+/// 2.5.0 stopped pointing at this location (it now derives the catalog from the
+/// provider baseURL), so this is historical/fallback value only.
 const DEFAULT_MARKETPLACE_URL: &str = "https://code.kimi.com/kimi-code/plugins/marketplace.json";
 const MARKETPLACE_URL_ENV: &str = "KIMI_CODE_PLUGIN_MARKETPLACE_URL";
+/// Base URL kimi-code itself derives the catalog from (managed provider
+/// config falls back to `https://api.kimi.com/coding/v1`). Read-only here: we
+/// never write it, so the CLI's own resolution stays untouched.
+const KIMI_CODE_BASE_URL_ENV: &str = "KIMI_CODE_BASE_URL";
 const MARKETPLACE_CACHE_REL: &str = "plugins/marketplace-cache.json";
 const INSTALLED_REL: &str = "plugins/installed.json";
 const CATALOG_FETCH_TIMEOUT_SECS: u64 = 60;
@@ -63,7 +72,18 @@ pub struct MarketplaceEntry {
     pub description: Option<String>,
     pub keywords: Vec<String>,
     pub homepage: Option<String>,
+    /// "official" | "curated" — derived from `distribution.category` on a
+    /// kimi-code 2.5.0+ catalog, from the legacy top-level `tier` before that.
     pub tier: String,
+    /// Raw `distribution.category` ("official" | "third_party") when present.
+    /// Kept alongside `tier` because it is the authoritative field from 2.5.0
+    /// and the two disagree by design (tier is the billing/curation bucket).
+    pub category: Option<String>,
+    /// Clients the entry supports (`desktop` / `cli`); empty = unrestricted.
+    pub clients: Vec<String>,
+    /// Platforms the entry supports (`macos` / `windows` / `linux` / `cloud`);
+    /// empty = unrestricted.
+    pub platforms: Vec<String>,
     pub source: String,
     pub capability_id: Option<String>,
     pub installed: Option<InstalledPluginInfo>,
@@ -183,14 +203,43 @@ fn write_installed(home: &Path, data: &InstalledFile) -> Result<(), String> {
 // Marketplace catalog
 // ---------------------------------------------------------------------------
 
-fn marketplace_url() -> Result<String, String> {
-    if let Ok(env) = std::env::var(MARKETPLACE_URL_ENV) {
-        let trimmed = env.trim();
-        if !trimmed.is_empty() {
-            return Ok(trimmed.to_string());
+/// Catalog URL resolution, mirroring kimi-code 2.5.0's ordering
+/// (`marketplaceService.context()` + `pluginMarketplaceUrl()`):
+///
+///   1. `KIMI_CODE_PLUGIN_MARKETPLACE_URL` (blank = unset) — the CLI treats it
+///      as a fully explicit source and skips all derivation.
+///   2. `${KIMI_CODE_BASE_URL}/plugins/marketplace` with trailing slashes
+///      stripped off the base. Since 2.5.0 the catalog lives next to the API
+///      base URL, so a user who points the CLI at a custom/enterprise gateway
+///      gets that gateway's catalog instead of the public one.
+///   3. `DEFAULT_MARKETPLACE_URL` — the pre-2.5.0 hardcoded location, kept only
+///      as a last resort so the market still opens without either env var.
+///
+/// A `KIMI_CODE_BASE_URL` that is nothing but slashes is treated as unset
+/// (upstream throws there; degrading to the default keeps the UI working).
+///
+/// Env access is injected so tests can exercise the ordering without mutating
+/// process-global state (cargo runs test threads in parallel).
+fn resolve_marketplace_url(env: impl Fn(&str) -> Option<String>) -> String {
+    let read = |key: &str| {
+        env(key)
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty())
+    };
+    if let Some(explicit) = read(MARKETPLACE_URL_ENV) {
+        return explicit;
+    }
+    if let Some(base) = read(KIMI_CODE_BASE_URL_ENV) {
+        let base = base.trim_end_matches('/');
+        if !base.is_empty() {
+            return format!("{base}/plugins/marketplace");
         }
     }
-    Ok(DEFAULT_MARKETPLACE_URL.to_string())
+    DEFAULT_MARKETPLACE_URL.to_string()
+}
+
+fn marketplace_url() -> Result<String, String> {
+    Ok(resolve_marketplace_url(|key| std::env::var(key).ok()))
 }
 
 /// Cache payload written to `marketplace-cache.json`: fetch time + the raw
@@ -235,6 +284,47 @@ fn non_blank_str(obj: &serde_json::Map<String, serde_json::Value>, key: &str) ->
         .map(|s| s.to_string())
 }
 
+/// kimi-code `stringArrayField`/`parseClients`/`parsePlatforms`: keep only
+/// string items, trim them, drop blanks and duplicates. A missing or non-array
+/// value yields an empty vec (upstream treats both as "no restriction").
+fn string_list_field(obj: &serde_json::Map<String, serde_json::Value>, key: &str) -> Vec<String> {
+    let Some(arr) = obj.get(key).and_then(|v| v.as_array()) else {
+        return Vec::new();
+    };
+    let mut out: Vec<String> = Vec::new();
+    for item in arr {
+        if let Some(s) = item.as_str() {
+            let s = s.trim();
+            if !s.is_empty() && !out.iter().any(|existing| existing == s) {
+                out.push(s.to_string());
+            }
+        }
+    }
+    out
+}
+
+/// kimi-code 2.5.0 `parseMarketplaceEntry` tier rule:
+///
+/// * `distribution` present → `category == "official" ? "official" : "curated"`
+///   (the 2.5.0 catalog dropped the top-level `tier` field entirely and moved
+///   the classification into `distribution.category`, where the non-official
+///   value is `"third_party"` — not `"curated"`).
+/// * `distribution` absent → legacy top-level `tier`, validated against the two
+///   known values with "curated" as the lenient fallback.
+fn parse_marketplace_tier(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    category: Option<&str>,
+) -> String {
+    match category {
+        Some("official") => "official".to_string(),
+        Some(_) => "curated".to_string(),
+        None => match non_blank_str(obj, "tier").as_deref() {
+            Some("official") | Some("curated") => non_blank_str(obj, "tier").unwrap(),
+            _ => "curated".to_string(),
+        },
+    }
+}
+
 /// Parse + normalize a catalog (`{version?, plugins: [...]}`) into entries.
 /// Field aliases follow kimi-code (`displayName`/`name`,
 /// `source`/`url`/`downloadUrl`, `description`/`shortDescription`,
@@ -268,23 +358,15 @@ fn parse_marketplace_entry(value: &serde_json::Value, index: usize, catalog_url:
     let display_name = non_blank_str(obj, "displayName")
         .or_else(|| non_blank_str(obj, "name"))
         .unwrap_or_else(|| id.clone());
-    // kimi-code validates tier against {official, curated}; we accept those and
-    // fall back to "curated" for anything else / missing (lenient by design).
-    let tier = match non_blank_str(obj, "tier").as_deref() {
-        Some("official") | Some("curated") => non_blank_str(obj, "tier").unwrap(),
-        _ => "curated".to_string(),
-    };
-    let keywords = obj
-        .get("keywords")
-        .and_then(|k| k.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str())
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
+    // 2.5.0 moved the classification into `distribution.category`; legacy
+    // catalogs only have the flat `tier`. Both feed the same `tier` value so
+    // the frontend keeps a single field to read.
+    let category = obj
+        .get("distribution")
+        .and_then(|d| d.as_object())
+        .and_then(|d| non_blank_str(d, "category"));
+    let tier = parse_marketplace_tier(obj, category.as_deref());
+    let keywords = string_list_field(obj, "keywords");
     Ok(MarketplaceEntry {
         id,
         display_name,
@@ -293,6 +375,9 @@ fn parse_marketplace_entry(value: &serde_json::Value, index: usize, catalog_url:
         keywords,
         homepage: non_blank_str(obj, "homepage").or_else(|| non_blank_str(obj, "websiteURL")),
         tier,
+        category,
+        clients: string_list_field(obj, "clients"),
+        platforms: string_list_field(obj, "platforms"),
         source,
         capability_id: non_blank_str(obj, "capabilityId"),
         installed: None,
@@ -1565,6 +1650,9 @@ mod tests {
         assert_eq!(a.description.as_deref(), Some("legacy desc")); // shortDescription → description
         assert_eq!(a.keywords, vec!["k1"]); // blank keywords dropped
         assert_eq!(a.tier, "curated"); // tier missing → default
+        assert!(a.category.is_none()); // no distribution → no category
+        assert!(a.clients.is_empty()); // absent → unrestricted
+        assert!(a.platforms.is_empty());
         assert!(a.version.is_none());
         assert_eq!(a.source, "https://code.kimi.com/kimi-code/plugins/official/a.zip");
         assert!(a.capability_id.is_none());
@@ -1586,6 +1674,130 @@ mod tests {
     fn catalog_requires_plugins_array() {
         let err = parse_catalog_from_value(&serde_json::json!({ "foo": 1 }), "https://x/y.json").unwrap_err();
         assert!(err.contains("plugins"), "got: {err}");
+    }
+
+    /// Env stub for `resolve_marketplace_url` (no process-env mutation, so the
+    /// parallel test threads cannot see each other's values). The pairs are
+    /// copied into the closure so the returned `Fn` owns everything it reads.
+    fn env_of(pairs: &[(&'static str, &'static str)]) -> impl Fn(&str) -> Option<String> {
+        let owned: Vec<(&'static str, String)> =
+            pairs.iter().map(|(k, v)| (*k, v.to_string())).collect();
+        move |key| {
+            owned
+                .iter()
+                .find(|(k, _)| *k == key)
+                .map(|(_, v)| v.clone())
+        }
+    }
+
+    #[test]
+    fn marketplace_url_prefers_explicit_env_over_base_url() {
+        let url = resolve_marketplace_url(env_of(&[
+            (MARKETPLACE_URL_ENV, " https://mirror.example.com/market.json "),
+            (KIMI_CODE_BASE_URL_ENV, "https://gateway.example.com/v1"),
+        ]));
+        assert_eq!(url, "https://mirror.example.com/market.json");
+        // A blank explicit var is "unset" (upstream would reject it); the base
+        // URL derivation must take over instead of producing an empty URL.
+        let url = resolve_marketplace_url(env_of(&[
+            (MARKETPLACE_URL_ENV, "   "),
+            (KIMI_CODE_BASE_URL_ENV, "https://gateway.example.com/v1"),
+        ]));
+        assert_eq!(url, "https://gateway.example.com/v1/plugins/marketplace");
+    }
+
+    #[test]
+    fn marketplace_url_derives_from_kimi_base_url() {
+        // The 2.5.0 default base URL — the derivation the CLI itself performs.
+        let url = resolve_marketplace_url(env_of(&[(
+            KIMI_CODE_BASE_URL_ENV,
+            "https://api.kimi.com/coding/v1",
+        )]));
+        assert_eq!(url, "https://api.kimi.com/coding/v1/plugins/marketplace");
+        // Trailing slashes (and surrounding whitespace) are stripped so the
+        // derived URL never contains `//plugins`.
+        let url = resolve_marketplace_url(env_of(&[(
+            KIMI_CODE_BASE_URL_ENV,
+            " https://api.kimi.com/coding/v1/// ",
+        )]));
+        assert_eq!(url, "https://api.kimi.com/coding/v1/plugins/marketplace");
+        // Nothing usable → the pre-2.5.0 URL stays the last resort.
+        assert_eq!(
+            resolve_marketplace_url(env_of(&[])),
+            DEFAULT_MARKETPLACE_URL
+        );
+        assert_eq!(
+            resolve_marketplace_url(env_of(&[(KIMI_CODE_BASE_URL_ENV, " / "), (MARKETPLACE_URL_ENV, "")])),
+            DEFAULT_MARKETPLACE_URL
+        );
+    }
+
+    #[test]
+    fn catalog_distribution_category_drives_tier() {
+        // 2.5.0 catalog shape: no top-level `tier`, classification lives in
+        // distribution.category, whose non-official value is "third_party".
+        let catalog = serde_json::json!({
+            "plugins": [
+                {
+                    "id": "official-one",
+                    "source": "https://cdn.example.com/a.zip",
+                    "distribution": { "category": "official", "region": "all", "defaultInstall": true, "weight": 3 }
+                },
+                {
+                    "id": "third-party-one",
+                    "source": "https://cdn.example.com/b.zip",
+                    "distribution": { "category": "third_party", "region": "all", "defaultInstall": false, "weight": 1 }
+                },
+                // distribution present but category missing → fall back to the
+                // legacy flat tier.
+                {
+                    "id": "legacy-in-dist",
+                    "source": "https://cdn.example.com/c.zip",
+                    "tier": "official",
+                    "distribution": { "region": "all" }
+                },
+                // No distribution at all → legacy flat tier.
+                { "id": "legacy", "source": "https://cdn.example.com/d.zip", "tier": "curated" },
+                // Neither → curated.
+                { "id": "bare", "source": "https://cdn.example.com/e.zip" }
+            ]
+        });
+        let entries = parse_catalog_from_value(&catalog, "https://cdn.example.com/marketplace.json").unwrap();
+        assert_eq!(entries[0].tier, "official");
+        assert_eq!(entries[0].category.as_deref(), Some("official"));
+        assert_eq!(entries[1].tier, "curated"); // third_party → curated, not "third_party"
+        assert_eq!(entries[1].category.as_deref(), Some("third_party"));
+        assert_eq!(entries[2].tier, "official");
+        assert!(entries[2].category.is_none());
+        assert_eq!(entries[3].tier, "curated");
+        assert_eq!(entries[4].tier, "curated");
+        assert_eq!(entries[4].category, None);
+    }
+
+    #[test]
+    fn catalog_parses_clients_and_platforms_with_defaults() {
+        let catalog = serde_json::json!({
+            "plugins": [
+                {
+                    "id": "restricted",
+                    "source": "https://cdn.example.com/a.zip",
+                    "clients": ["desktop", "cli", "desktop", "", 7],
+                    "platforms": ["macos", "windows", "linux"]
+                },
+                // Absent → empty (meaning "no restriction" on our side).
+                { "id": "unrestricted", "source": "https://cdn.example.com/b.zip" },
+                // Wrong shape → empty too, never an error.
+                { "id": "odd", "source": "https://cdn.example.com/c.zip", "clients": "desktop", "platforms": 3 }
+            ]
+        });
+        let entries = parse_catalog_from_value(&catalog, "https://cdn.example.com/marketplace.json").unwrap();
+        // Blank + non-string items dropped, duplicates collapsed, order kept.
+        assert_eq!(entries[0].clients, vec!["desktop", "cli"]);
+        assert_eq!(entries[0].platforms, vec!["macos", "windows", "linux"]);
+        assert!(entries[1].clients.is_empty());
+        assert!(entries[1].platforms.is_empty());
+        assert!(entries[2].clients.is_empty());
+        assert!(entries[2].platforms.is_empty());
     }
 
     #[test]

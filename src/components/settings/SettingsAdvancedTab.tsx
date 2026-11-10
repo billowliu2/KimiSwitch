@@ -12,11 +12,11 @@ import {
   isExperimentalFlagSet,
   isFlagLockedByEnv,
   isMasterEnvOn,
+  getDeprecatedSecondaryModelKeys,
   removeSubagentPoolEntry,
   setExperimentalFlag,
   setSecondaryModelOnly,
   setSubagentDefault,
-  setSubagentForce,
   upsertSubagentPoolEntry,
   validateSubagentPool,
   type ExperimentalFlagDef,
@@ -74,8 +74,6 @@ const POOL_ERROR_KEYS: Record<ValidationErrorKey, TranslationKey> = {
   defaultRequired: "secondaryPoolErrorDefaultRequired",
   defaultNotInPool: "secondaryPoolErrorDefaultNotInPool",
   aliasNotInModels: "secondaryPoolErrorAliasNotInModels",
-  forceRequiresDefault: "secondaryPoolErrorForceRequiresDefault",
-  forceExcludesModels: "secondaryPoolErrorForceExcludesModels",
 };
 
 /**
@@ -249,9 +247,17 @@ export function SettingsAdvancedTab({
     !!pool && (poolKeys.length > 0 || pool.defaultModel !== undefined);
   // Effective default: v2 pool key first, legacy v1 recipe key as fallback.
   const effectiveDefault = pool ? pool.defaultModel ?? pool.model : undefined;
-  // "Upgrade" only makes sense for the bare legacy form and when `force` is
-  // off — upgrading with force would create an invalid force+pool-table combo.
-  const canUpgrade = !!pool && !isPoolView && pool.model !== undefined && !pool.force;
+  // "Upgrade" only makes sense for the bare legacy form: it materializes the
+  // single `model` alias into the pool table, which is what 2.5.0 expects now
+  // that `force` no longer expresses "pin everything to one model".
+  const canUpgrade = !!pool && !isPoolView && pool.model !== undefined;
+  // Keys upstream stopped reading in 2.5.0; listed so the cleanup on save is
+  // explained up front instead of looking like the app edited the file on its
+  // own.
+  const deprecatedKeys = getDeprecatedSecondaryModelKeys(rawOther);
+  // A pool with a single entry pins every subagent and hides the spawn-time
+  // `model` parameter upstream — worth stating, since it is the one case where
+  // the pool silently removes a choice.
   const masterOn = isMasterEnvOn(env);
 
   const aliasList = Object.keys(models).sort();
@@ -268,6 +274,7 @@ export function SettingsAdvancedTab({
       ? [effectiveDefault]
       : [];
   const poolEntries = [...poolKeys, ...implicitDefault];
+  const poolPinsSingleModel = !!pool && poolEntries.length <= 1 && effectiveDefault !== undefined;
   // Aliases that can still be added to the pool (not already in the table).
   const addableAliases = aliasList.filter((a) => !(a in (pool?.models ?? {})));
 
@@ -340,16 +347,6 @@ export function SettingsAdvancedTab({
 
   const handleAddEntry = (alias: string) => {
     const nextRaw = upsertSubagentPoolEntry(rawOther, alias, "");
-    if (validateWrite(nextRaw)) onChange(nextRaw);
-  };
-
-  const handleForceChange = (next: boolean) => {
-    if (!pool) return;
-    // Turning force on drops the `models` table — confirm when it is non-empty.
-    if (next && Object.keys(pool.models).length > 0) {
-      if (!confirm(t("secondaryPoolForceConfirm"))) return;
-    }
-    const nextRaw = setSubagentForce(rawOther, next);
     if (validateWrite(nextRaw)) onChange(nextRaw);
   };
 
@@ -531,76 +528,52 @@ export function SettingsAdvancedTab({
       <Card title={t("secondaryModelSection")}>
         {isPoolView && pool ? (
           <>
-            {pool.force ? (
-              /* Force on: the `models` table was dropped — only the pinned
-                 default is shown, entries and "add" are hidden. */
-              <div className="rounded-lg border border-border bg-input/40 px-3 py-2.5">
-                <div className="text-sm font-medium text-content-primary">
-                  🔒{" "}
-                  {t("secondaryPoolForceOn", {
-                    alias: aliasLabel(effectiveDefault ?? ""),
-                  })}
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="space-y-2">
-                  {poolEntries.map((alias) => (
-                    <PoolEntryRow
-                      key={alias}
-                      alias={alias}
-                      displayName={models[alias]?.display_name ?? null}
-                      description={pool.models[alias] ?? ""}
-                      isDefault={alias === effectiveDefault}
-                      canRemove={alias in pool.models}
-                      onSetDefault={handleSetDefault}
-                      onSave={handleSaveDescription}
-                      onRemove={handleRemoveEntry}
-                    />
-                  ))}
-                </div>
-                <p className="text-xs text-content-muted">
-                  {t("secondaryPoolDescHint")}
-                </p>
-                <label className="flex items-center gap-3 text-sm text-content-primary">
-                  <span className="shrink-0 text-content-muted">
-                    {t("secondaryPoolAddLabel")}
-                  </span>
-                  <select
-                    className="flex-1 max-w-md bg-input border border-border rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    value={addSelection}
-                    onChange={(e) => {
-                      const alias = e.target.value;
-                      setAddSelection("");
-                      if (alias) handleAddEntry(alias);
-                    }}
-                  >
-                    <option value="">{t("secondaryPoolAddPlaceholder")}</option>
-                    {addableAliases.map((alias) => (
-                      <option key={alias} value={alias}>
-                        {aliasLabel(alias)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </>
-            )}
-
-            <div className="flex items-center gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="text-sm text-content-primary">
-                  {t("secondaryPoolForce")}
-                </div>
-                <div className="text-xs text-content-muted">
-                  {t("secondaryPoolForceDesc")}
-                </div>
-              </div>
-              <Toggle
-                checked={pool.force}
-                ariaLabel={t("secondaryPoolForce")}
-                onChange={handleForceChange}
-              />
+            <div className="space-y-2">
+              {poolEntries.map((alias) => (
+                <PoolEntryRow
+                  key={alias}
+                  alias={alias}
+                  displayName={models[alias]?.display_name ?? null}
+                  description={pool.models[alias] ?? ""}
+                  isDefault={alias === effectiveDefault}
+                  canRemove={alias in pool.models}
+                  onSetDefault={handleSetDefault}
+                  onSave={handleSaveDescription}
+                  onRemove={handleRemoveEntry}
+                />
+              ))}
             </div>
+            <p className="text-xs text-content-muted">
+              {t("secondaryPoolDescHint")}
+            </p>
+            {poolPinsSingleModel && (
+              <p className="text-xs rounded-lg border border-border bg-input/40 px-3 py-2 text-content-muted">
+                {t("secondaryPoolPinsSingleModel", {
+                  alias: aliasLabel(effectiveDefault ?? ""),
+                })}
+              </p>
+            )}
+            <label className="flex items-center gap-3 text-sm text-content-primary">
+              <span className="shrink-0 text-content-muted">
+                {t("secondaryPoolAddLabel")}
+              </span>
+              <select
+                className="flex-1 max-w-md bg-input border border-border rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                value={addSelection}
+                onChange={(e) => {
+                  const alias = e.target.value;
+                  setAddSelection("");
+                  if (alias) handleAddEntry(alias);
+                }}
+              >
+                <option value="">{t("secondaryPoolAddPlaceholder")}</option>
+                {addableAliases.map((alias) => (
+                  <option key={alias} value={alias}>
+                    {aliasLabel(alias)}
+                  </option>
+                ))}
+              </select>
+            </label>
 
             <button
               type="button"
@@ -641,11 +614,6 @@ export function SettingsAdvancedTab({
                   </option>
                 ))}
               </select>
-              {pool?.force && (
-                <span className="shrink-0 text-xs text-content-muted">
-                  🔒 {t("secondaryModelForceBadge")}
-                </span>
-              )}
             </label>
 
             {canUpgrade && (
@@ -663,6 +631,23 @@ export function SettingsAdvancedTab({
               </div>
             )}
           </>
+        )}
+
+        {deprecatedKeys.length > 0 && (
+          <div
+            role="status"
+            className="rounded-lg border border-amber-500/40 bg-amber-100/60 dark:bg-amber-900/20 px-3 py-2 text-xs text-amber-800 dark:text-amber-300 space-y-1"
+          >
+            <div className="font-medium">
+              {t("secondaryDeprecatedKeysTitle", {
+                keys: deprecatedKeys.join(", "),
+              })}
+            </div>
+            <div>{t("secondaryDeprecatedKeysDesc")}</div>
+            {deprecatedKeys.includes("force") && (
+              <div>{t("secondaryDeprecatedForceDesc")}</div>
+            )}
+          </div>
         )}
 
         {poolErrors.length > 0 && (

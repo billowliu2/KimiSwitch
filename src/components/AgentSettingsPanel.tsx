@@ -101,8 +101,15 @@ export function AgentSettingsPanel({ rawOther, onChange, models, defaultModel }:
     update({ loop_control: { ...settings.loop_control, ...patch } });
   };
 
-  const updateBackground = (patch: Partial<AgentSettings["background"]>) => {
-    update({ background: { ...settings.background, ...patch } });
+  const updateTask = (patch: Partial<AgentSettings["task"]>) => {
+    update({ task: { ...settings.task, ...patch } });
+  };
+
+  const updateScalar = <K extends "workspace" | "database" | "mcp" | "read">(
+    key: K,
+    patch: Partial<NonNullable<AgentSettings[K]>>
+  ) => {
+    update({ [key]: { ...settings[key], ...patch } } as Partial<AgentSettings>);
   };
 
   const updateWatch = (patch: Partial<AgentSettings["watch"]>) => {
@@ -227,16 +234,176 @@ export function AgentSettingsPanel({ rawOther, onChange, models, defaultModel }:
       </Card>
 
       <Card title={t("backgroundSettings")}>
+        {/* kimi-code 2.4.0 renamed this section `[background]` → `[task]`;
+            upstream still merges the legacy name in, field by field with
+            `[task]` winning, so the values shown here come from the merged
+            view (getAgentSettings → resolveTaskSection). Writes always target
+            `[task]` and migrate/drop `[background]` (see setAgentSettings). */}
         <NumberField
           label={t("maxRunningTasks")}
-          value={settings.background?.max_running_tasks}
-          onChange={(v) => updateBackground({ max_running_tasks: v })}
+          value={settings.task?.max_running_tasks}
+          onChange={(v) => updateTask({ max_running_tasks: v })}
         />
+        <p className="text-xs text-content-muted">{t("maxRunningTasksDesc")}</p>
         <Checkbox
           label={t("keepAliveOnExit")}
-          checked={settings.background?.keep_alive_on_exit ?? false}
-          onChange={(checked) => updateBackground({ keep_alive_on_exit: checked })}
+          checked={settings.task?.keep_alive_on_exit ?? false}
+          onChange={(checked) => updateTask({ keep_alive_on_exit: checked })}
         />
+        <p className="text-xs text-content-muted">{t("keepAliveOnExitDesc")}</p>
+        <Checkbox
+          label={t("bashAutoBackgroundOnTimeout")}
+          checked={settings.task?.bash_auto_background_on_timeout ?? true}
+          onChange={(checked) =>
+            updateTask({ bash_auto_background_on_timeout: checked })
+          }
+        />
+        <p className="text-xs text-content-muted">
+          {t("bashAutoBackgroundOnTimeoutDesc")}
+        </p>
+        <NumberField
+          label={t("bashTaskTimeoutS")}
+          value={settings.task?.bash_task_timeout_s}
+          onChange={(v) => updateTask({ bash_task_timeout_s: v })}
+        />
+        <p className="text-xs text-content-muted">{t("bashTaskTimeoutSDesc")}</p>
+        <NumberField
+          label={t("killGracePeriodMs")}
+          value={settings.task?.kill_grace_period_ms}
+          onChange={(v) => updateTask({ kill_grace_period_ms: v })}
+        />
+        <p className="text-xs text-content-muted">{t("killGracePeriodMsDesc")}</p>
+        {/* print mode only (`kimi -p`): grouped behind a disclosure so the
+            interactive-mode defaults stay out of the way. */}
+        <details className="pt-1">
+          <summary className="text-sm text-content-muted cursor-pointer">
+            {t("taskPrintModeSection")}
+          </summary>
+          <div className="mt-2 space-y-3">
+            <p className="text-xs text-content-muted">
+              {t("taskPrintModeSectionDesc")}
+            </p>
+            <label className="flex items-center gap-3 text-sm text-content-primary">
+              <span className="text-content-muted">{t("printBackgroundMode")}</span>
+              <select
+                className="bg-input border border-border rounded px-2 py-1 text-sm"
+                value={settings.task?.print_background_mode ?? "steer"}
+                onChange={(e) =>
+                  updateTask({
+                    print_background_mode: e.target
+                      .value as NonNullable<
+                      AgentSettings["task"]
+                    >["print_background_mode"],
+                  })
+                }
+              >
+                <option value="steer">{t("printBackgroundSteer")}</option>
+                <option value="drain">{t("printBackgroundDrain")}</option>
+                <option value="exit">{t("printBackgroundExit")}</option>
+              </select>
+            </label>
+            <p className="text-xs text-content-muted">
+              {t("printBackgroundModeDesc")}
+            </p>
+            <NumberField
+              label={t("printWaitCeilingS")}
+              value={settings.task?.print_wait_ceiling_s}
+              onChange={(v) => updateTask({ print_wait_ceiling_s: v })}
+            />
+            <p className="text-xs text-content-muted">
+              {t("printWaitCeilingSDesc")}
+            </p>
+            <NumberField
+              label={t("printMaxTurns")}
+              value={settings.task?.print_max_turns}
+              onChange={(v) => updateTask({ print_max_turns: v })}
+            />
+            <p className="text-xs text-content-muted">{t("printMaxTurnsDesc")}</p>
+          </div>
+        </details>
+      </Card>
+
+      <Card title={t("workspaceTrustSettings")}>
+        {/* kimi-code 2.5.0 `[workspace] require_trust` (upstream #4517).
+            Upstream default true, so an unticked box writes
+            require_trust = false and a ticked one removes the key. This one is
+            a security switch: with trust prompts off, project-level MCP servers
+            and other trust-gated project config load unchecked. */}
+        <Checkbox
+          label={t("workspaceRequireTrust")}
+          checked={settings.workspace?.require_trust ?? true}
+          onChange={(checked) =>
+            updateScalar("workspace", { require_trust: checked })
+          }
+        />
+        <p className="text-xs text-content-muted">
+          {t("workspaceRequireTrustDesc")}
+        </p>
+        {settings.workspace?.require_trust === false && (
+          <p className="text-xs text-amber-500 dark:text-amber-400">
+            {t("workspaceRequireTrustWarning")}
+          </p>
+        )}
+      </Card>
+
+      <Card title={t("databaseSettings")}>
+        {/* kimi-code 2.5.0: `[database] global_search` now defaults to false
+            (it used to be on), so only a checked box writes the key. */}
+        <Checkbox
+          label={t("databaseGlobalSearch")}
+          checked={settings.database?.global_search ?? false}
+          onChange={(checked) =>
+            updateScalar("database", { global_search: checked })
+          }
+        />
+        <p className="text-xs text-content-muted">
+          {t("databaseGlobalSearchDesc")}
+        </p>
+      </Card>
+
+      <Card title={t("mcpSettings")}>
+        {/* kimi-code 2.4.0 (upstream #4283) workspace-level MCP reconnect
+            backoff. Both keys have non-zero defaults, so an emptied field
+            leaves the key out instead of writing a 0 the section schema
+            rejects (min 1). */}
+        <NumberField
+          label={t("mcpReconnectInitialDelayMs")}
+          value={settings.mcp?.reconnect_initial_delay_ms}
+          onChange={(v) =>
+            updateScalar("mcp", { reconnect_initial_delay_ms: v })
+          }
+        />
+        <p className="text-xs text-content-muted">
+          {t("mcpReconnectInitialDelayMsDesc")}
+        </p>
+        <NumberField
+          label={t("mcpReconnectMaxDelayMs")}
+          value={settings.mcp?.reconnect_max_delay_ms}
+          onChange={(v) => updateScalar("mcp", { reconnect_max_delay_ms: v })}
+        />
+        <p className="text-xs text-content-muted">
+          {t("mcpReconnectMaxDelayMsDesc")}
+        </p>
+      </Card>
+
+      <Card title={t("readSettings")}>
+        {/* `[read]`: upstream 2.4.1 lowered max_chars from 500000 to 100000.
+            Both keys are positive ints upstream — 0 / empty removes the key
+            rather than pinning an invalid value. */}
+        <NumberField
+          label={t("readMaxChars")}
+          value={settings.read?.max_chars}
+          onChange={(v) => updateScalar("read", { max_chars: v })}
+        />
+        <p className="text-xs text-content-muted">{t("readMaxCharsDesc")}</p>
+        <NumberField
+          label={t("readDefaultMaxChars")}
+          value={settings.read?.default_max_chars}
+          onChange={(v) => updateScalar("read", { default_max_chars: v })}
+        />
+        <p className="text-xs text-content-muted">
+          {t("readDefaultMaxCharsDesc")}
+        </p>
       </Card>
 
       <Card title={t("watchSettings")}>

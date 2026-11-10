@@ -436,11 +436,14 @@ fn build_alias_provider_map(home: &Path) -> HashMap<String, String> {
     map
 }
 
-/// Read `[secondary_model] model` from the Kimi Code config.toml — the alias
-/// subagents bind to when the experimental secondary-model feature is on.
-/// Kimi Code emits usage records with the internal marker `__secondary__` for
-/// those requests; the marker is resolved to this alias so prices and display
-/// line up with the actual model.
+/// Read the subagent model alias from `[secondary_model]` in the Kimi Code
+/// config.toml — the model subagents bind to while the secondary-model feature
+/// is on.
+///
+/// kimi-code 2.5.0 (#4418) renamed the key to `default_model` and deprecated
+/// `force`; older builds only ever wrote `model`. Read the new key first so a
+/// config carrying both prices at the model the CLI actually spawns, and keep
+/// `model` as the fallback for configs that predate the rename.
 fn read_secondary_model_alias(home: &Path) -> Option<String> {
     let path = home.join("config.toml");
     if !path.is_file() {
@@ -448,12 +451,15 @@ fn read_secondary_model_alias(home: &Path) -> Option<String> {
     }
     let content = std::fs::read_to_string(&path).ok()?;
     let parsed: toml::Value = toml::from_str(&content).ok()?;
-    parsed
-        .get("secondary_model")
-        .and_then(|s| s.get("model"))
-        .and_then(|m| m.as_str())
-        .map(|s| s.to_string())
-        .filter(|s| !s.is_empty())
+    let section = parsed.get("secondary_model")?;
+    // An empty `default_model` means "not configured", not "the empty model".
+    ["default_model", "model"].iter().find_map(|key| {
+        section
+            .get(*key)
+            .and_then(|m| m.as_str())
+            .map(|s| s.to_string())
+            .filter(|s| !s.is_empty())
+    })
 }
 
 /// Resolve the provider for a usage record's raw model key: prefer the `provider/`
@@ -478,8 +484,15 @@ fn sessions_root(home: &Path) -> PathBuf {
     home.join("sessions")
 }
 
+/// Workspace directory name shape. Two namespaces exist as of kimi-code 2.5.0:
+/// implicit buckets are `wd_<slug>_<hash12>`, while projects created from the
+/// web/desktop clients get `wm_<uuid>` (upstream `workspaceAlias.ts` draws the
+/// same `wm_`/implicit split). The id doubles as a single path segment in
+/// `assert_safe_path` and `delete_workspace_cmd`, so both alternatives must
+/// stay free of `/`, `\` and a bare `..`: the mandatory prefix rules out a
+/// dot-only segment, and neither class admits a separator.
 fn workspace_re() -> Regex {
-    Regex::new(r"^wd_[A-Za-z0-9._-]+$").unwrap()
+    Regex::new(r"^(?:wd_[A-Za-z0-9._-]+|wm_[0-9A-Fa-f-]{8,})$").unwrap()
 }
 
 fn session_re() -> Regex {
@@ -866,9 +879,10 @@ struct ScanInputsCacheEntry {
     home: String,
     stamp: Vec<ConfigStatStamp>,
     inputs: Arc<ScanInputs>,
-    /// `[secondary_model].model` exactly as `config.toml` declares it, before
-    /// the persisted-cache fallback. Snapshot synthesis mirrors the archiver,
-    /// which prices with this config-only value.
+    /// The configured secondary alias exactly as `config.toml` declares it
+    /// (`default_model`, else legacy `model`), before the persisted-cache
+    /// fallback. Snapshot synthesis mirrors the archiver, which prices with
+    /// this config-only value.
     config_secondary: Option<String>,
 }
 
@@ -1367,14 +1381,16 @@ fn parse_wire_usage_records(
         if scope != "turn" { continue; }
 
         let model_raw = obj.get("model").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
-        // Kimi Code writes the internal marker `__secondary__` as the model
-        // key for usage records emitted by subagents bound to the
-        // configured secondary model. The record stays keyed on that
-        // stable marker so historical records keep their semantics if the
-        // secondary config changes later; cost billing follows the
-        // currently configured secondary model, and the record is flagged
-        // is_secondary so the UI shows it as its own "subagent model"
-        // entry.
+        // Pre-2.5.0 builds wrote the internal marker `__secondary__` as the
+        // model key for usage records emitted by subagents bound to the
+        // configured secondary model. kimi-code 2.5.0 (#4418) dropped that
+        // alias — new subagent records carry the real model name — but wire
+        // files on disk keep the marker for every request recorded before the
+        // upgrade, so it must still be recognised. Those historical records
+        // stay keyed on the marker (their semantics must not drift when the
+        // secondary config changes later), cost billing follows the currently
+        // configured secondary model, and the is_secondary flag keeps the UI
+        // showing them as their own "subagent model" entry.
         let is_secondary = model_raw == "__secondary__";
         let from_env = model_raw == "__kimi_env_model__";
         let price_model = if is_secondary {
@@ -1392,10 +1408,11 @@ fn parse_wire_usage_records(
         // Resolve model display
         let bare = model_raw.rsplit_once('/').map(|x| x.1).unwrap_or(&model_raw);
         let (cost, est) = cost_for_usage(input_other, output, cache_read, cache_create, &price_model);
-        // Subagent records are inherently estimates: the `__secondary__`
-        // marker carries no model identity, so the cost is flagged as
-        // estimated even when the current secondary config resolves to a
-        // priced listing.
+        // Historical subagent records are inherently estimates: the
+        // `__secondary__` marker carries no model identity, so the cost is
+        // flagged as estimated even when the current secondary config resolves
+        // to a priced listing. Records written by 2.5.0+ carry the real model
+        // and are priced like any other request.
         let est = est || is_secondary;
         let (pid, _ch, _ip, _op, _) = match_price(&price_model);
 
@@ -2388,6 +2405,105 @@ fn list_sessions_in_dir(dir: &Path, workspace_id: &str, in_archive_dir: bool) ->
     sessions
 }
 
+/// The workspace registry kimi-code 2.5.0+ writes (#4336).
+fn projects_registry_path(home: &Path) -> PathBuf {
+    home.join("projects.json")
+}
+
+/// The pre-2.5.0 registry. Upstream leaves it in place as the migration input
+/// and stops updating it, so it is only ever a read fallback here.
+fn legacy_workspaces_registry_path(home: &Path) -> PathBuf {
+    home.join("workspaces.json")
+}
+
+/// Workspace metadata by id, for name/root lookup.
+///
+/// `projects.json` wins whenever it is readable: since 2.5.0 (#4336) it is the
+/// only file the CLI still writes, and on a migrated home the legacy
+/// `workspaces.json` copy is frozen at the moment of the migration (its
+/// `last_opened_at` values lag, which is visible on real homes). The legacy
+/// file is read only when `projects.json` is missing or unparseable — an older
+/// CLI, or a migration that has not run yet.
+fn read_workspace_registry(home: &Path) -> HashMap<String, serde_json::Value> {
+    read_registry_entries(&projects_registry_path(home), "projects")
+        .or_else(|| read_registry_entries(&legacy_workspaces_registry_path(home), "workspaces"))
+        .unwrap_or_default()
+}
+
+/// The `<key>` object of a registry document. `None` means "this file cannot
+/// answer" (absent, unreadable, not JSON, or the key is missing/not an object),
+/// which is what lets the caller fall through to the next candidate.
+fn read_registry_entries(path: &Path, key: &str) -> Option<HashMap<String, serde_json::Value>> {
+    let content = fs::read_to_string(path).ok()?;
+    let obj: serde_json::Value = serde_json::from_str(&content).ok()?;
+    let entries = obj.get(key)?.as_object()?;
+    Some(entries.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+}
+
+/// Record a workspace deletion where kimi-code will read it.
+///
+/// 2.5.0 (#4336) keeps tombstones in `projects.json` as `deleted_project_ids`;
+/// `workspaces.json` / `deleted_workspace_ids` is the pre-2.5.0 pair and stays
+/// as the fallback for homes that have not migrated yet. Errors are returned so
+/// tests can assert on the write; the caller treats them as warnings because
+/// the session directories are gone by this point.
+fn record_workspace_deletion(home: &Path, workspace_id: &str) -> Result<(), String> {
+    let projects = projects_registry_path(home);
+    if projects.is_file() {
+        return update_registry_deletion(&projects, "projects", "deleted_project_ids", workspace_id);
+    }
+    let legacy = legacy_workspaces_registry_path(home);
+    if legacy.is_file() {
+        return update_registry_deletion(&legacy, "workspaces", "deleted_workspace_ids", workspace_id);
+    }
+    // Neither registry exists: there is nothing to record the deletion in, and
+    // creating one from scratch would invent a document version/schema this
+    // app does not own.
+    Ok(())
+}
+
+/// Drop `workspace_id` from `<entries_key>` and append it to `<deleted_key>`,
+/// editing the document in place as `serde_json::Value` so every field this app
+/// does not know about (`schema_version`, `idempotency_keys`, `migration`,
+/// per-project extras) survives the round trip. Written to a sibling and
+/// renamed, like `set_session_archived_meta`: the CLI may read the registry at
+/// any moment.
+fn update_registry_deletion(
+    path: &Path,
+    entries_key: &str,
+    deleted_key: &str,
+    workspace_id: &str,
+) -> Result<(), String> {
+    let content = fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    let mut doc: serde_json::Value =
+        serde_json::from_str(&content).map_err(|e| format!("parse {}: {e}", path.display()))?;
+    let obj = doc
+        .as_object_mut()
+        .ok_or_else(|| format!("{} is not a JSON object", path.display()))?;
+    if let Some(entries) = obj.get_mut(entries_key).and_then(|v| v.as_object_mut()) {
+        entries.remove(workspace_id);
+    }
+    let deleted = obj
+        .entry(deleted_key.to_string())
+        .or_insert_with(|| serde_json::Value::Array(Vec::new()));
+    if !deleted.is_array() {
+        // A non-array tombstone list is corrupt; replacing it is the only way
+        // to keep this deletion from being dropped.
+        *deleted = serde_json::Value::Array(Vec::new());
+    }
+    if let Some(arr) = deleted.as_array_mut() {
+        if !arr.iter().any(|v| v.as_str() == Some(workspace_id)) {
+            arr.push(serde_json::Value::String(workspace_id.to_string()));
+        }
+    }
+    let body = serde_json::to_string_pretty(&doc)
+        .map_err(|e| format!("serialize {}: {e}", path.display()))?;
+    let tmp = path.with_extension("json.tmp");
+    fs::write(&tmp, body + "\n").map_err(|e| format!("write {}: {e}", tmp.display()))?;
+    fs::rename(&tmp, path).map_err(|e| format!("commit {}: {e}", path.display()))?;
+    Ok(())
+}
+
 fn list_sessions_cmd(home: &Path, status: &str, workspace_filter: Option<String>) -> SessionsResult {
     let root = sessions_root(home);
     let archive_root = root.join(".kcd-archive");
@@ -2403,18 +2519,8 @@ fn list_sessions_cmd(home: &Path, status: &str, workspace_filter: Option<String>
     }
     ws_ids.sort();
 
-    // Load workspaces.json
-    let wp = home.join("workspaces.json");
-    let mut ws_meta: HashMap<String, serde_json::Value> = HashMap::new();
-    if let Ok(content) = fs::read_to_string(&wp) {
-        if let Ok(obj) = serde_json::from_str::<serde_json::Value>(&content) {
-            if let Some(ws) = obj.get("workspaces").and_then(|v| v.as_object()) {
-                for (k, v) in ws {
-                    ws_meta.insert(k.clone(), v.clone());
-                }
-            }
-        }
-    }
+    // projects.json (2.5.0+) first, legacy workspaces.json as the fallback.
+    let ws_meta = read_workspace_registry(home);
 
     let mut workspaces = Vec::new();
     let mut all_sessions = Vec::new();
@@ -2606,22 +2712,10 @@ fn delete_workspace_cmd(home: &Path, workspace_id: &str, _confirm: bool, _force:
     if active_dir.exists() { fs::remove_dir_all(&active_dir).ok(); }
     if arch_dir.exists() { fs::remove_dir_all(&arch_dir).ok(); }
 
-    // Update workspaces.json
-    let wp = home.join("workspaces.json");
-    if let Ok(content) = fs::read_to_string(&wp) {
-        if let Ok(mut obj) = serde_json::from_str::<serde_json::Value>(&content) {
-            if let Some(ws) = obj.get_mut("workspaces").and_then(|v| v.as_object_mut()) {
-                ws.remove(workspace_id);
-            }
-            let deleted = obj.get_mut("deleted_workspace_ids")
-                .and_then(|v| v.as_array_mut());
-            if let Some(arr) = deleted {
-                if !arr.iter().any(|v| v.as_str() == Some(workspace_id)) {
-                    arr.push(serde_json::Value::String(workspace_id.to_string()));
-                }
-            }
-            let _ = fs::write(&wp, serde_json::to_string_pretty(&obj).unwrap() + "\n");
-        }
+    // Record the tombstone where the current CLI reads it. Failing to persist
+    // it does not undo the directory removal, so it stays a warning.
+    if let Err(e) = record_workspace_deletion(home, workspace_id) {
+        eprintln!("delete workspace: cannot record deletion of {workspace_id}: {e}");
     }
 
     Ok(ActionResponse {
@@ -5142,5 +5236,198 @@ mod disk_scan_cache_tests {
         assert!(!unverified, "refresh never serves the snapshot");
         assert_eq!(records.len(), 2, "refresh re-reads every file");
         assert_eq!(meta.record_count, 2);
+    }
+
+    // -----------------------------------------------------------------------
+    // kimi-code 2.5.0 adaptation: `wm_` worktrees, projects.json, default_model
+    // -----------------------------------------------------------------------
+
+    const WM_ID: &str = "wm_9f8e7d6c-5b4a-4321-8765-fedcba987654";
+
+    /// A home with one session-less workspace directory, so `list_sessions_cmd`
+    /// lists it from the registry even though it holds no sessions.
+    fn workspace_home(id: &str) -> (tempfile::TempDir, PathBuf) {
+        let td = tempfile::tempdir().unwrap();
+        let home = td.path().join("home");
+        fs::create_dir_all(home.join("sessions").join(id)).unwrap();
+        (td, home)
+    }
+
+    fn write_json(path: &Path, value: serde_json::Value) {
+        if let Some(dir) = path.parent() { fs::create_dir_all(dir).unwrap(); }
+        fs::write(path, serde_json::to_string_pretty(&value).unwrap() + "\n").unwrap();
+    }
+
+    fn read_json(path: &Path) -> serde_json::Value {
+        serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap()
+    }
+
+    /// `wm_<uuid>` ids are ordinary workspace buckets upstream since 2.5.0, so
+    /// they have to pass the same single-segment check that guards the path
+    /// joins — without loosening it to anything that can escape `sessions/`.
+    #[test]
+    fn workspace_re_accepts_wm_ids_and_still_rejects_path_escapes() {
+        let re = workspace_re();
+        assert!(re.is_match(WM_ID), "wm_<uuid> is a valid workspace id");
+        assert!(re.is_match("wd_proj_a1b2c3d4e5f6"));
+        for bad in [
+            "..",
+            ".",
+            "../wd_proj_a1b2c3d4e5f6",
+            "wd_../etc",
+            "wd_proj/../../etc",
+            "wd_proj\\..\\etc",
+            "wm_9f8e7d6c-5b4a-4321-8765-fedcba987654/../x",
+            "wm_",
+            "xm_9f8e7d6c-5b4a-4321-8765-fedcba987654",
+        ] {
+            assert!(!re.is_match(bad), "{bad:?} must not be a workspace id");
+        }
+
+        let td = tempfile::tempdir().unwrap();
+        let home = td.path();
+        fs::create_dir_all(sessions_root(home).join(WM_ID).join(SID)).unwrap();
+        assert!(
+            assert_safe_path(home, WM_ID, SID).is_ok(),
+            "a wm_ bucket resolves inside sessions/"
+        );
+        assert_eq!(
+            assert_safe_path(home, "../wd_proj_a1b2c3d4e5f6", SID).unwrap_err(),
+            "invalid workspace id",
+        );
+    }
+
+    /// `projects.json` is the only registry 2.5.0+ writes; a migrated home also
+    /// still has a frozen `workspaces.json` next to it. The sessions list must
+    /// follow the live file, and fall back only when it cannot be read.
+    #[test]
+    fn projects_registry_wins_and_legacy_workspaces_file_is_the_fallback() {
+        let (_td, home) = workspace_home(WM_ID);
+        let projects = home.join("projects.json");
+        let legacy = home.join("workspaces.json");
+        write_json(&projects, serde_json::json!({
+            "schema_version": 2,
+            "projects": { WM_ID: { "root": "/work/live", "name": "live name", "kind": "managed" } },
+            "deleted_project_ids": [],
+            "idempotency_keys": {},
+        }));
+        write_json(&legacy, serde_json::json!({
+            "version": 1,
+            "workspaces": { WM_ID: { "root": "/work/stale", "name": "stale name" } },
+            "deleted_workspace_ids": [],
+        }));
+
+        let live = list_sessions_cmd(&home, "all", None);
+        let row = live.workspaces.iter().find(|w| w.id == WM_ID).expect("wm_ workspace listed");
+        assert_eq!(row.name, "live name", "projects.json is authoritative");
+        assert_eq!(row.root.as_deref(), Some("/work/live"));
+
+        // No projects.json at all (a pre-2.5.0 home): the legacy file answers.
+        fs::remove_file(&projects).unwrap();
+        let fallback = list_sessions_cmd(&home, "all", None);
+        let row = fallback.workspaces.iter().find(|w| w.id == WM_ID).expect("still listed");
+        assert_eq!(row.name, "stale name");
+        assert_eq!(row.root.as_deref(), Some("/work/stale"));
+
+        // A corrupt projects.json must not blind the dashboard either.
+        fs::write(&projects, "{ not json").unwrap();
+        let corrupt = list_sessions_cmd(&home, "all", None);
+        let row = corrupt.workspaces.iter().find(|w| w.id == WM_ID).expect("still listed");
+        assert_eq!(row.name, "stale name", "unparseable projects.json falls through");
+    }
+
+    /// Deleting a workspace has to leave a tombstone the CLI honours, in the
+    /// file the CLI reads, and must not drop the fields this app never models.
+    #[test]
+    fn delete_workspace_writes_a_project_tombstone_and_keeps_unknown_fields() {
+        let (_td, home) = workspace_home(WM_ID);
+        let projects = home.join("projects.json");
+        write_json(&projects, serde_json::json!({
+            "schema_version": 2,
+            "projects": {
+                WM_ID: { "root": "/work/a", "name": "a", "kind": "managed" },
+                "wd_proj_a1b2c3d4e5f6": {
+                    "root": "/work/b", "name": "b", "kind": "implicit", "extra_per_project": 7,
+                },
+            },
+            "deleted_project_ids": ["wm_00000000-0000-0000-0000-000000000000"],
+            "idempotency_keys": { "create-1": WM_ID },
+            "migration": { "source_file": "workspaces.json", "source_version": 1 },
+        }));
+
+        delete_workspace_cmd(&home, WM_ID, true, false).unwrap();
+        let doc = read_json(&projects);
+        let obj = doc.as_object().unwrap();
+
+        assert!(
+            obj["projects"].get(WM_ID).is_none(),
+            "the deleted project leaves the projects object",
+        );
+        assert!(obj["projects"].get("wd_proj_a1b2c3d4e5f6").is_some(), "other projects survive");
+        let deleted: Vec<&str> = obj["deleted_project_ids"]
+            .as_array().unwrap().iter().filter_map(|v| v.as_str()).collect();
+        assert_eq!(deleted, vec![
+            "wm_00000000-0000-0000-0000-000000000000",
+            WM_ID,
+        ], "the tombstone is appended once, after the existing entries");
+
+        assert_eq!(obj["schema_version"], serde_json::json!(2), "unknown-to-us fields survive");
+        assert_eq!(obj["idempotency_keys"]["create-1"], serde_json::json!(WM_ID));
+        assert_eq!(obj["migration"]["source_file"], serde_json::json!("workspaces.json"));
+        assert_eq!(
+            obj["projects"]["wd_proj_a1b2c3d4e5f6"]["extra_per_project"],
+            serde_json::json!(7),
+        );
+        assert!(!projects.with_extension("json.tmp").exists(), "the temp file is renamed away");
+
+        // Deleting again must not duplicate the tombstone.
+        delete_workspace_cmd(&home, WM_ID, true, false).unwrap();
+        let doc = read_json(&projects);
+        assert_eq!(doc["deleted_project_ids"].as_array().unwrap().len(), 2);
+    }
+
+    /// A home that has not migrated yet still has to record deletions, and in
+    /// the legacy shape.
+    #[test]
+    fn delete_workspace_falls_back_to_the_legacy_registry() {
+        let (_td, home) = workspace_home(WM_ID);
+        let legacy = home.join("workspaces.json");
+        write_json(&legacy, serde_json::json!({
+            "version": 1,
+            "workspaces": { WM_ID: { "root": "/work/a", "name": "a" } },
+            "deleted_workspace_ids": [],
+        }));
+
+        delete_workspace_cmd(&home, WM_ID, true, false).unwrap();
+        let doc = read_json(&legacy);
+        assert!(doc["workspaces"].get(WM_ID).is_none());
+        assert_eq!(doc["deleted_workspace_ids"], serde_json::json!([WM_ID]));
+        assert_eq!(doc["version"], serde_json::json!(1));
+        assert!(!home.join("projects.json").exists(), "no registry is invented");
+    }
+
+    /// 2.5.0 moved the key to `default_model`; `model` is legacy but still
+    /// present in configs written by older builds.
+    #[test]
+    fn secondary_alias_prefers_default_model_over_legacy_model() {
+        let td = tempfile::tempdir().unwrap();
+        let home = td.path();
+
+        fs::write(home.join("config.toml"),
+            "[secondary_model]\nmodel = \"openai/legacy\"\ndefault_model = \"openai/fresh\"\n").unwrap();
+        assert_eq!(read_secondary_model_alias(home).as_deref(), Some("openai/fresh"));
+
+        fs::write(home.join("config.toml"),
+            "[secondary_model]\nmodel = \"openai/legacy\"\n").unwrap();
+        assert_eq!(read_secondary_model_alias(home).as_deref(), Some("openai/legacy"),
+            "a config without default_model still resolves");
+
+        fs::write(home.join("config.toml"),
+            "[secondary_model]\nmodel = \"openai/legacy\"\ndefault_model = \"\"\n").unwrap();
+        assert_eq!(read_secondary_model_alias(home).as_deref(), Some("openai/legacy"),
+            "an empty default_model means unset, not the empty model");
+
+        fs::write(home.join("config.toml"), "[models]\n\"openai/x\" = { provider = \"openai\" }\n").unwrap();
+        assert_eq!(read_secondary_model_alias(home), None);
     }
 }

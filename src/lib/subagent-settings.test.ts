@@ -5,13 +5,13 @@ import {
   getExperimentalFlags,
   getSecondaryModel,
   getSubagentModelPool,
+  getDeprecatedSecondaryModelKeys,
   isExperimentalFlagSet,
   isFlagLockedByEnv,
   removeSubagentPoolEntry,
   setExperimentalFlag,
   setSecondaryModelOnly,
   setSubagentDefault,
-  setSubagentForce,
   setSubagentModelPool,
   upsertSubagentPoolEntry,
   validateSubagentPool,
@@ -56,7 +56,7 @@ describe("getSecondaryModel / getSubagentModelPool", () => {
     const raw = rawWith({ model: "kimi-k2" });
     expect(getSecondaryModel(raw)).toEqual({ model: "kimi-k2" });
     const pool = getSubagentModelPool(raw);
-    expect(pool).toEqual({ model: "kimi-k2", models: {}, force: false });
+    expect(pool).toEqual({ model: "kimi-k2", models: {} });
     expect(pool?.defaultModel ?? pool?.model).toBe("kimi-k2");
   });
 
@@ -81,26 +81,45 @@ describe("getSecondaryModel / getSubagentModelPool", () => {
     expect(pool?.defaultModel ?? pool?.model).toBe("kimi-k1");
   });
 
-  it("reads the models table filtering non-string values, and force", () => {
+  it("reads the models table filtering non-string values", () => {
     const raw = rawWith({
       default_model: "kimi-k2",
       models: { "kimi-k2": "Kimi K2", "kimi-k2-thinking": 42, broken: true },
       force: true,
     });
     expect(getSecondaryModel(raw).models).toEqual({ "kimi-k2": "Kimi K2" });
-    expect(getSecondaryModel(raw).force).toBe(true);
     expect(getSubagentModelPool(raw)).toMatchObject({
       models: { "kimi-k2": "Kimi K2" },
-      force: true,
     });
   });
 
-  it("reports `force` only when true and tolerates a malformed models table", () => {
-    expect(getSecondaryModel(rawWith({ force: false })).force).toBeUndefined();
-    expect(getSubagentModelPool(rawWith({ force: false }))?.force).toBe(false);
+  it("no longer reports `force` or the removed tuning keys, only default_effort", () => {
+    const raw = rawWith({
+      default_model: "kimi-k2",
+      force: true,
+      max_output_size: 64000,
+      max_context_size: 128000,
+      default_effort: "high",
+    });
+    const cfg = getSecondaryModel(raw);
+    expect(cfg).toEqual({ default_model: "kimi-k2", default_effort: "high" });
     const pool = getSubagentModelPool(rawWith({ models: "nope", model: "kimi-k2" }));
     expect(pool?.models).toEqual({});
     expect(pool?.model).toBe("kimi-k2");
+  });
+
+  it("reports the deprecated keys in upstream order", () => {
+    expect(getDeprecatedSecondaryModelKeys({})).toEqual([]);
+    expect(
+      getDeprecatedSecondaryModelKeys(
+        rawWith({ max_output_size: 1, force: true, default_effort: "high" })
+      )
+    ).toEqual(["force", "max_output_size"]);
+    expect(
+      getDeprecatedSecondaryModelKeys(
+        rawWith({ off_effort: "off", capabilities: [], adaptive_thinking: true })
+      )
+    ).toEqual(["capabilities", "adaptive_thinking", "off_effort"]);
   });
 });
 
@@ -114,10 +133,9 @@ describe("setSecondaryModelOnly", () => {
     expect(section(next)).toEqual({ model: "kimi-k2" });
   });
 
-  it("without a pool: writes only `model`, drops known patch fields, keeps unknown fields", () => {
+  it("without a pool: writes only `model`, drops deprecated keys, keeps unknown fields", () => {
     const raw = rawWith({
       model: "old",
-      default_effort: "high",
       max_output_size: 64000,
       max_context_size: 128000,
       custom_field: "keep",
@@ -126,7 +144,13 @@ describe("setSecondaryModelOnly", () => {
     expect(section(next)).toEqual({ model: "kimi-k2", custom_field: "keep" });
   });
 
-  it("pool via default_model: syncs both keys, adds a missing alias to the table, preserves the rest", () => {
+  it("without a pool: keeps default_effort, which is still valid", () => {
+    const raw = rawWith({ model: "old", default_effort: "high" });
+    const next = setSecondaryModelOnly(raw, "kimi-k2");
+    expect(section(next)).toEqual({ model: "kimi-k2", default_effort: "high" });
+  });
+
+  it("pool via default_model: syncs both keys, adds a missing alias to the table, cleans force", () => {
     const raw = rawWith({
       default_model: "kimi-k1",
       models: { "kimi-k1": "K1" },
@@ -138,7 +162,6 @@ describe("setSecondaryModelOnly", () => {
       default_model: "kimi-k2",
       model: "kimi-k2",
       models: { "kimi-k1": "K1", "kimi-k2": "" },
-      force: true,
       unknown_field: "keep",
     });
   });
@@ -180,19 +203,17 @@ describe("setSecondaryModelOnly", () => {
 // ---------------------------------------------------------------------------
 
 describe("pool mutations", () => {
-  it("setSubagentModelPool rebuilds with dual-written default (effective wins) and force", () => {
-    const raw = rawWith({ model: "stale", custom: "keep" });
+  it("setSubagentModelPool rebuilds with dual-written default (effective wins) and drops force", () => {
+    const raw = rawWith({ model: "stale", force: true, custom: "keep" });
     const next = setSubagentModelPool(raw, {
       defaultModel: "kimi-k2",
       model: "kimi-k1", // divergent — effective default (`defaultModel`) wins
       models: { "kimi-k2": "K2" },
-      force: true,
     });
     expect(section(next)).toEqual({
       default_model: "kimi-k2",
       model: "kimi-k2",
       models: { "kimi-k2": "K2" },
-      force: true,
       custom: "keep",
     });
   });
@@ -201,12 +222,10 @@ describe("pool mutations", () => {
     const next = setSubagentModelPool(rawWith({}), {
       defaultModel: "kimi-k2",
       models: {},
-      force: false,
     });
     expect(section(next)).toEqual({
       default_model: "kimi-k2",
       model: "kimi-k2",
-      force: false,
     });
   });
 
@@ -214,7 +233,6 @@ describe("pool mutations", () => {
     const pool: SubagentModelPool = {
       defaultModel: "kimi-k2",
       models: { "kimi-k2": "K2" },
-      force: true,
     };
     const once = setSubagentModelPool(rawWith({ custom: "keep" }), pool);
     const twice = setSubagentModelPool(once, pool);
@@ -225,7 +243,6 @@ describe("pool mutations", () => {
     const raw = rawWith({
       default_model: "kimi-k1",
       models: { "kimi-k1": "K1" },
-      force: false,
     });
     const added = upsertSubagentPoolEntry(raw, "kimi-k2", "K2");
     expect(modelsOf(added)).toEqual({ "kimi-k1": "K1", "kimi-k2": "K2" });
@@ -241,7 +258,7 @@ describe("pool mutations", () => {
     // Implicit single-entry form (default_model set, no models table): adding a
     // second alias must pull the default into the table, otherwise the result
     // violates "default_model must be a pool key" (rule 3) and gets rejected.
-    const raw = rawWith({ default_model: "kimi-k1", force: false });
+    const raw = rawWith({ default_model: "kimi-k1" });
     const added = upsertSubagentPoolEntry(raw, "kimi-k2", "");
     expect(modelsOf(added)).toEqual({ "kimi-k1": "", "kimi-k2": "" });
     expect(section(added).default_model).toBe("kimi-k1");
@@ -309,50 +326,76 @@ describe("pool mutations", () => {
 });
 
 // ---------------------------------------------------------------------------
-// setSubagentForce — mutual exclusion with the models table
+// Deprecated keys — cleaned on write instead of round-tripped
 // ---------------------------------------------------------------------------
 
-describe("setSubagentForce", () => {
-  it("turning force on drops the models table but keeps the default and unknown fields", () => {
-    const raw = rawWith({
+describe("deprecated [secondary_model] keys", () => {
+  const deprecatedSection = {
+    default_model: "kimi-k1",
+    models: { "kimi-k1": "K1" },
+    force: true,
+    max_output_size: 64000,
+    max_context_size: 128000,
+    capabilities: ["thinking"],
+    default_effort: "high",
+    custom: "keep",
+  };
+
+  it("every write path drops them and keeps default_effort plus unknown keys", () => {
+    const expected = {
       default_model: "kimi-k1",
       model: "kimi-k1",
-      models: { "kimi-k1": "K1", "kimi-k2": "K2" },
+      models: { "kimi-k1": "K1" },
+      default_effort: "high",
+      custom: "keep",
+    };
+    expect(section(setSecondaryModelOnly(rawWith(deprecatedSection), "kimi-k1"))).toEqual(
+      expected
+    );
+    expect(
+      section(
+        setSubagentModelPool(rawWith(deprecatedSection), {
+          defaultModel: "kimi-k1",
+          models: { "kimi-k1": "K1" },
+        })
+      )
+    ).toEqual(expected);
+    expect(section(setSubagentDefault(rawWith(deprecatedSection), "kimi-k1"))).toEqual(
+      expected
+    );
+    expect(
+      section(upsertSubagentPoolEntry(rawWith(deprecatedSection), "kimi-k1", "K1"))
+    ).toEqual(expected);
+    // Removing the only entry leaves the implicit single-entry form behind.
+    // `model` is not synthesized here — this write only un-lists the entry.
+    expect(
+      section(removeSubagentPoolEntry(rawWith(deprecatedSection), "kimi-k1"))
+    ).toEqual({
+      default_model: "kimi-k1",
+      default_effort: "high",
       custom: "keep",
     });
-    const next = setSubagentForce(raw, true);
-    const sec = section(next);
-    expect(sec).not.toHaveProperty("models");
-    expect(sec.force).toBe(true);
-    expect(sec.default_model).toBe("kimi-k1");
-    expect(sec.model).toBe("kimi-k1");
-    expect(sec.custom).toBe("keep");
   });
 
-  it("turning force off leaves the models table untouched", () => {
-    const raw = rawWith({
+  it("a write adds nothing but the synced legacy `model` key to a clean section", () => {
+    const clean = rawWith({
       default_model: "kimi-k1",
-      models: { "kimi-k1": "K1", "kimi-k2": "K2" },
-      force: true,
+      models: { "kimi-k1": "K1" },
+      default_effort: "high",
     });
-    const next = setSubagentForce(raw, false);
-    expect(section(next).force).toBe(false);
-    expect(modelsOf(next)).toEqual({ "kimi-k1": "K1", "kimi-k2": "K2" });
-  });
-
-  it("is idempotent in both directions", () => {
-    const raw = rawWith({ force: false, custom: "keep" });
-    expect(setSubagentForce(raw, true)).toEqual(
-      setSubagentForce(setSubagentForce(raw, true), true)
-    );
-    expect(setSubagentForce(raw, false)).toEqual(
-      setSubagentForce(setSubagentForce(raw, false), false)
-    );
+    // `model` is always dual-written so a v1 engine resolves the same alias;
+    // no deprecated key is introduced or resurrected.
+    expect(section(setSubagentDefault(clean, "kimi-k1"))).toEqual({
+      default_model: "kimi-k1",
+      model: "kimi-k1",
+      models: { "kimi-k1": "K1" },
+      default_effort: "high",
+    });
   });
 });
 
 // ---------------------------------------------------------------------------
-// validateSubagentPool — mirror of the 6 engine rules
+// validateSubagentPool — mirror of the remaining engine rules
 // ---------------------------------------------------------------------------
 
 describe("validateSubagentPool", () => {
@@ -360,7 +403,6 @@ describe("validateSubagentPool", () => {
 
   const pool = (p: Partial<SubagentModelPool>): SubagentModelPool => ({
     models: {},
-    force: false,
     ...p,
   });
 
@@ -378,12 +420,6 @@ describe("validateSubagentPool", () => {
 
   it("accepts the implicit single-entry form when the model resolves", () => {
     expect(validateSubagentPool(pool({ model: "kimi-k2" }), aliases)).toEqual([]);
-  });
-
-  it("accepts force with a model fallback when no pool table exists", () => {
-    expect(
-      validateSubagentPool(pool({ force: true, model: "kimi-k2" }), aliases)
-    ).toEqual([]);
   });
 
   it("flags `primary` as a reserved pool key", () => {
@@ -439,20 +475,6 @@ describe("validateSubagentPool", () => {
       key: "aliasNotInModels",
       params: { alias: "ghost" },
     });
-  });
-
-  it("flags force without any default", () => {
-    expect(validateSubagentPool(pool({ force: true }), aliases)).toEqual([
-      { key: "forceRequiresDefault" },
-    ]);
-  });
-
-  it("flags force coexisting with the models table", () => {
-    const errors = validateSubagentPool(
-      pool({ force: true, defaultModel: "kimi-k2", models: { "kimi-k2": "K2" } }),
-      aliases
-    );
-    expect(errors).toContainEqual({ key: "forceExcludesModels" });
   });
 });
 

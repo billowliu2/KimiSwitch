@@ -2041,18 +2041,32 @@ fn semver_triple(version: &str) -> Option<(u32, u32, u32)> {
     Some((major, minor, patch))
 }
 
-/// Adaptation baseline against the kimi-code CLI:
-///   >= 2.0.2  fully supported ("current"; verified through 2.2.0 — the new
-///             [mcp] default_deferred and [models] upgrade keys round-trip,
-///             see the kimi_code_io roundtrip tests)
+/// Adaptation baseline against the kimi-code CLI. Verified through 2.5.2 —
+/// that is the version this build was last checked against, so the remarks
+/// below are what the UI's status badge actually promises.
+///
+///   >= 2.5.0  "current" — adapted to the 2.5.x layout. Three upstream changes
+///             sit at this boundary and are each handled on our side:
+///               1. the workspace registry moved from `workspaces.json` to
+///                  `projects.json` (schema v2, with a one-shot migrate +
+///                  `.pre-projects-migration-*` backup upstream);
+///               2. workspace ids are now `wm_<uuid>` instead of bare uuids;
+///               3. `[secondary_model] force` was removed and is ignored with
+///                  a warning (a lone `default_model` pins every subagent).
+///   >= 2.0.2  "current" — earlier baseline: the [mcp] default_deferred and
+///             [models] upgrade keys round-trip (see the kimi_code_io tests)
 ///   >= 0.43.1 quota parsing moved upstream — upgrade KimiSwitch ("outdated")
 ///   >= 0.43.0 the auto_session_title flag is gone ("partial")
 ///   <  0.43.0 untested ("unknown")
+///
+/// 2.0.2 and 2.5.0 share the "current" status on purpose: both are known-good
+/// for us, and the sub-2.0.2 branches are what the badge has to warn about.
 fn kimi_code_status(installed: Option<&str>) -> &'static str {
     let Some(version) = installed else {
         return "not_installed";
     };
     match semver_triple(version) {
+        Some(t) if t >= (2, 5, 0) => "current",
         Some(t) if t >= (2, 0, 2) => "current",
         Some(t) if t >= (0, 43, 1) => "outdated",
         Some(t) if t >= (0, 43, 0) => "partial",
@@ -2235,12 +2249,26 @@ mod kimi_code_version_tests {
         assert_eq!(kimi_code_status(None), "not_installed");
         assert_eq!(kimi_code_status(Some("2.0.2")), "current");
         assert_eq!(kimi_code_status(Some("2.1.0")), "current");
+        // 2.5.x — the baseline this build was last verified against.
+        assert_eq!(kimi_code_status(Some("2.5.0")), "current");
+        assert_eq!(kimi_code_status(Some("2.5.2")), "current");
+        // Earlier 2.x minors are still "current": both 2.0.2 and 2.5.0 gate
+        // the same status, and the badge only warns below those.
+        assert_eq!(kimi_code_status(Some("2.4.1")), "current");
         assert_eq!(kimi_code_status(Some("0.43.1")), "outdated");
         // 2.0.1 predates the fully-supported baseline.
         assert_eq!(kimi_code_status(Some("2.0.1")), "outdated");
         assert_eq!(kimi_code_status(Some("0.43.0")), "partial");
         assert_eq!(kimi_code_status(Some("0.42.9")), "unknown");
         assert_eq!(kimi_code_status(Some("garbage")), "unknown");
+    }
+
+    #[test]
+    fn status_treats_the_2_5_x_line_as_current() {
+        // Pre-release / build suffixes must not fall below the 2.5.0 gate.
+        assert_eq!(kimi_code_status(Some("2.5.0-canary.20261030040529-bd0d4de")), "current");
+        assert_eq!(kimi_code_status(Some("v2.5.2")), "current");
+        assert_eq!(kimi_code_status(Some("2.6.0")), "current");
     }
 
     #[test]
@@ -2422,11 +2450,13 @@ pub async fn kimi_oauth_poll(
 /// are probed too — the latter lets AgentSettingsPanel decide whether to
 /// dual-write the v1 engine's loop_control keys.
 ///
-/// As of Kimi Code 0.43.0 the upstream registry holds 5 experimental flags
-/// (`auto_session_title` graduated in 0.43.0 — titles are always on);
-/// `secondary-model`, `persistence_minidb_readmodel`, `remote-control` and
-/// `search_worker` were promoted or removed earlier and are no longer
-/// probed here.
+/// As of kimi-code 2.5.2 the upstream registry still holds these same 5
+/// experimental flags (`auto_session_title` graduated back in 0.43.0 — titles
+/// are always on); `secondary-model`, `persistence_minidb_readmodel`,
+/// `remote-control` and `search_worker` were promoted or removed earlier and
+/// are no longer probed here. Note that 2.5.0 stopped offering an implicit
+/// `primary` subagent model and removed `[secondary_model] force`, but neither
+/// changes the flag set below.
 ///
 /// Non-flag probes: `KIMI_CODE_LEGACY_FLAG` (v1 engine switch) and
 /// `KIMI_CODE_WATCH` (kimi-code 2.0.1+ `[watch] enabled` override) are not

@@ -1,5 +1,15 @@
 import { useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import {
+  ArrowUpCircle,
+  ExternalLink,
+  Loader2,
+  Package,
+  Power,
+  RefreshCw,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { useTranslation } from "../../i18n";
 import type { TranslationKey } from "../../i18n/zh";
 import { fmtTime } from "../../lib/dashboard-format";
@@ -61,6 +71,10 @@ export function PluginMarketplacePage() {
         updateAvailable: e.updateAvailable,
         installed: fresh ?? e.installed,
         customInstall: false,
+        // Empty arrays mean "no restriction" upstream, so only entries that
+        // actually narrow the host get a badge.
+        platforms: e.platforms ?? [],
+        clients: e.clients ?? [],
       };
     });
   }, [catalog, installedById]);
@@ -84,6 +98,8 @@ export function PluginMarketplacePage() {
           updateAvailable: false,
           installed: i,
           customInstall: !i.isMarketplace,
+          platforms: [],
+          clients: [],
         })),
     [installed, catalogCards]
   );
@@ -207,103 +223,125 @@ export function PluginMarketplacePage() {
     !initialLoading && !catalogError && !installedError && sectionData.length === 0;
 
   return (
-    <div className="flex h-full flex-col overflow-hidden p-4 space-y-3">
-      <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-content-primary">{t("pluginMarketplace")}</h2>
-          <p className="mt-1 max-w-[60ch] text-sm text-content-muted">{t("pluginMarketplaceSubtitle")}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("pluginSearchPlaceholder")}
-            aria-label={t("pluginSearchPlaceholder")}
-            className="w-56 bg-input border border-border rounded px-2.5 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none sm:w-64"
-          />
-          <button
-            type="button"
-            onClick={() => void loadCatalog(true)}
-            disabled={catalogLoading}
-            className="px-3 py-1.5 text-sm rounded border border-border hover:bg-hover-2 disabled:opacity-50"
-          >
-            {catalogLoading ? t("refreshing") : t("refresh")}
-          </button>
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="shrink-0 border-b border-border bg-panel px-4 py-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-content-primary">{t("pluginMarketplace")}</h2>
+            <p className="mt-0.5 max-w-[64ch] text-xs leading-relaxed text-content-muted">
+              {t("pluginMarketplaceSubtitle")}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="relative">
+              <Search
+                size={14}
+                aria-hidden="true"
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-content-muted"
+              />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t("pluginSearchPlaceholder")}
+                aria-label={t("pluginSearchPlaceholder")}
+                className="w-56 rounded-lg border border-border bg-input py-1.5 pl-8 pr-2.5 text-sm transition-colors placeholder:text-content-muted focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 sm:w-72"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadCatalog(true)}
+              disabled={catalogLoading}
+              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm transition-colors hover:bg-hover-2 focus:outline-none focus:ring-2 focus:ring-blue-500/40 disabled:opacity-50"
+            >
+              <RefreshCw
+                size={13}
+                aria-hidden="true"
+                className={catalogLoading ? "animate-spin" : undefined}
+              />
+              {catalogLoading ? t("refreshing") : t("refresh")}
+            </button>
+          </div>
         </div>
       </div>
 
-      {catalogError && (
-        <div className="shrink-0 rounded-lg border border-red-500/40 bg-red-900/20 px-4 py-3 text-sm text-red-300">
-          <div className="font-semibold">{t("pluginCatalogFailed")}</div>
-          <div className="mt-0.5 break-all opacity-90">{catalogError}</div>
-        </div>
-      )}
-      {installedError && (
-        <div className="shrink-0 rounded-lg border border-red-500/40 bg-red-900/20 px-4 py-3 text-sm text-red-300">
-          <div className="font-semibold">{t("pluginInstalledListFailed")}</div>
-          <div className="mt-0.5 break-all opacity-90">{installedError}</div>
-        </div>
-      )}
-      {actionError && (
-        <div className="shrink-0 rounded-lg border border-red-500/40 bg-red-900/20 px-4 py-3 text-sm text-red-300">
-          <div className="break-all">{actionError}</div>
-        </div>
-      )}
-      {catalog?.fromCache && (
-        <div className="shrink-0 rounded-lg border border-amber-500/40 bg-amber-900/20 px-4 py-2.5 text-sm text-amber-300">
-          {t("pluginCacheNotice", { time: fmtTime(parseTime(catalog.fetchedAt), locale) })}
-        </div>
-      )}
-      {notice && (
-        <div className="flex shrink-0 items-center justify-between gap-3 rounded-lg border border-green-300 dark:border-green-500/20 bg-green-100 dark:bg-green-900/20 px-4 py-2.5 text-sm text-green-600 dark:text-green-400">
-          <span>{t(NOTICE_KEYS[notice.kind], { name: notice.name })}</span>
-          <button
-            type="button"
-            onClick={copyReload}
-            className="shrink-0 px-2.5 py-1 text-xs rounded border border-green-400/50 hover:bg-green-900/20"
-          >
-            {copiedReload ? t("pluginReloadCopied") : t("pluginCopyReload")}
-          </button>
-        </div>
-      )}
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+        {catalogError && (
+          <div className="rounded-lg border border-red-500/40 bg-red-100 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
+            <div className="font-semibold">{t("pluginCatalogFailed")}</div>
+            <div className="mt-0.5 break-all opacity-90">{catalogError}</div>
+          </div>
+        )}
+        {installedError && (
+          <div className="rounded-lg border border-red-500/40 bg-red-100 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
+            <div className="font-semibold">{t("pluginInstalledListFailed")}</div>
+            <div className="mt-0.5 break-all opacity-90">{installedError}</div>
+          </div>
+        )}
+        {actionError && (
+          <div className="rounded-lg border border-red-500/40 bg-red-100 px-4 py-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
+            <div className="break-all">{actionError}</div>
+          </div>
+        )}
+        {catalog?.fromCache && (
+          <div className="rounded-lg border border-amber-500/40 bg-amber-100 px-4 py-2.5 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+            {t("pluginCacheNotice", { time: fmtTime(parseTime(catalog.fetchedAt), locale) })}
+          </div>
+        )}
+        {notice && (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-green-300 bg-green-100 px-4 py-2.5 text-sm text-green-700 dark:border-green-500/20 dark:bg-green-900/20 dark:text-green-400">
+            <span>{t(NOTICE_KEYS[notice.kind], { name: notice.name })}</span>
+            <button
+              type="button"
+              onClick={copyReload}
+              className="shrink-0 rounded border border-green-400/50 px-2.5 py-1 text-xs hover:bg-green-900/20"
+            >
+              {copiedReload ? t("pluginReloadCopied") : t("pluginCopyReload")}
+            </button>
+          </div>
+        )}
 
-      {initialLoading ? (
-        <div className="flex min-h-0 flex-1 items-center justify-center">
-          <div className="animate-spin h-8 w-8 border-2 border-blue-500 border-t-transparent rounded-full" />
-        </div>
-      ) : (
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto">
-          {sectionData.map((section) => (
-            <section key={section.key}>
-              <h3 className="mb-2 flex items-center gap-2 text-sm font-medium text-content-primary">
-                {section.title}
-                <span className="rounded border border-border bg-input px-1.5 py-0 text-[10px] text-content-muted tabular-nums">
-                  {section.cards.length}
-                </span>
-              </h3>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {section.cards.map((card) => (
-                  <PluginCardView
-                    key={`${section.key}:${card.id}`}
-                    card={card}
-                    busy={busy?.id === card.id ? busy.action : null}
-                    onInstall={handleInstall}
-                    onUpdate={doInstall}
-                    onToggle={(c) => void handleToggle(c)}
-                    onRemove={setRemoveEntry}
+        {initialLoading ? (
+          <div className="flex min-h-0 flex-1 items-center justify-center py-24">
+            <Loader2 size={28} aria-hidden="true" className="animate-spin text-blue-500" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {sectionData.map((section) => (
+              <section key={section.key}>
+                <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-content-muted">
+                  <span
+                    aria-hidden="true"
+                    className={`h-3 w-0.5 rounded-full ${SECTION_ACCENTS[section.key]}`}
                   />
-                ))}
+                  <span className="text-content-primary">{section.title}</span>
+                  <span className="rounded-full bg-input px-1.5 py-px text-[10px] font-normal tabular-nums text-content-muted">
+                    {section.cards.length}
+                  </span>
+                </h3>
+                <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+                  {section.cards.map((card) => (
+                    <PluginCardView
+                      key={`${section.key}:${card.id}`}
+                      card={card}
+                      busy={busy?.id === card.id ? busy.action : null}
+                      onInstall={handleInstall}
+                      onUpdate={doInstall}
+                      onToggle={(c) => void handleToggle(c)}
+                      onRemove={setRemoveEntry}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+            {showEmpty && (
+              <div className="py-16 text-center text-sm text-content-muted">
+                {q ? t("pluginEmptyResults") : t("pluginNoPlugins")}
               </div>
-            </section>
-          ))}
-          {showEmpty && (
-            <div className="py-16 text-center text-sm text-content-muted">
-              {q ? t("pluginEmptyResults") : t("pluginNoPlugins")}
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Third-party trust confirm */}
       {trustEntry && (
@@ -387,6 +425,14 @@ export function PluginMarketplacePage() {
 type PluginAction = "install" | "update" | "enable" | "disable" | "remove";
 type PluginNoticeKind = "installed" | "updated" | "enabled" | "disabled" | "removed";
 
+/** Left accent per marketplace section, so the three groups read apart at a
+ *  glance instead of being three identical heading rows. */
+const SECTION_ACCENTS: Record<string, string> = {
+  installed: "bg-emerald-500",
+  official: "bg-blue-500",
+  community: "bg-zinc-400 dark:bg-zinc-500",
+};
+
 const NOTICE_KEYS: Record<PluginNoticeKind, TranslationKey> = {
   installed: "pluginInstalledMsg",
   updated: "pluginUpdatedMsg",
@@ -394,6 +440,18 @@ const NOTICE_KEYS: Record<PluginNoticeKind, TranslationKey> = {
   disabled: "pluginDisabledMsg",
   removed: "pluginRemovedMsg",
 };
+
+/** Platforms a catalog entry can restrict itself to (upstream
+ *  `PluginMarketplacePlatform`). */
+const HOST_PLATFORM: string = (() => {
+  // The catalog speaks "macos"/"windows"/"linux"; navigator names the same
+  // hosts differently, so map once here instead of at every call site.
+  const p = typeof navigator === "undefined" ? "" : navigator.platform.toLowerCase();
+  if (p.includes("win")) return "windows";
+  if (p.includes("mac")) return "macos";
+  if (p.includes("linux")) return "linux";
+  return p;
+})();
 
 /** Normalized card data: catalog metadata merged with fresh installed state. */
 interface PluginCard {
@@ -410,6 +468,10 @@ interface PluginCard {
   installed: InstalledPluginInfo | null;
   /** Card synthesized from the local installed list (not in the catalog). */
   customInstall: boolean;
+  /** Non-empty → the catalog restricts this plugin to those platforms. */
+  platforms: string[];
+  /** Non-empty → the catalog restricts this plugin to those clients. */
+  clients: string[];
 }
 
 function parseTime(value: string | null | undefined): number {
@@ -435,6 +497,25 @@ function PluginCardView({
 }) {
   const { t } = useTranslation();
   const { installed } = card;
+  // Mirrors upstream `marketplaceEntryInstallableOnHost`: an empty list means
+  // "no restriction", so only a non-empty list that omits this host blocks the
+  // install. Shown for every entry that narrows the host, so a mac-only plugin
+  // is visible as such instead of looking broken.
+  const hostSupported = card.platforms.length === 0 || card.platforms.includes(HOST_PLATFORM);
+  const platformLabel = card.platforms.length > 0 ? card.platforms.join(" · ") : null;
+  // One tile per card: the initial stands in for a catalog that ships no icon
+  // artwork, and its tint encodes the group so installed / official / community
+  // stay distinguishable while scrolling past the section headings.
+  const tileClass = installed
+    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+    : card.tier === "official"
+      ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+      : "bg-input text-content-muted";
+  // Keywords overlap with the platform chips (`windows` shows up as both), so
+  // dedupe case-insensitively and cap the row to keep cards the same height.
+  const visibleKeywords = card.keywords
+    .filter((k) => k.toLowerCase() !== platformLabel?.toLowerCase())
+    .slice(0, 5);
   const busyLabel =
     busy === "install"
       ? t("pluginInstalling")
@@ -447,51 +528,83 @@ function PluginCardView({
             : null;
 
   return (
-    <div className="flex flex-col gap-2.5 rounded-xl border border-border bg-panel p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+    <div className="group flex flex-col rounded-xl border border-border bg-panel p-3.5 transition-colors hover:border-border-strong">
+      <div className="flex items-start gap-3">
+        <div
+          aria-hidden="true"
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-semibold ${tileClass}`}
+        >
+          {card.displayName.slice(0, 1).toUpperCase()}
+        </div>
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <h4 className="truncate text-sm font-semibold text-content-primary" title={card.displayName}>
               {card.displayName}
             </h4>
             {card.updateAvailable && (
-              <span className="rounded-md bg-amber-100 dark:bg-amber-900/30 px-2 py-0.5 text-[10px] text-amber-700 dark:text-amber-300">
+              <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
                 {t("pluginUpdateAvailable")}
               </span>
             )}
             {card.customInstall && (
-              <span className="rounded-md bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 text-[10px] text-blue-700 dark:text-blue-300">
+              <span className="rounded-md bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                 {t("pluginCustomInstall")}
               </span>
             )}
           </div>
-          <div className="mt-0.5 flex items-center gap-2 text-[11px] text-content-muted">
+          <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-content-muted">
             <span className="truncate font-mono">{card.id}</span>
-            {card.version && <span className="shrink-0">v{card.version}</span>}
+            {card.version && (
+              <>
+                <span aria-hidden="true" className="opacity-40">·</span>
+                <span className="shrink-0 tabular-nums">v{card.version}</span>
+              </>
+            )}
           </div>
         </div>
         {installed && (
           <span
-            className={`shrink-0 rounded-md px-2 py-0.5 text-xs ${
+            className={`flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${
               installed.enabled
-                ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
-                : "bg-zinc-200 dark:bg-zinc-700/40 text-zinc-600 dark:text-zinc-300"
+                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                : "bg-zinc-200 text-zinc-600 dark:bg-zinc-700/40 dark:text-zinc-300"
             }`}
           >
+            <span
+              aria-hidden="true"
+              className={`h-1.5 w-1.5 rounded-full ${
+                installed.enabled ? "bg-emerald-500" : "bg-zinc-400 dark:bg-zinc-500"
+              }`}
+            />
             {installed.enabled ? t("activated") : t("disabled")}
           </span>
         )}
       </div>
 
       {card.description && (
-        <p className="line-clamp-2 text-sm leading-relaxed text-content-muted">{card.description}</p>
+        <p className="mt-2.5 line-clamp-2 text-xs leading-relaxed text-content-muted">
+          {card.description}
+        </p>
       )}
-      {card.keywords.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {card.keywords.slice(0, 6).map((k) => (
+
+      {(platformLabel || visibleKeywords.length > 0) && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-1">
+          {platformLabel && (
+            <span
+              title={t("pluginPlatformsHint")}
+              className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                hostSupported
+                  ? "bg-input text-content-muted"
+                  : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+              }`}
+            >
+              {platformLabel}
+            </span>
+          )}
+          {visibleKeywords.map((k) => (
             <span
               key={k}
-              className="rounded border border-border bg-input px-1.5 py-0.5 text-[10px] text-content-muted"
+              className="rounded bg-input px-1.5 py-0.5 text-[10px] text-content-muted"
             >
               {k}
             </span>
@@ -499,21 +612,30 @@ function PluginCardView({
         </div>
       )}
 
-      <div className="mt-auto flex items-center justify-between gap-2 border-t border-border/50 pt-2.5">
-        <div className="flex min-w-0 items-center gap-2">
+      <div className="mt-auto flex items-center justify-between gap-2 border-t border-border/60 pt-2.5">
+        <div className="flex min-w-0 items-center gap-2.5">
           {card.homepage && (
             <button
               type="button"
               onClick={() => openUrl(card.homepage!)}
               title={card.homepage}
-              className="shrink-0 text-xs text-blue-600 hover:underline dark:text-blue-400"
+              className="flex shrink-0 items-center gap-1 text-[11px] text-content-muted transition-colors hover:text-blue-500 dark:hover:text-blue-400"
             >
+              <ExternalLink size={11} aria-hidden="true" />
               {t("pluginHomepage")}
             </button>
           )}
+          {/* The install source is long and truncated on every card; it stays
+              available on hover instead of occupying the footer. */}
           {card.source && !card.customInstall && (
-            <span className="truncate font-mono text-[10px] text-content-muted" title={card.source}>
-              {card.source}
+            <span
+              className="flex min-w-0 items-center gap-1 text-[11px] text-content-muted opacity-70 transition-opacity hover:opacity-100"
+              title={card.source}
+            >
+              <Package size={11} aria-hidden="true" className="shrink-0" />
+              <span className="truncate">
+                {card.source.replace(/^https?:\/\//, "").split("/")[0]}
+              </span>
             </span>
           )}
         </div>
@@ -526,8 +648,13 @@ function PluginCardView({
                   disabled={busy != null || !!card.capabilityId}
                   onClick={() => onUpdate(card)}
                   title={card.capabilityId ? t("pluginCapabilityRequired") : undefined}
-                  className="px-2.5 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                  className="flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
                 >
+                  {busy === "update" ? (
+                    <Loader2 size={11} aria-hidden="true" className="animate-spin" />
+                  ) : (
+                    <ArrowUpCircle size={11} aria-hidden="true" />
+                  )}
                   {busy === "update" ? busyLabel : t("pluginUpdate")}
                 </button>
               )}
@@ -535,34 +662,48 @@ function PluginCardView({
                 type="button"
                 disabled={busy != null}
                 onClick={() => onToggle(card)}
-                className="px-2.5 py-1 text-xs rounded border border-border hover:bg-hover-2 disabled:opacity-50"
+                title={installed.enabled ? t("pluginDisable") : t("pluginEnable")}
+                className="rounded-md border border-border p-1.5 text-content-muted transition-colors hover:bg-hover-2 hover:text-content-primary disabled:opacity-50"
               >
-                {busy === "enable" || busy === "disable"
-                  ? busyLabel
-                  : installed.enabled
-                    ? t("pluginDisable")
-                    : t("pluginEnable")}
+                {busy === "enable" || busy === "disable" ? (
+                  <Loader2 size={12} aria-hidden="true" className="animate-spin" />
+                ) : (
+                  <Power size={12} aria-hidden="true" />
+                )}
               </button>
               <button
                 type="button"
                 disabled={busy != null}
                 onClick={() => onRemove(card)}
-                className="px-2.5 py-1 text-xs rounded border border-red-500/30 text-red-300 hover:bg-red-900/20 disabled:opacity-50"
+                title={t("pluginRemove")}
+                className="rounded-md border border-transparent p-1.5 text-content-muted transition-colors hover:border-red-500/40 hover:bg-red-100 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-900/20 dark:hover:text-red-400"
               >
-                {busy === "remove" ? busyLabel : t("pluginRemove")}
+                {busy === "remove" ? (
+                  <Loader2 size={12} aria-hidden="true" className="animate-spin" />
+                ) : (
+                  <Trash2 size={12} aria-hidden="true" />
+                )}
               </button>
             </>
           ) : (
-            <span title={card.capabilityId ? t("pluginCapabilityRequired") : undefined}>
-              <button
-                type="button"
-                disabled={busy != null || !!card.capabilityId}
-                onClick={() => onInstall(card)}
-                className="px-2.5 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {busy === "install" ? busyLabel : t("pluginInstall")}
-              </button>
-            </span>
+            <button
+              type="button"
+              disabled={busy != null || !!card.capabilityId || !hostSupported}
+              onClick={() => onInstall(card)}
+              title={
+                card.capabilityId
+                  ? t("pluginCapabilityRequired")
+                  : hostSupported
+                    ? undefined
+                    : t("pluginPlatformUnsupported", { platforms: platformLabel ?? "" })
+              }
+              className="flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {busy === "install" && (
+                <Loader2 size={11} aria-hidden="true" className="animate-spin" />
+              )}
+              {busy === "install" ? busyLabel : t("pluginInstall")}
+            </button>
           )}
         </div>
       </div>

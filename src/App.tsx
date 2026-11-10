@@ -8,7 +8,6 @@ import { ProviderEdit } from "./components/ProviderEdit";
 import { SubagentSettingsPage } from "./components/SubagentSettingsPage";
 import { DashboardPage } from "./components/dashboard/DashboardPage";
 import { SessionsPage } from "./components/sessions/SessionsPage";
-import { PluginMarketplacePage } from "./components/plugins/PluginMarketplacePage";
 import { SettingsPage } from "./components/settings/SettingsPage";
 import { UsageConfigModal } from "./components/UsageConfigModal";
 import { PresetPickerModal } from "./components/PresetPickerModal";
@@ -39,7 +38,6 @@ type View =
   | "subagent"
   | "dashboard"
   | "sessions"
-  | "plugins"
   | "settings";
 
 function getProviderDefaultModel(provider: Provider): string | null {
@@ -94,9 +92,9 @@ export default function App() {
   const [editingProvider, setEditingProvider] = useState<string>("");
   const [loadTimeout, setLoadTimeout] = useState(false);
   const [switchMessage, setSwitchMessage] = useState<string | null>(null);
-  const [settingsTab, setSettingsTab] = useState<"general" | "global" | "advanced">(
-    "general",
-  );
+  const [settingsTab, setSettingsTab] = useState<
+    "general" | "global" | "advanced" | "plugins"
+  >("general");
   const [showPresetPicker, setShowPresetPicker] = useState(false);
   /** Provider whose usage-config panel is open; null = closed. */
   const [usageConfigProvider, setUsageConfigProvider] = useState<string | null>(null);
@@ -845,14 +843,6 @@ export default function App() {
           >
             {t("subagentSettings")}
           </button>
-          {/* 插件市场功能尚未成熟，导航入口暂时隐藏；页面代码保留，
-              恢复时把下面的按钮加回即可（view/渲染分支均未移除）。
-          <button
-            type="button"
-            onClick={() => setView("plugins")}
-            ...
-          </button>
-          */}
         </div>
         <div className="flex items-center gap-2">
           {/* Language */}
@@ -900,8 +890,6 @@ export default function App() {
           <DashboardPage />
         ) : view === "sessions" ? (
           <SessionsPage />
-        ) : view === "plugins" ? (
-          <PluginMarketplacePage />
         ) : view === "settings" ? (
           <SettingsPage
             activeTab={settingsTab}
@@ -1098,7 +1086,7 @@ export default function App() {
         )}
       </main>
 
-      {view !== "dashboard" && view !== "sessions" && view !== "plugins" && (
+      {view !== "dashboard" && view !== "sessions" && (
       <footer className="flex items-center justify-between px-4 py-2 border-t border-border bg-panel text-sm">
         <div className="flex items-center gap-2 min-w-0">
           {dirty && (
