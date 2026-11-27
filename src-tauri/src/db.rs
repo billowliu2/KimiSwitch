@@ -201,6 +201,24 @@ pub fn init_db() -> DbResult<Connection> {
         }
     }
 
+    // kimi-code 2.8 v2 identity columns for the models table. Stored alongside
+    // the legacy `provider_name`/`model` columns; `aliases` is a JSON array
+    // serialized as text. Same duplicate-column-tolerant ALTER pattern as the
+    // provider migrations above, so an old install (which lacks these) gets
+    // them without failing, and upgrades are idempotent.
+    for stmt in [
+        "ALTER TABLE models ADD COLUMN provider_id TEXT",
+        "ALTER TABLE models ADD COLUMN name TEXT",
+        "ALTER TABLE models ADD COLUMN aliases TEXT NOT NULL DEFAULT '[]'",
+    ] {
+        if let Err(e) = conn.execute(stmt, []) {
+            let msg = e.to_string();
+            if !msg.contains("duplicate column name") {
+                return Err(e).with_context(|| format!("failed to run migration: {}", stmt));
+            }
+        }
+    }
+
     Ok(conn)
 }
 
@@ -257,19 +275,22 @@ fn load_config_inner(conn: &mut Connection, agent: &Agent) -> DbResult<Config> {
     let mut models = IndexMap::new();
     {
         let mut stmt = tx.prepare(
-            "SELECT alias, provider_name, model, max_context_size, display_name, supports_1m, capabilities, raw_other
+            "SELECT alias, provider_name, model, max_context_size, display_name, supports_1m, capabilities, raw_other, provider_id, name, aliases
              FROM models WHERE agent = ?1 ORDER BY id",
         )?;
         let model_rows = stmt.query_map(params![agent.as_str()], |row| {
             let caps_json: Option<String> = row.get(6)?;
             let raw_json: Option<String> = row.get(7)?;
+            let aliases_json: Option<String> = row.get(10)?;
             Ok(Model {
                 alias: row.get(0)?,
                 provider: row.get(1)?,
                 model: row.get(2)?,
-                provider_id: None,
-                name: None,
-                aliases: vec![],
+                provider_id: row.get(8)?,
+                name: row.get(9)?,
+                aliases: aliases_json
+                    .and_then(|s| serde_json::from_str(&s).ok())
+                    .unwrap_or_default(),
                 max_context_size: row.get::<_, i64>(3)? as u64,
                 display_name: row.get(4)?,
                 supports_1m: row.get::<_, i32>(5)? != 0,
@@ -346,8 +367,8 @@ fn save_config_inner(conn: &mut Connection, agent: &Agent, config: &Config) -> D
     {
         let mut insert_model = tx.prepare(
             "INSERT INTO models
-             (agent, alias, provider_name, model, max_context_size, display_name, supports_1m, capabilities, raw_other)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+             (agent, alias, provider_name, model, max_context_size, display_name, supports_1m, capabilities, raw_other, provider_id, name, aliases)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
         )?;
 
         for model in config.models.values() {
@@ -361,6 +382,9 @@ fn save_config_inner(conn: &mut Connection, agent: &Agent, config: &Config) -> D
                 model.supports_1m as i32,
                 serde_json::to_string(&model.capabilities).ok(),
                 serde_json::to_string(&model.raw_other).ok(),
+                model.provider_id,
+                model.name,
+                serde_json::to_string(&model.aliases).unwrap_or_else(|_| "[]".to_string()),
             ])?;
         }
     }

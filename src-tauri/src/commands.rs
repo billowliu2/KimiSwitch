@@ -189,7 +189,18 @@ fn load_agent_config_uncached(agent: Agent) -> Result<Config, String> {
                     config.providers.entry(name.clone()).or_insert_with(|| p.clone());
                 }
                 for (alias, m) in &db.models {
-                    if !config.providers.contains_key(&m.provider) {
+                    // A model's provider reference is provider_id-first with
+                    // the legacy `provider` as fallback (same resolution as
+                    // kimi_code_io's active-provider logic). A v2-only model
+                    // carries an empty legacy `provider`, so checking only
+                    // `m.provider` would wrongly skip it and drop a
+                    // providerId-only model from SQLite fallback recovery.
+                    let provider_ref = m
+                        .provider_id
+                        .as_deref()
+                        .filter(|s| !s.is_empty())
+                        .unwrap_or(m.provider.as_str());
+                    if !config.providers.contains_key(provider_ref) {
                         continue;
                     }
                     config.models.entry(alias.clone()).or_insert_with(|| m.clone());
@@ -2817,6 +2828,301 @@ max_context_size = 1000000
             save_agent_config_command(Agent::KimiCode, loaded).unwrap();
             let toml_text = std::fs::read_to_string(home.join("config.toml")).unwrap();
             assert!(!toml_text.contains("opencode-go-copy"));
+        });
+    }
+
+    #[test]
+    fn sqlite_kimi_v2_model_identity_and_legacy_roundtrip() {
+        // Regression: the SQLite fallback store must persist the kimi-code 2.8
+        // v2 model identity (provider_id/name/aliases) and the empty legacy
+        // provider/model fields through a real load → save → load round-trip.
+        // The old implementation dropped provider_id/name/aliases to None/[]
+        // on both writes and reads, so a model that is v2-identity only would
+        // lose its identity — this test locks that in.
+        with_env_homes(|_home| {
+            // A v2 model (legacy provider/model empty) plus a legacy model.
+            let mut providers = IndexMap::new();
+            providers.insert(
+                "aws".to_string(),
+                Provider {
+                    name: "aws".to_string(),
+                    provider_type: ProviderType::Bedrock,
+                    base_url: None,
+                    api_key: None,
+                    api_key_env: None,
+                    env: IndexMap::new(),
+                    note: None,
+                    official_url: None,
+                    managed: false,
+                    enabled: true,
+                    active: true,
+                    icon: None,
+                    icon_color: None,
+                    raw_other: serde_json::Value::Null,
+                    usage_kinds: None,
+                    usage_config: None,
+                },
+            );
+            let mut models = IndexMap::new();
+            models.insert(
+                "direct".to_string(),
+                Model {
+                    alias: "direct".to_string(),
+                    provider: String::new(),
+                    model: String::new(),
+                    provider_id: Some("aws".to_string()),
+                    name: Some("anthropic.claude-sonnet".to_string()),
+                    aliases: vec!["fast".to_string(), "sonnet".to_string()],
+                    max_context_size: 200_000,
+                    display_name: None,
+                    supports_1m: false,
+                    capabilities: vec![],
+                    raw_other: serde_json::Value::Null,
+                },
+            );
+            models.insert(
+                "opencode-go/longcat".to_string(),
+                Model {
+                    alias: "opencode-go/longcat".to_string(),
+                    provider: "opencode-go".to_string(),
+                    model: "longcat-2.5".to_string(),
+                    provider_id: None,
+                    name: None,
+                    aliases: vec!["lc".to_string()],
+                    max_context_size: 1_000_000,
+                    display_name: None,
+                    supports_1m: true,
+                    capabilities: vec![],
+                    raw_other: serde_json::Value::Null,
+                },
+            );
+            let config = Config {
+                default_model: Some("direct".to_string()),
+                providers,
+                models,
+                raw_other: serde_json::Value::Null,
+                imported_section_keys: vec![],
+                imported_provider_names: vec![],
+                imported_model_aliases: vec![],
+            };
+
+            db::save_config(&Agent::KimiCode, &config).unwrap();
+            let loaded = db::load_config(&Agent::KimiCode).unwrap();
+
+            // v2-only model keeps its identity verbatim.
+            let v2 = loaded.models.get("direct").unwrap();
+            assert_eq!(v2.provider_id.as_deref(), Some("aws"));
+            assert_eq!(v2.name.as_deref(), Some("anthropic.claude-sonnet"));
+            assert_eq!(v2.aliases, vec!["fast".to_string(), "sonnet".to_string()]);
+            // The empty legacy identity is preserved (a v2 model must not
+            // silently acquire legacy provider/model from somewhere else).
+            assert_eq!(v2.provider, "");
+            assert_eq!(v2.model, "");
+
+            // Legacy model keeps its legacy identity and its aliases.
+            let legacy = loaded.models.get("opencode-go/longcat").unwrap();
+            assert_eq!(legacy.provider, "opencode-go");
+            assert_eq!(legacy.model, "longcat-2.5");
+            assert_eq!(legacy.provider_id, None);
+            assert_eq!(legacy.name, None);
+            assert_eq!(legacy.aliases, vec!["lc".to_string()]);
+
+            let roundtrip = db::save_config(&Agent::KimiCode, &loaded).and_then(|_| {
+                db::load_config(&Agent::KimiCode)
+            });
+            let roundtrip = roundtrip.unwrap();
+            assert_eq!(
+                roundtrip.models.get("direct").unwrap().provider_id.as_deref(),
+                Some("aws")
+            );
+            assert_eq!(
+                roundtrip.models.get("direct").unwrap().name.as_deref(),
+                Some("anthropic.claude-sonnet")
+            );
+            assert_eq!(
+                roundtrip.models.get("direct").unwrap().aliases,
+                vec!["fast".to_string(), "sonnet".to_string()]
+            );
+            assert_eq!(roundtrip.models.get("direct").unwrap().provider, "");
+            assert_eq!(roundtrip.models.get("direct").unwrap().model, "");
+            assert_eq!(
+                roundtrip.models.get("opencode-go/longcat").unwrap().provider,
+                "opencode-go"
+            );
+            assert_eq!(
+                roundtrip.models.get("opencode-go/longcat").unwrap().model,
+                "longcat-2.5"
+            );
+        });
+    }
+
+    #[test]
+    fn migration_adds_v2_model_columns_and_keeps_existing_rows() {
+        // A pre-existing models table WITHOUT the v2 identity columns (an old
+        // install) must be migrated by db::load_config: after the ALTER TABLE
+        // columns are added, the legacy provider/model rows still load and the
+        // new columns read as empty (providers fall back to legacy, aliases to
+        // the '[]' default).
+        with_env_homes(|home| {
+            // Drop the connection cache so the manually-created old-schema db
+            // below is what init_db will open and migrate.
+            let db_path = std::env::var_os("KIMI_SWITCH_DB_PATH").unwrap();
+            let conn = rusqlite::Connection::open(&db_path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE providers (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        agent TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        provider_type TEXT NOT NULL,
+                        base_url TEXT,
+                        api_key TEXT,
+                        api_key_env TEXT,
+                        env TEXT,
+                        note TEXT,
+                        official_url TEXT,
+                        managed INTEGER NOT NULL DEFAULT 0,
+                        enabled INTEGER NOT NULL DEFAULT 1,
+                        active INTEGER NOT NULL DEFAULT 0,
+                        raw_other TEXT,
+                        UNIQUE(agent, name)
+                    );
+                CREATE TABLE models (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        agent TEXT NOT NULL,
+                        alias TEXT NOT NULL,
+                        provider_name TEXT NOT NULL,
+                        model TEXT NOT NULL,
+                        max_context_size INTEGER NOT NULL,
+                        display_name TEXT,
+                        supports_1m INTEGER NOT NULL DEFAULT 0,
+                        capabilities TEXT,
+                        raw_other TEXT,
+                        UNIQUE(agent, alias)
+                    );
+                CREATE TABLE settings (
+                        key TEXT PRIMARY KEY,
+                        value TEXT NOT NULL
+                    );",
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO models
+                 (agent, alias, provider_name, model, max_context_size)
+                 VALUES ('kimi_code', 'p1/m1', 'p1', 'm1', 128000)",
+                [],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO providers
+                 (agent, name, provider_type)
+                 VALUES ('kimi_code', 'p1', 'openai')",
+                [],
+            )
+            .unwrap();
+            drop(conn);
+            let _ = home;
+
+            let loaded = db::load_config(&Agent::KimiCode).unwrap();
+            let model = loaded.models.get("p1/m1").unwrap();
+            assert_eq!(model.provider, "p1");
+            assert_eq!(model.model, "m1");
+            assert_eq!(model.provider_id, None);
+            assert_eq!(model.name, None);
+            assert_eq!(model.aliases, Vec::<String>::new());
+            assert!(loaded.providers.contains_key("p1"));
+
+            // Idempotency: a second load runs the same migration and succeeds.
+            db::load_config(&Agent::KimiCode).unwrap();
+        });
+    }
+
+    #[test]
+    fn sqlite_fallback_recovers_a_providerid_only_model_missing_from_config_toml() {
+        // Command-layer regression: config.toml lists a provider but NO models
+        // at all; the model lives only in the SQLite fallback store as a v2
+        // providerId/name/aliases row (empty legacy provider/model). The merge
+        // in load_agent_config_uncached must resolve the model's provider via
+        // provider_id first (falling back to legacy `provider`), so the model
+        // and its full identity are recovered. The old code checked only
+        // `m.provider`, which is "" here, so it skipped the model entirely.
+        with_env_homes(|home| {
+            // config.toml has the provider but no [models."..."] sections.
+            let toml = r#"
+default_model = "aws/sonnet"
+
+[providers.aws]
+type = "bedrock"
+"#;
+            std::fs::write(home.join("config.toml"), toml).unwrap();
+
+            // SQLite holds a v2-only model bound to that provider plus an
+            // aliases list.
+            let mut providers = IndexMap::new();
+            providers.insert(
+                "aws".to_string(),
+                Provider {
+                    name: "aws".to_string(),
+                    provider_type: ProviderType::Bedrock,
+                    base_url: None,
+                    api_key: None,
+                    api_key_env: None,
+                    env: IndexMap::new(),
+                    note: None,
+                    official_url: None,
+                    managed: false,
+                    enabled: true,
+                    active: true,
+                    icon: None,
+                    icon_color: None,
+                    raw_other: serde_json::Value::Null,
+                    usage_kinds: None,
+                    usage_config: None,
+                },
+            );
+            let mut models = IndexMap::new();
+            models.insert(
+                "aws/sonnet".to_string(),
+                Model {
+                    alias: "aws/sonnet".to_string(),
+                    provider: String::new(), // v2-only: legacy identity empty
+                    model: String::new(),
+                    provider_id: Some("aws".to_string()),
+                    name: Some("anthropic.claude-sonnet".to_string()),
+                    aliases: vec!["fast".to_string()],
+                    max_context_size: 200_000,
+                    display_name: None,
+                    supports_1m: false,
+                    capabilities: vec![],
+                    raw_other: serde_json::Value::Null,
+                },
+            );
+            db::save_config(
+                &Agent::KimiCode,
+                &Config {
+                    default_model: Some("aws/sonnet".to_string()),
+                    providers,
+                    models,
+                    raw_other: serde_json::Value::Null,
+                    imported_section_keys: vec![],
+                    imported_provider_names: vec![],
+                    imported_model_aliases: vec![],
+                },
+            )
+            .unwrap();
+
+            // Loading through the real command path must recover the model
+            // with its full providerId/name/aliases identity.
+            let loaded = load_agent_config_uncached(Agent::KimiCode).unwrap();
+            let model = loaded.models.get("aws/sonnet").expect(
+                "providerId-only model must be recovered from the SQLite fallback store",
+            );
+            assert_eq!(model.provider_id.as_deref(), Some("aws"));
+            assert_eq!(model.name.as_deref(), Some("anthropic.claude-sonnet"));
+            assert_eq!(model.aliases, vec!["fast".to_string()]);
+            // A v2-only model must not silently acquire legacy identity.
+            assert_eq!(model.provider, "");
+            assert_eq!(model.model, "");
+            assert!(loaded.providers.contains_key("aws"));
         });
     }
 

@@ -10,7 +10,7 @@ export type Lang = "zh" | "en";
 
 /** Release the site advertises. `assets()` in sections/Download.tsx builds the
  *  per-platform download URLs from it, so a version bump is a one-line change. */
-export const VERSION = "0.8.9";
+export const VERSION = "0.9.1";
 export const VERSION_TAG = `v${VERSION}`;
 
 const zh = {
@@ -260,6 +260,16 @@ const zh = {
     fallbackNote: "内置版本记录",
     entries: [
       {
+        version: "v0.9.1",
+        date: "2026-11-27",
+        items: [
+          "适配 Kimi Code 2.8：state.json 数字时间戳与 cwd、projects.json 工作区注册表、turn/session/prediction 全量用量统计，并保留旧格式与 __secondary__ 历史归类",
+          "模型配置支持 provider_id、name、aliases 导入编辑与 TOML 往返；overrides 显示有效值且被覆盖字段只读，默认模型、切换、重命名和校验统一新版身份",
+          "新增 Bedrock 类型与配置往返，不包含 AWS 专用模型发现或凭据界面；实验开关同步为 wait_for、worktree、auto_review、notify_user、tower、prompt_prediction",
+          "版本状态收紧：2.0.2–2.8.1 为 current，2.8.2 及更高版本默认 unknown，避免未验证版本误报完全适配",
+        ],
+      },
+      {
         version: "v0.8.9",
         date: "2026-10-28",
         items: [
@@ -490,7 +500,7 @@ const zh = {
     changelog: {
       title: "更新日志 - Kimi Switch",
       description:
-        "Kimi Switch 更新日志：每个版本的重要变更记录，含 v0.8.9 的 OpenDesign Go 预设与 Command Code GOAT 月度用量窗口，同步自 GitHub Releases。",
+        "Kimi Switch 更新日志：每个版本的重要变更记录，含 v0.9.1 的 Kimi Code 2.8 会话、用量与模型配置适配，同步自 GitHub Releases。",
     },
     download: {
       title: "下载 - Kimi Switch",
@@ -769,6 +779,16 @@ const en: Dict = {
     fallbackNote: "Bundled release notes",
     entries: [
       {
+        version: "v0.9.1",
+        date: "2026-11-27",
+        items: [
+          "Adapt to Kimi Code 2.8: numeric state.json timestamps and cwd, the projects.json workspace registry, and full turn/session/prediction usage accounting, while preserving legacy formats and the historical __secondary__ bucket",
+          "Provider_id, name and aliases now round-trip through the model editor and TOML; overrides show effective values with covered fields read-only, and defaults, switching, rename and validation share the new identity semantics",
+          "Add Bedrock type recognition and config round-trips without AWS-specific discovery or credential UI; experimental flags now cover wait_for, worktree, auto_review, notify_user, tower and prompt_prediction",
+          "Tighten version status: 2.0.2–2.8.1 is current, while 2.8.2 and newer default to unknown instead of claiming unverified full support",
+        ],
+      },
+      {
         version: "v0.8.9",
         date: "2026-10-28",
         items: [
@@ -999,7 +1019,7 @@ const en: Dict = {
     changelog: {
       title: "Changelog - Kimi Switch",
       description:
-        "Kimi Switch changelog: notable changes in every release, including the v0.8.9 OpenDesign Go preset and Command Code GOAT monthly usage window, synced from GitHub Releases.",
+        "Kimi Switch changelog: notable changes in every release, including the v0.9.1 Kimi Code 2.8 session, usage and model-config adaptation, synced from GitHub Releases.",
     },
     download: {
       title: "Download - Kimi Switch",

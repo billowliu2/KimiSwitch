@@ -6,6 +6,18 @@
 
 ---
 
+## v0.9.1 (2026-11-27)
+
+Kimi Code 2.8.x 适配版：在 v0.9.0 的 2.5.x 支持基础上，补齐新版会话、工作区、用量与模型配置，同时保留旧格式和既有插件市场能力。
+
+- **会话与工作区**：兼容 `state.json` 数字时间戳、`cwd` 和旧 `workDir`；归档/恢复不移动目录。`projects.json` 作为工作区权威来源，旧 `workspaces.json` 回退，删除空工作区同步删除标记
+- **用量统计**：`turn` / `session` / `prediction` 三种真实请求各计一次，缺失 scope 按 turn、未知 scope 跳过；历史 `__secondary__` 副模型记录继续单独归类
+- **模型配置**：支持 `provider_id` / `name` / `aliases` 导入、编辑和 TOML 往返；`overrides` 显示有效值且被覆盖字段只读，默认模型、切换、重命名、复制、删除和校验统一新版身份语义
+- **Bedrock**：新增 `type = "bedrock"` 识别与配置往返，不包含 AWS 专用模型发现、连通性检查或凭据界面
+- **实验开关**：同步为 `wait_for` / `worktree` / `auto_review` / `notify_user` / `tower` / `prompt_prediction`，移除已失效的 `tool-select` 和 `subagent_fork`
+- **版本状态**：2.0.2–2.8.1 标为 current，2.8.2 及更高版本默认 unknown，避免未验证版本误报完全适配
+- 测试：前端 217 项、Rust 253 项通过；KimiCode 2.8.0 与源码/本机 2.8.1 `doctor config` 均通过；隔离 GUI 覆盖切换、归档/恢复、用量、模型身份与 overrides 展示
+
 ## v0.8.7 (2026-10-18)
 
 撞名防护加固版：对 v0.8.6 防线的一轮对抗性审查后补齐六处缺口，三个高危路径（连续撞名丢第二个受害者、用量面板绕过守卫落盘、重载失败守卫自溃）全部关闭。
