@@ -33,12 +33,13 @@ export interface ExperimentalFlagDef {
   defaultEnabled?: boolean;
 }
 
-/** Known experimental flags — mirrors the kimi-code 0.43.0 v2 flag registry
+/** Known experimental flags — mirrors the kimi-code 2.8.1 v2 flag registry
  * (the per-feature flag.ts files under packages/agent-core-v2/src):
- * wait_for, tool-select, notify_user, tower, subagent_fork.
+ * wait_for, worktree, auto_review, notify_user, tower, prompt_prediction.
  * Removed in 0.43.0: auto_session_title (graduated — AI session titles are
- * always on, #3749). Removed in 0.42.0: secondary-model, remote-control
- * and search_worker (promoted or dropped upstream — no flag left), and
+ * always on, #3749). Removed by 2.8.x: tool-select and subagent_fork (no flag
+ * left upstream). Removed in 0.42.0: secondary-model, remote-control and
+ * search_worker (promoted or dropped upstream — no flag left), and
  * persistence_minidb_readmodel (now controlled by the `[database]` config
  * section). `acp-v2` was removed upstream earlier; `file_history` was
  * removed in kimi-code 0.41.0 (turn-level file history is always on, no
@@ -50,10 +51,11 @@ export const EXPERIMENTAL_FLAGS: ExperimentalFlagDef[] = [
     envVar: "KIMI_CODE_EXPERIMENTAL_WAIT_FOR",
     defaultEnabled: true,
   },
-  { id: "tool-select", envVar: "KIMI_CODE_EXPERIMENTAL_TOOL_SELECT" },
+  { id: "worktree", envVar: "KIMI_CODE_EXPERIMENTAL_WORKTREE" },
+  { id: "auto_review", envVar: "KIMI_CODE_EXPERIMENTAL_AUTO_REVIEW" },
   { id: "notify_user", envVar: "KIMI_CODE_EXPERIMENTAL_NOTIFY_USER" },
   { id: "tower", envVar: "KIMI_CODE_EXPERIMENTAL_TOWER" },
-  { id: "subagent_fork", envVar: "KIMI_CODE_EXPERIMENTAL_SUBAGENT_FORK" },
+  { id: "prompt_prediction", envVar: "KIMI_CODE_EXPERIMENTAL_PROMPT_PREDICTION" },
 ];
 
 export const EXPERIMENTAL_MASTER_ENV = "KIMI_CODE_EXPERIMENTAL_FLAG";

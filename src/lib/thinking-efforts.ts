@@ -14,6 +14,7 @@
  */
 
 import type { Config, Model } from "../types";
+import { modelWireName } from "./model-effective";
 import { capabilitiesFromRef, getModelRef, type ModelRef } from "./models-dev";
 
 export const THINKING_EFFORTS = [
@@ -315,7 +316,9 @@ export function materializeModelEfforts(config: Config): Config {
   const models: Record<string, Model> = {};
   let changed = false;
   for (const [alias, model] of Object.entries(config.models)) {
-    const next = seedModelEffort(model, getModelRef(model.model));
+    // models.dev is keyed on the wire model name; for v2 models that is `name`
+    // (the legacy `model` may be empty).
+    const next = seedModelEffort(model, getModelRef(modelWireName(model)));
     if (next !== model) changed = true;
     models[alias] = next;
   }

@@ -154,8 +154,8 @@ pub struct ModelRow {
     pub model_resolved: String,
     pub price_id: String,
     pub cost_estimated: bool,
-    /// True when any aggregated record came from a subagent request (Kimi Code
-    /// `__secondary__` marker, resolved to the configured secondary model).
+    /// True only for historical records whose raw model was Kimi Code's
+    /// legacy `__secondary__` marker. Newer records carry their real model alias.
     pub is_secondary: bool,
     pub requests: usize,
     pub input_other: u64,
@@ -183,8 +183,8 @@ pub struct RecentRow {
     pub cost_estimated: bool,
     pub price_id: String,
     pub from_env: bool,
-    /// True when the record is a subagent request bound to the configured
-    /// secondary model (Kimi Code `__secondary__` marker).
+    /// True only for historical records whose raw model was Kimi Code's
+    /// legacy `__secondary__` marker. Newer records carry their real model alias.
     pub is_secondary: bool,
 }
 
@@ -350,8 +350,8 @@ pub struct UsageRecord {
     pub model_display: String,
     pub provider: Option<String>,
     pub from_env: bool,
-    /// True when the record is a subagent request bound to the configured
-    /// secondary model (Kimi Code `__secondary__` marker).
+    /// True only for historical records whose raw model was Kimi Code's
+    /// legacy `__secondary__` marker. Newer records carry their real model alias.
     pub is_secondary: bool,
 }
 
@@ -436,14 +436,10 @@ fn build_alias_provider_map(home: &Path) -> HashMap<String, String> {
     map
 }
 
-/// Read the subagent model alias from `[secondary_model]` in the Kimi Code
-/// config.toml — the model subagents bind to while the secondary-model feature
-/// is on.
-///
-/// kimi-code 2.5.0 (#4418) renamed the key to `default_model` and deprecated
-/// `force`; older builds only ever wrote `model`. Read the new key first so a
-/// config carrying both prices at the model the CLI actually spawns, and keep
-/// `model` as the fallback for configs that predate the rename.
+/// Read the subagent model alias from `[secondary_model]`. kimi-code 2.5.0
+/// renamed the key to `default_model`; older builds wrote `model`. Newer records
+/// carry the real model alias, while historical `__secondary__` records use this
+/// alias for pricing.
 fn read_secondary_model_alias(home: &Path) -> Option<String> {
     let path = home.join("config.toml");
     if !path.is_file() {
@@ -949,12 +945,11 @@ fn resolve_scan_config(home: &Path) -> (Arc<ScanInputs>, Option<String>) {
 /// already-parsed `[secondary_model].model`, so `config.toml` is read once.
 fn compute_scan_inputs(home: &Path, current_secondary: &Option<String>) -> ScanInputs {
     let alias2prov = build_alias_provider_map(home);
-    // Resolve the `__secondary__` marker (subagent requests bound to the
-    // configured secondary model) to the real model alias once per scan.
-    // Prefer the current config; fall back to the persisted cache so records
-    // keep a stable billing basis after the secondary config is removed or
-    // changed. When the config still declares a secondary model, refresh the
-    // cache with it.
+    // Resolve the historical `__secondary__` marker to the real model alias
+    // once per scan. Prefer the current config; fall back to the persisted
+    // cache so old records keep a stable billing basis after the secondary
+    // config is removed or changed. When the config still declares a secondary
+    // model, refresh the cache with it.
     let stored_secondary = crate::db::get_setting_pub(SECONDARY_MODEL_CACHE_KEY).ok().flatten();
     let cached_secondary = stored_secondary.clone().filter(|s| !s.is_empty());
     let secondary_alias = current_secondary.clone().or(cached_secondary);
@@ -1378,19 +1373,14 @@ fn parse_wire_usage_records(
         };
         if obj.get("type").and_then(|v| v.as_str()) != Some("usage.record") { continue; }
         let scope = obj.get("usageScope").and_then(|v| v.as_str()).unwrap_or("turn");
-        if scope != "turn" { continue; }
+        if !matches!(scope, "turn" | "session" | "prediction") { continue; }
 
         let model_raw = obj.get("model").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
-        // Pre-2.5.0 builds wrote the internal marker `__secondary__` as the
-        // model key for usage records emitted by subagents bound to the
-        // configured secondary model. kimi-code 2.5.0 (#4418) dropped that
-        // alias — new subagent records carry the real model name — but wire
-        // files on disk keep the marker for every request recorded before the
-        // upgrade, so it must still be recognised. Those historical records
-        // stay keyed on the marker (their semantics must not drift when the
-        // secondary config changes later), cost billing follows the currently
-        // configured secondary model, and the is_secondary flag keeps the UI
-        // showing them as their own "subagent model" entry.
+        // Historical Kimi Code records used the internal `__secondary__` model
+        // marker for subagent requests bound to the configured secondary model.
+        // Preserve that marker and its re-pricing semantics for old records only;
+        // 2.5.0+ records carry the real model alias. `agentId` never determines
+        // pricing or `is_secondary`.
         let is_secondary = model_raw == "__secondary__";
         let from_env = model_raw == "__kimi_env_model__";
         let price_model = if is_secondary {
@@ -1408,11 +1398,10 @@ fn parse_wire_usage_records(
         // Resolve model display
         let bare = model_raw.rsplit_once('/').map(|x| x.1).unwrap_or(&model_raw);
         let (cost, est) = cost_for_usage(input_other, output, cache_read, cache_create, &price_model);
-        // Historical subagent records are inherently estimates: the
-        // `__secondary__` marker carries no model identity, so the cost is
-        // flagged as estimated even when the current secondary config resolves
-        // to a priced listing. Records written by 2.5.0+ carry the real model
-        // and are priced like any other request.
+        // Historical `__secondary__` records are inherently estimates: the
+        // marker carries no model identity, so the cost is flagged as estimated
+        // even when the current secondary config resolves to a priced listing.
+        // Records written by 2.5.0+ carry the real model and are priced normally.
         let est = est || is_secondary;
         let (pid, _ch, _ip, _op, _) = match_price(&price_model);
 
@@ -2165,15 +2154,66 @@ fn list_workspace_dirs(home: &Path) -> Vec<String> {
     out
 }
 
+/// Remove `workspace_id` from one metadata file's entry table and record it in
+/// its deleted-ids array, persisting the result pretty-printed with a trailing
+/// newline. A missing file succeeds; a read/parse/serialize failure returns a
+/// path-qualified error and leaves the file untouched (never writes an empty
+/// body over a corrupt original).
+fn remove_workspace_metadata(
+    path: &Path,
+    table_key: &str,
+    deleted_key: &str,
+    workspace_id: &str,
+) -> Result<(), String> {
+    if !path.exists() { return Ok(()); }
+    let content = fs::read_to_string(path)
+        .map_err(|e| format!("read {}: {e}", path.display()))?;
+    let mut value: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| format!("parse {}: {e}", path.display()))?;
+    let root = value.as_object_mut()
+        .ok_or_else(|| format!("{} must contain a JSON object", path.display()))?;
+    if let Some(table) = root.get_mut(table_key).and_then(|v| v.as_object_mut()) {
+        table.remove(workspace_id);
+    }
+    let deleted = root.entry(deleted_key.to_string())
+        .or_insert_with(|| serde_json::json!([]))
+        .as_array_mut()
+        .ok_or_else(|| format!("{}.{deleted_key} must be an array", path.display()))?;
+    if !deleted.iter().any(|v| v.as_str() == Some(workspace_id)) {
+        deleted.push(serde_json::Value::String(workspace_id.to_string()));
+    }
+    let output = serde_json::to_string_pretty(&value)
+        .map_err(|e| format!("serialize {}: {e}", path.display()))?;
+    fs::write(path, output + "\n")
+        .map_err(|e| format!("write {}: {e}", path.display()))
+}
+
+/// Format a `state.json` timestamp as RFC3339 text for the session row.
+///
+/// Accepts the same values `parse_state_time_ms` does — epoch-ms numbers,
+/// epoch-ms numeric strings, and ISO-8601 / RFC3339 strings — and renders the
+/// normalized epoch ms back to RFC3339, so both new builds (which write
+/// `createdAt`/`updatedAt` as epoch-ms numbers plus a `cwd` key) and legacy
+/// state files surface a consistent, parseable timestamp string.
+fn state_time_text(value: &serde_json::Value) -> Option<String> {
+    let ms = i64::try_from(parse_state_time_ms(value)?).ok()?;
+    DateTime::from_timestamp_millis(ms).map(|dt| dt.to_rfc3339())
+}
+
 fn read_state_safe(session_dir: &Path) -> (Option<String>, Option<String>, Option<String>, Option<String>) {
     let sp = session_dir.join("state.json");
     if !sp.exists() { return (None, None, None, None); }
     if let Ok(content) = fs::read_to_string(&sp) {
         if let Ok(obj) = serde_json::from_str::<serde_json::Value>(&content) {
-            let title = obj.get("title").and_then(|v| v.as_str().map(|s| s.to_string()));
-            let work_dir = obj.get("workDir").and_then(|v| v.as_str().map(|s| s.to_string()));
-            let created_at = obj.get("createdAt").and_then(|v| v.as_str().map(|s| s.to_string()));
-            let updated_at = obj.get("updatedAt").and_then(|v| v.as_str().map(|s| s.to_string()));
+            let title = obj.get("title").and_then(|v| v.as_str().map(str::to_string));
+            // kimi-code v2 writes the working directory under `cwd`; older
+            // builds use `workDir`. Fall back across both, preferring either
+            // when present.
+            let work_dir = ["cwd", "workDir"].iter().find_map(|key| {
+                obj.get(*key).and_then(|v| v.as_str()).map(str::to_string)
+            });
+            let created_at = obj.get("createdAt").and_then(state_time_text);
+            let updated_at = obj.get("updatedAt").and_then(state_time_text);
             return (title, work_dir, created_at, updated_at);
         }
     }
@@ -2559,7 +2599,8 @@ fn list_sessions_cmd(home: &Path, status: &str, workspace_filter: Option<String>
         let empty = active_count == 0 && archived_count == 0;
         workspaces.push(WorkspaceRow {
             id: wid.clone(), name, root: root_path,
-            created_at: None, last_opened_at: None,
+            created_at: meta.and_then(|m| m.get("created_at")).and_then(|v| v.as_str()).map(str::to_string),
+            last_opened_at: meta.and_then(|m| m.get("last_opened_at")).and_then(|v| v.as_str()).map(str::to_string),
             active_count, archived_count, empty,
         });
         all_sessions.extend(listed);
@@ -2700,13 +2741,31 @@ fn delete_workspace_cmd(home: &Path, workspace_id: &str, _confirm: bool, _force:
     let active_dir = root.join(workspace_id);
     let arch_dir = root.join(".kcd-archive").join(workspace_id);
 
-    if active_dir.exists() {
-        let active_list = list_sessions_in_dir(&active_dir, workspace_id, false);
-        if !active_list.is_empty() { return Err("workspace is not empty; archive/delete sessions first".into()); }
+    if active_dir.exists() && !list_sessions_in_dir(&active_dir, workspace_id, false).is_empty() {
+        return Err("workspace is not empty; archive/delete sessions first".into());
     }
-    if arch_dir.exists() {
-        let arch_list = list_sessions_in_dir(&arch_dir, workspace_id, true);
-        if !arch_list.is_empty() { return Err("workspace is not empty; archive/delete sessions first".into()); }
+    if arch_dir.exists() && !list_sessions_in_dir(&arch_dir, workspace_id, true).is_empty() {
+        return Err("workspace is not empty; archive/delete sessions first".into());
+    }
+
+    // Validate both metadata files before removing any directory, so a corrupt
+    // projects.json surfaces as an error without the workspace having already
+    // been deleted.
+    if let Err(e) = remove_workspace_metadata(
+        &home.join("workspaces.json"),
+        "workspaces",
+        "deleted_workspace_ids",
+        workspace_id,
+    ) {
+        return Err(e);
+    }
+    if let Err(e) = remove_workspace_metadata(
+        &home.join("projects.json"),
+        "projects",
+        "deleted_project_ids",
+        workspace_id,
+    ) {
+        return Err(e);
     }
 
     if active_dir.exists() { fs::remove_dir_all(&active_dir).ok(); }
@@ -3491,6 +3550,59 @@ mod session_tests {
     }
 
     #[test]
+    fn projects_metadata_wins_and_delete_updates_both_files() {
+        let (_td, home) = setup_home();
+        fs::write(
+            home.join("workspaces.json"),
+            r#"{"workspaces":{"wd_proj_a1b2c3d4e5f6":{"name":"old","root":"D:/old"}},"deleted_workspace_ids":[]}"#,
+        ).unwrap();
+        fs::write(
+            home.join("projects.json"),
+            r#"{"schema_version":2,"projects":{"wd_proj_a1b2c3d4e5f6":{"name":"new","root":"D:/new","created_at":"2026-01-01T00:00:00Z","last_opened_at":"2026-01-02T00:00:00Z"}},"deleted_project_ids":[]}"#,
+        ).unwrap();
+
+        let listed = list_sessions_cmd(&home, "all", None);
+        assert_eq!(listed.workspaces[0].name, "new");
+        assert_eq!(listed.workspaces[0].root.as_deref(), Some("D:/new"));
+        assert_eq!(listed.workspaces[0].created_at.as_deref(), Some("2026-01-01T00:00:00Z"));
+        assert_eq!(listed.workspaces[0].last_opened_at.as_deref(), Some("2026-01-02T00:00:00Z"));
+
+        delete_workspace_cmd(&home, WID, true, false).unwrap();
+        for (file, table, deleted) in [
+            ("workspaces.json", "workspaces", "deleted_workspace_ids"),
+            ("projects.json", "projects", "deleted_project_ids"),
+        ] {
+            let value: serde_json::Value = serde_json::from_str(
+                &fs::read_to_string(home.join(file)).unwrap()
+            ).unwrap();
+            assert!(value[table].get(WID).is_none());
+            assert!(value[deleted].as_array().unwrap().iter().any(|v| v == WID));
+        }
+    }
+
+    #[test]
+    fn legacy_workspace_metadata_remains_a_fallback() {
+        let (_td, home) = setup_home();
+        fs::write(home.join("workspaces.json"), serde_json::to_string(&serde_json::json!({
+            "workspaces": { WID: { "name": "legacy", "root": "D:/legacy" } },
+            "deleted_workspace_ids": []
+        })).unwrap()).unwrap();
+        let result = list_sessions_cmd(&home, "all", None);
+        assert_eq!(result.workspaces[0].name, "legacy");
+        assert_eq!(result.workspaces[0].root.as_deref(), Some("D:/legacy"));
+    }
+
+    #[test]
+    fn corrupt_projects_metadata_is_not_overwritten() {
+        let (_td, home) = setup_home();
+        let path = home.join("projects.json");
+        fs::write(&path, "{ broken").unwrap();
+        assert!(delete_workspace_cmd(&home, WID, true, false).is_err());
+        assert!(active_dir(&home).exists(), "validation fails before directory removal");
+        assert_eq!(fs::read_to_string(path).unwrap(), "{ broken");
+    }
+
+    #[test]
     fn metadata_archive_roundtrip() {
         let (_td, home) = setup_home();
         let dir = active_dir(&home).join(SID);
@@ -3659,6 +3771,52 @@ mod session_tests {
         assert!(!dir.exists(), "metadata-archived session deleted in place");
         assert!(!legacy_arch_dir(&home).join(SID).exists());
         assert!(list_sessions_cmd(&home, "all", None).sessions.is_empty());
+    }
+
+    #[test]
+    fn numeric_state_metadata_populates_session_rows() {
+        let (_td, home) = setup_home();
+        let dir = active_dir(&home).join(SID);
+        fs::create_dir_all(&dir).unwrap();
+        write_state(&dir, false, None);
+
+        let result = list_sessions_cmd(&home, "all", None);
+        let row = &result.sessions[0];
+        assert_eq!(row.work_dir.as_deref(), Some("/tmp/work"));
+        assert_eq!(
+            DateTime::parse_from_rfc3339(row.created_at.as_deref().unwrap())
+                .unwrap()
+                .timestamp_millis(),
+            1_700_000_000_000
+        );
+        assert_eq!(
+            DateTime::parse_from_rfc3339(row.updated_at.as_deref().unwrap())
+                .unwrap()
+                .timestamp_millis(),
+            1_700_000_000_000
+        );
+    }
+
+    #[test]
+    fn legacy_state_metadata_remains_readable() {
+        let (_td, home) = setup_home();
+        let dir = active_dir(&home).join(SID);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("state.json"), serde_json::to_string(&serde_json::json!({
+            "title": "legacy",
+            "workDir": "D:/legacy",
+            "createdAt": "2026-01-01T00:00:00Z",
+            "updatedAt": "2026-01-02T00:00:00Z"
+        })).unwrap()).unwrap();
+
+        let result = list_sessions_cmd(&home, "all", None);
+        assert_eq!(result.sessions[0].work_dir.as_deref(), Some("D:/legacy"));
+        assert_eq!(
+            DateTime::parse_from_rfc3339(result.sessions[0].created_at.as_deref().unwrap())
+                .unwrap()
+                .timestamp_millis(),
+            1_767_225_600_000
+        );
     }
 }
 
@@ -4525,10 +4683,10 @@ mod scan_cache_tests {
             .concat()
     }
 
-    fn usage_line(time: u64, model: &str) -> serde_json::Value {
-        serde_json::json!({
+    fn usage_line_scoped(time: u64, model: &str, scope: Option<&str>) -> serde_json::Value {
+        let mut line = serde_json::json!({
             "type": "usage.record",
-            "usageScope": "turn",
+            "agentId": "main",
             "time": time,
             "model": model,
             "usage": {
@@ -4537,7 +4695,33 @@ mod scan_cache_tests {
                 "inputCacheRead": 10,
                 "inputCacheCreation": 5,
             },
-        })
+        });
+        if let Some(scope) = scope {
+            line["usageScope"] = serde_json::json!(scope);
+        }
+        line
+    }
+
+    fn usage_line(time: u64, model: &str) -> serde_json::Value {
+        usage_line_scoped(time, model, Some("turn"))
+    }
+
+    #[test]
+    fn all_known_usage_scopes_count_once_and_unknown_scope_is_skipped() {
+        let _guard = scan_lock();
+        let (_td, home, _wire) = setup_home_with_wire(&[
+            usage_line_scoped(1_700_000_000_000, "openai/turn", Some("turn")),
+            usage_line_scoped(1_700_000_000_100, "openai/session", Some("session")),
+            usage_line_scoped(1_700_000_000_200, "openai/prediction", Some("prediction")),
+            usage_line_scoped(1_700_000_000_300, "openai/legacy", None),
+            usage_line_scoped(1_700_000_000_400, "openai/future", Some("future_scope")),
+        ]);
+
+        let (records, _) = scan_usage_cached2(&home, false);
+        assert_eq!(records.len(), 4);
+        assert!(records.iter().all(|r| r.model != "openai/future"));
+        assert_eq!(records.iter().map(|r| r.input_other).sum::<u64>(), 400);
+        assert_eq!(records.iter().map(|r| r.output).sum::<u64>(), 200);
     }
 
     #[test]

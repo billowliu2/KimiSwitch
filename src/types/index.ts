@@ -7,6 +7,7 @@ export type ProviderType =
   | "openai_responses"
   | "google-genai"
   | "vertexai"
+  | "bedrock"
   /** Any other string the CLI writes — preserved verbatim on round-trip. */
   | (string & {});
 
@@ -55,6 +56,19 @@ export interface Model {
   alias: string;
   provider: string;
   model: string;
+  /**
+   * kimi-code 2.8 v2 identity: the provider this model belongs to, separated
+   * from the legacy `provider` field. `null/undefined` when the legacy field
+   * is used.
+   */
+  provider_id?: string | null;
+  /**
+   * kimi-code 2.8 v2 identity: the wire model name, separated from the legacy
+   * `model` field. `null/undefined` when the legacy field is used.
+   */
+  name?: string | null;
+  /** kimi-code 2.8 v2 identity: alternate aliases for this model. */
+  aliases?: string[];
   max_context_size: number;
   display_name: string | null;
   /** Whether the model declares extended context / thinking support. */

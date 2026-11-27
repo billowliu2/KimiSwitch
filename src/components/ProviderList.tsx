@@ -22,6 +22,7 @@ import {
   type HealthResult,
 } from "../hooks/useHealthCheck";
 import type { Agent, Model, Provider } from "../types";
+import { modelProvider, modelWireName } from "../lib/model-effective";
 
 interface ConnectivityResult {
   ok: boolean;
@@ -101,10 +102,11 @@ function ProviderCard({
       provider.usageConfig?.templateType === "sub2api"
   );
   const providerModels = Object.values(models).filter(
-    (m) => m.provider === provider.name
+    (m) => modelProvider(m) === provider.name
   );
-  const defaultModelName = defaultModel
-    ? models[defaultModel]?.model || models[defaultModel]?.display_name || defaultModel
+  const defaultEntry = defaultModel ? models[defaultModel] : undefined;
+  const defaultModelName = defaultEntry
+    ? modelWireName(defaultEntry) || defaultEntry.display_name || defaultModel
     : null;
   const isActive = provider.active === true;
 
@@ -195,7 +197,8 @@ function ProviderCard({
 
       <div className="flex items-center flex-wrap justify-end gap-2">
         {defaultModel &&
-          models[defaultModel]?.provider === provider.name && (
+          defaultEntry &&
+          modelProvider(defaultEntry) === provider.name && (
             <span className="text-xs px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 border border-green-300 dark:border-green-500/20">
               {t("defaultModel", { name: defaultModelName ?? "" })}
             </span>

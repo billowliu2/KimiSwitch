@@ -207,8 +207,9 @@ pub fn pi_api_for_provider(provider_type: &ProviderType) -> &'static str {
         ProviderType::Vertexai => "google-vertex",
         // Treat Kimi as OpenAI-compatible since it is not a native Pi API;
         // unknown upstream types get the same lenient handling (Pi is a
-        // legacy path).
-        ProviderType::Kimi | ProviderType::Unknown(_) => "openai-completions",
+        // legacy path). Bedrock has no Pi `api` mapping; treat like the
+        // OpenAI-compatible fallback.
+        ProviderType::Kimi | ProviderType::Bedrock | ProviderType::Unknown(_) => "openai-completions",
     }
 }
 
@@ -371,6 +372,9 @@ pub fn pi_file_to_config(file: &PiModelsFile) -> Config {
                     alias,
                     provider: name.clone(),
                     model: pi_model.id.clone(),
+                    provider_id: None,
+                    name: None,
+                    aliases: vec![],
                     max_context_size: pi_model.context_window,
                     display_name,
                     supports_1m: pi_model.reasoning || pi_model.context_window >= 1_000_000,

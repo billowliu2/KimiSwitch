@@ -22,6 +22,7 @@
 - [架构总览](#架构总览)
 - [功能详情](#功能详情)
 - [支持的供应商类型](#支持的供应商类型)
+- [与 Kimi Code 版本适配](#与-kimi-code-版本适配)
 - [数据存储位置](#数据存储位置)
 - [快速上手](#快速上手)
 - [开发指南](#开发指南)
@@ -267,8 +268,31 @@
 | OpenAI Responses | `openai_responses` | `https://api.openai.com/v1` | ✅ `/models` | `OPENAI_API_KEY` 或 `env` |
 | Google GenAI | `google-genai` | `https://generativelanguage.googleapis.com` | ✅ `/v1beta/models` | `GOOGLE_API_KEY` 或 `env` |
 | Vertex AI | `vertexai` | — | ⚠️ 待实现 | `VERTEXAI_API_KEY` + `GOOGLE_CLOUD_PROJECT` + `GOOGLE_CLOUD_LOCATION` |
+| Bedrock | `bedrock` | — | ❌ 不支持 | AWS 会话凭证（无静态 key） |
 
 凭证优先级：`api_key` 字段 > `env` 表里的同名键。
+
+## 与 Kimi Code 版本适配
+
+Kimi Switch 的「设置 → 版本」卡会把本机安装的 `kimi` CLI 版本映射为四种状态：`current`（完全适配）/ `partial`（部分适配）/ `outdated`（结构已变，建议升级 Kimi Switch）/ `unknown`（未验证）。映射是静态基线表，随 Kimi Code 发布推进会更新：
+
+| 版本区间 | 状态 |
+| --- | --- |
+| `2.8.0` – `2.8.1` | `current`（本周期完成验证的唯一区间） |
+| `2.0.2` – `2.7.x` | `partial` |
+| `0.43.1` – `2.0.1` | `outdated` |
+| `0.43.0` | `partial` |
+| `< 0.43.0` 或 `>= 2.8.2` | `unknown` |
+
+**当前周期验证范围（2.8.0 / 2.8.1）**：
+
+- **新版会话元数据**：`sessions/<id>/state.json` 的 `cwd` / 数字化时间戳、归档 `archived` 字段均兼容；归档/恢复不改变会话目录，旧的物理归档目录 `.kcd-archive/` 仍可识别。
+- **工作区元数据**：名称、root 与时间来自 `projects.json`（schema_version 2），删除空工作区时与 `workspaces.json` 同步；历史 `workspaces.json` 仍作兜底。
+- **用量记录**：`usage.record` 的三种真实 scope（`turn` / `session` / `prediction`）各统计一次，未知 scope 安全跳过；历史 `__secondary__` 副模型记录仍单独归类。
+- **新版模型字段**：`provider_id` / `name` / `aliases` 在 Rust、TS、TOML 间一致往返；身份与 aliases 可编辑。`overrides` 块提供的**有效覆盖值**（如被覆盖的 `max_context_size` / `display_name`）只读展示，不提供编辑——避免用户的编辑被覆盖值遮蔽。
+- **Bedrock 供应商**：仅支持 `type = "bedrock"` 的类型识别与 TOML 往返（无 OpenAI 兼容 `/v1/models` 发现、无静态 key、无内部用量查询）。
+
+> **验证记录**：2.8.0 / 2.8.1 的 `doctor config` 均已通过；隔离临时 home 的 GUI 验证已覆盖供应商切换、会话元数据与归档/恢复、用量统计、模型身份和 overrides 只读展示。aliases 的界面编辑未做 GUI 验证，其写入逻辑由前端和 Rust 单元/集成测试覆盖。
 
 ## 数据存储位置
 

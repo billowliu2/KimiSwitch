@@ -1,4 +1,5 @@
 import type { Config, Model, Provider, ProviderType } from "../types";
+import { modelProvider, modelWireName } from "./model-effective";
 
 /**
  * Provider types that must have a base_url set in order to function.
@@ -63,16 +64,18 @@ export function validateProviders(
     }
 
     const providerModels = Object.values(modelIndex).filter(
-      (m) => m.provider === provider.name,
+      (m) => modelProvider(m) === provider.name,
     );
     if (providerModels.length === 0) {
       reasons.push(t("validationNoModels"));
     } else {
-      // A model entry exists but its `model` field may be blank (e.g. the
-      // user hit "+ 添加模型" in the edit page and saved before filling
-      // in the upstream model id). Those still break the provider.
+      // A model entry exists but its wire model id may be blank (e.g. the
+      // user hit "+ 添加模型" in the edit page and saved before filling in
+      // the upstream model id). Those still break the provider. The effective
+      // wire name (`modelWireName`) is used so a valid v2 model whose legacy
+      // `model` is empty is not misreported.
       const blankAliases = providerModels
-        .filter((m) => !m.model || !m.model.trim())
+        .filter((m) => !modelWireName(m).trim())
         .map((m) => m.alias);
       if (blankAliases.length > 0) {
         reasons.push(

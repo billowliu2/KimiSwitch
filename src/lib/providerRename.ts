@@ -1,4 +1,5 @@
 import type { Model } from "../types";
+import { modelProvider, setModelProvider } from "./model-effective";
 
 export interface ProviderRenameResult {
   models: Record<string, Model>;
@@ -34,7 +35,10 @@ export function rekeyModelsOnProviderRename(
   const next: Record<string, Model> = {};
   const toRename: Array<[string, Model]> = [];
   for (const [key, m] of Object.entries(models)) {
-    if (m.provider === oldName) toRename.push([key, m]);
+    // Ownership is judged on the *effective* model provider (`provider_id`
+    // for v2 models, legacy `provider` for the rest), so a renamed provider
+    // re-keys models that v2 identity points at.
+    if (modelProvider(m) === oldName) toRename.push([key, m]);
     else next[key] = m;
   }
   const aliasMap: Record<string, string> = {};
@@ -46,7 +50,14 @@ export function rekeyModelsOnProviderRename(
       target = `${base}-${n}`;
       n++;
     }
-    next[target] = { ...m, alias: target, provider: newName };
+    // Write the new provider through the active identity field: `provider_id`
+    // for v2 models (never the legacy field), `provider` for legacy ones.
+    // The value is trimmed so it can be set to the empty string (v2 identity
+    // writes must not fall back to the legacy field).
+    next[target] = {
+      ...setModelProvider(m, newName),
+      alias: target,
+    };
     aliasMap[key] = target;
   }
   return { models: next, aliasMap };
@@ -65,7 +76,8 @@ export function copyModelsOnProviderDuplicate(
 ): Record<string, Model> {
   const next = { ...models };
   for (const [key, m] of Object.entries(models)) {
-    if (m.provider !== oldName) continue;
+    // Ownership judged on the effective provider (see rekeyModelsOnProviderRename).
+    if (modelProvider(m) !== oldName) continue;
     const base = rekeyedAlias(key, oldName, newName);
     let target = base;
     let n = 2;
@@ -73,7 +85,12 @@ export function copyModelsOnProviderDuplicate(
       target = `${base}-${n}`;
       n++;
     }
-    next[target] = { ...m, alias: target, provider: newName };
+    // The copy is re-owned through the active identity field; the source is
+    // left untouched (`next` already holds it under its original key).
+    next[target] = {
+      ...setModelProvider(m, newName),
+      alias: target,
+    };
   }
   return next;
 }

@@ -13,6 +13,14 @@ import {
 } from "../lib/model-max-output";
 import { capabilitiesFromRef, getModelRef, modelsDevReady } from "../lib/models-dev";
 import {
+  effectiveModel,
+  isModelFieldOverridden,
+  modelProvider,
+  modelWireName,
+  setModelProvider,
+  setModelWireName,
+} from "../lib/model-effective";
+import {
   PREFERRED_EFFORT,
   THINKING_EFFORTS,
   TIER_RANK,
@@ -58,6 +66,7 @@ const PROVIDER_TYPES: ProviderType[] = [
   "anthropic",
   "google-genai",
   "vertexai",
+  "bedrock",
   "kimi",
 ];
 
@@ -73,6 +82,7 @@ function defaultBaseUrl(agent: Agent, type: ProviderType): string {
         return "https://generativelanguage.googleapis.com";
       case "anthropic":
       case "vertexai":
+      case "bedrock":
         return "";
       default:
         return "";
@@ -89,6 +99,7 @@ function defaultBaseUrl(agent: Agent, type: ProviderType): string {
       return "https://generativelanguage.googleapis.com";
     case "anthropic":
     case "vertexai":
+    case "bedrock":
       return "";
     default:
       return "";
@@ -621,7 +632,7 @@ function ModelMapping({
         onModelChange(
           withMaxOutputSize(
             m,
-            getModelRef(m.model)?.output ?? FALLBACK_MAX_OUTPUT
+            getModelRef(modelWireName(m))?.output ?? FALLBACK_MAX_OUTPUT
           )
         );
       }
@@ -642,7 +653,7 @@ function ModelMapping({
       });
       setDiscovered(result);
       // Auto-select models that already exist in the current provider's list
-      const existingIds = new Set(models.filter((m) => m.model).map((m) => m.model));
+      const existingIds = new Set(models.map((m) => modelWireName(m)).filter(Boolean));
       setSelected(new Set(result.filter((dm) => existingIds.has(dm.id)).map((dm) => dm.id)));
     } catch (err) {
       setDiscoverError(err instanceof Error ? err.message : String(err));
@@ -674,7 +685,7 @@ function ModelMapping({
 
   const handleAddSelected = () => {
     if (!discovered || selected.size === 0) return;
-    const existingIds = new Set(models.filter((m) => m.model).map((m) => m.model));
+    const existingIds = new Set(models.map((m) => modelWireName(m)).filter(Boolean));
     const toAdd: Model[] = [];
     for (const dm of discovered) {
       if (!selected.has(dm.id)) continue;
@@ -799,7 +810,7 @@ function ModelMapping({
           </label>
           <div className="max-h-48 overflow-auto space-y-1">
             {discovered.map((m) => {
-              const exists = models.some((mm) => mm.model === m.id);
+              const exists = models.some((mm) => modelWireName(mm) === m.id);
               return (
               <label
                 key={m.id}
@@ -837,7 +848,9 @@ function ModelMapping({
           <thead className="bg-input text-content-muted">
             <tr>
               <th className="text-left px-4 py-3 font-medium">{t("displayName")}</th>
+              <th className="text-left px-4 py-3 font-medium w-36">{t("provider")}</th>
               <th className="text-left px-4 py-3 font-medium">{t("actualModel")}</th>
+              <th className="text-left px-4 py-3 font-medium w-40">{t("aliases")}</th>
               <th className="text-left px-4 py-3 font-medium w-28">{t("contextSize")}</th>
               {agent === "kimi_code" && (
                 <th className="text-left px-4 py-3 font-medium w-32">{t("maxOutputSize")}</th>
@@ -853,30 +866,87 @@ function ModelMapping({
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {models.map((m) => (
+            {models.map((m) => {
+              // `effective` is the model after applying `[models."<alias>"] overrides`
+              // (kimi-code 2.8). It is display-only: every onModelChange below keeps
+              // working from the base `m` so overrides are never written back into the
+              // model's own fields.
+              const effective = effectiveModel(m);
+              const nameOverridden = isModelFieldOverridden(m, "display_name");
+              const contextOverridden = isModelFieldOverridden(m, "max_context_size");
+              const outputOverridden = isModelFieldOverridden(m, "max_output_size");
+              const effortOverridden = isModelFieldOverridden(m, "default_effort");
+              const capsOverridden = isModelFieldOverridden(m, "capabilities");
+              const wireName = modelWireName(m);
+              const providerName = modelProvider(m);
+              const overriddenHint = t("modelFieldOverridden");
+              return (
               <tr key={m.alias} className="hover:bg-hover">
                 <td className="px-4 py-2">
-                  <span className="text-sm text-content-muted">
-                    {m.model ? `${m.model}[${m.provider}]` : m.alias}
-                  </span>
-                  {agent === "kimi_code" && <UpgradeBadge model={m} />}
+                  <div className="flex items-center gap-1">
+                    <input
+                      className="w-full min-w-[120px] bg-transparent border border-border rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                      value={effective.display_name ?? ""}
+                      disabled={nameOverridden}
+                      onChange={(e) =>
+                        onModelChange({
+                          ...m,
+                          display_name: e.target.value || null,
+                        })
+                      }
+                    />
+                    {agent === "kimi_code" && <UpgradeBadge model={m} />}
+                  </div>
+                  {nameOverridden && (
+                    <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                      {overriddenHint}
+                    </span>
+                  )}
+                </td>
+                <td className="px-4 py-2">
+                  {/* Identity fields are never overrideable — always editable. */}
+                  <input
+                    className="w-full bg-transparent border border-border rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    value={providerName}
+                    onChange={(e) => onModelChange(setModelProvider(m, e.target.value))}
+                  />
                 </td>
                 <td className="px-4 py-2">
                   <input
                     className="w-full bg-transparent border border-border rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    value={m.model}
-                    onChange={(e) =>
-                      onModelChange({ ...m, model: e.target.value })
-                    }
+                    value={wireName}
+                    onChange={(e) => onModelChange(setModelWireName(m, e.target.value))}
                   />
+                </td>
+                <td className="px-4 py-2">
+                  {/* aliases parsed only on blur/Enter so typing doesn't re-trim each key. */}
+                  <input
+                    key={`${m.alias}:${(m.aliases ?? []).join(",")}`}
+                    className="w-full bg-transparent border border-border rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    defaultValue={(m.aliases ?? []).join(", ")}
+                    onBlur={(e) =>
+                      onModelChange({
+                        ...m,
+                        aliases: e.target.value
+                          .split(",")
+                          .map((v) => v.trim())
+                          .filter(Boolean),
+                      })
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.currentTarget.blur();
+                    }}
+                  />
+                  <span className="block text-[10px] text-content-muted">{t("aliasesHint")}</span>
                 </td>
                 <td className="px-4 py-2">
                   <input
                     type="number"
                     min={0}
                     step={1024}
-                    className="w-full bg-transparent border border-border rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    value={m.max_context_size}
+                    className="w-full bg-transparent border border-border rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                    value={effective.max_context_size}
+                    disabled={contextOverridden}
                     onChange={(e) => {
                       const value = parseInt(e.target.value, 10);
                       onModelChange({
@@ -885,29 +955,47 @@ function ModelMapping({
                       });
                     }}
                   />
+                  {contextOverridden && (
+                    <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                      {overriddenHint}
+                    </span>
+                  )}
                 </td>
                 {agent === "kimi_code" && (
                   <td className="px-4 py-2">
                     <MaxOutputCell
                       model={m}
+                      effective={effective}
+                      overridden={outputOverridden}
                       onChange={(next) => onModelChange(next)}
                     />
                   </td>
                 )}
                 {agent === "kimi_code" && (
                   <td className="px-4 py-2">
-                    <EffortCell model={m} onChange={(next) => onModelChange(next)} />
+                    <EffortCell
+                      model={m}
+                      effective={effective}
+                      overridden={effortOverridden}
+                      onChange={(next) => onModelChange(next)}
+                    />
                   </td>
                 )}
                 {agent === "kimi_code" && (
                   <td className="px-4 py-2">
                     <CapabilitiesCell
-                      capabilities={m.capabilities || []}
-                      nativeImage={getModelRef(m.model)?.image === true}
+                      capabilities={effective.capabilities || []}
+                      disabled={capsOverridden}
+                      nativeImage={getModelRef(wireName)?.image === true}
                       onChange={(next) =>
                         onModelChange({ ...m, capabilities: next })
                       }
                     />
+                    {capsOverridden && (
+                      <div className="text-[11px] text-amber-600 dark:text-amber-400">
+                        {overriddenHint}
+                      </div>
+                    )}
                   </td>
                 )}
                 <td className="px-4 py-2 text-center">
@@ -937,7 +1025,8 @@ function ModelMapping({
                   </button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
         {models.length === 0 && (
@@ -1028,12 +1117,15 @@ function CapabilitiesCell({
   capabilities,
   onChange,
   nativeImage,
+  disabled,
 }: {
   capabilities: string[];
   onChange: (next: string[]) => void;
   /** 模型本身是否原生支持图像输入（models.dev `image` 能力）。原生多模态
    *  模型无需 kimi-eyes 插件，提示不展示。 */
   nativeImage?: boolean;
+  /** Whether the capabilities array is override-driven (read-only). */
+  disabled?: boolean;
 }) {
   const { t } = useTranslation();
 
@@ -1060,6 +1152,7 @@ function CapabilitiesCell({
           <input
             type="checkbox"
             checked={capabilities.includes(cap)}
+            disabled={disabled}
             onChange={(e) => toggle(cap, e.target.checked)}
             className="w-3.5 h-3.5 rounded border-border bg-input text-blue-600 focus:ring-blue-500"
           />
@@ -1085,14 +1178,20 @@ function CapabilitiesCell({
  */
 function MaxOutputCell({
   model,
+  effective,
+  overridden,
   onChange,
 }: {
   model: Model;
+  effective: Model;
+  overridden: boolean;
   onChange: (next: Model) => void;
 }) {
   const { t } = useTranslation();
-  const current = readMaxOutputSize(model.raw_other);
-  const refOutput = getModelRef(model.model)?.output;
+  // Display the effective (post-override) value; edits still go back to the
+  // base `model` via `withMaxOutputSize`, which only touches raw_other.
+  const current = readMaxOutputSize(effective.raw_other);
+  const refOutput = getModelRef(modelWireName(model))?.output;
 
   return (
     <div>
@@ -1100,13 +1199,19 @@ function MaxOutputCell({
         type="number"
         min={0}
         step={1024}
-        className="w-full bg-transparent border border-border rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        className="w-full bg-transparent border border-border rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
         value={current ?? ""}
+        disabled={overridden}
         onChange={(e) =>
           onChange(withMaxOutputSize(model, parseMaxOutputInput(e.target.value)))
         }
       />
-      {refOutput !== undefined && refOutput !== current && (
+      {overridden && (
+        <span className="text-[11px] text-amber-600 dark:text-amber-400">
+          {t("modelFieldOverridden")}
+        </span>
+      )}
+      {!overridden && refOutput !== undefined && refOutput !== current && (
         <button
           type="button"
           onClick={() => onChange(withMaxOutputSize(model, refOutput))}
@@ -1129,15 +1234,19 @@ function MaxOutputCell({
  */
 function EffortCell({
   model,
+  effective,
+  overridden,
   onChange,
 }: {
   model: Model;
+  effective: Model;
+  overridden: boolean;
   onChange: (next: Model) => void;
 }) {
   const { t } = useTranslation();
-  const ref = getModelRef(model.model);
-  const { tiers, thinkingSupported } = resolveModelEfforts(model, ref);
-  const stored = readDefaultEffort(model);
+  const ref = getModelRef(modelWireName(model));
+  const { tiers, thinkingSupported } = resolveModelEfforts(effective, ref);
+  const stored = readDefaultEffort(effective);
   // Never leave the select without a selection: an unknown tier list still
   // defaults to the preferred tier, so the control shows the tier the CLI would
   // use (high) instead of silently rendering the first option as if it were
@@ -1167,8 +1276,9 @@ function EffortCell({
   return (
     <div>
       <select
-        className="w-full bg-input border border-border rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        className="w-full bg-input border border-border rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
         value={value ?? ""}
+        disabled={overridden}
         onChange={(e) => onChange(setModelEffort(model, e.target.value, tiers))}
       >
         {options.map((tier) => (
@@ -1177,7 +1287,12 @@ function EffortCell({
           </option>
         ))}
       </select>
-      {value !== undefined && !storedSupported && (
+      {overridden && (
+        <div className="text-[11px] text-amber-600 dark:text-amber-400">
+          {t("modelFieldOverridden")}
+        </div>
+      )}
+      {!overridden && value !== undefined && !storedSupported && (
         <div className="mt-1 text-[11px] text-content-muted">
           {t("effortDefaultHint", { value })}
         </div>

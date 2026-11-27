@@ -81,6 +81,11 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
     if let Some(models_table) = root.get("models").and_then(|v| v.as_table()) {
         for (alias, mv) in models_table {
             let table = mv.as_table().cloned().unwrap_or_default();
+            // kimi-code 2.8 v2 identity: the model references a provider via
+            // `provider_id` and a wire model via `name`. The legacy
+            // `provider` / `model` keys are separate and keep their own
+            // (possibly empty) values, so an empty legacy field is preserved
+            // instead of being folded into the v2 identity.
             let provider = table
                 .get("provider")
                 .and_then(|v| v.as_str())
@@ -90,6 +95,29 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
                 .get("model")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string())
+                .unwrap_or_default();
+            // An empty-but-present `provider_id`/`name` is preserved as
+            // Some("") rather than dropped: it is a distinct "v2 identity set
+            // to blank" state from "v2 identity absent" (None). Only the
+            // latter falls back to the legacy `provider`/`model` fields on
+            // read, so a v2 model cleared to "" does not silently acquire the
+            // legacy fields on the next round-trip.
+            let provider_id = table
+                .get("provider_id")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let name = table
+                .get("name")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let aliases: Vec<String> = table
+                .get("aliases")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect()
+                })
                 .unwrap_or_default();
             let max_context_size = table
                 .get("max_context_size")
@@ -115,6 +143,9 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
                 let mut rest = table.clone();
                 rest.remove("provider");
                 rest.remove("model");
+                rest.remove("provider_id");
+                rest.remove("name");
+                rest.remove("aliases");
                 rest.remove("max_context_size");
                 rest.remove("display_name");
                 rest.remove("capabilities");
@@ -127,6 +158,9 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
                     alias: alias.clone(),
                     provider,
                     model: model_id,
+                    provider_id,
+                    name,
+                    aliases,
                     max_context_size,
                     display_name,
                     supports_1m,
@@ -140,7 +174,7 @@ pub fn kimi_code_to_config(value: &TomlValue) -> Config {
     let active_provider_name = default_model
         .as_ref()
         .and_then(|alias| models.get(alias))
-        .map(|m| m.provider.as_str());
+        .map(|m| m.provider_id.as_deref().unwrap_or(m.provider.as_str()));
 
     if let Some(providers_table) = root.get("providers").and_then(|v| v.as_table()) {
         for (name, pv) in providers_table {
@@ -398,8 +432,37 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
     let mut models_table = Table::new();
     for (alias, model) in &config.models {
         let mut mt = Table::new();
-        mt.insert("provider".to_string(), TomlValue::String(model.provider.clone()));
-        mt.insert("model".to_string(), TomlValue::String(model.model.clone()));
+        // Legacy `provider`/`model` are written only when non-empty, so a
+        // v2-identity model does not gain empty legacy keys (see the brief on
+        // "新版身份不写空 provider/model").
+        if !model.provider.is_empty() {
+            mt.insert("provider".to_string(), TomlValue::String(model.provider.clone()));
+        }
+        if !model.model.is_empty() {
+            mt.insert("model".to_string(), TomlValue::String(model.model.clone()));
+        }
+        // kimi-code 2.8 v2 identity keys. An explicit Some (including the
+        // empty string) is written back so a cleared v2 identity does not
+        // round-trip into the legacy `provider`/`model` keys; only None
+        // (absent v2 identity) means the legacy fields own the model.
+        if let Some(provider_id) = model.provider_id.clone() {
+            mt.insert("provider_id".to_string(), TomlValue::String(provider_id));
+        }
+        if let Some(name) = model.name.clone() {
+            mt.insert("name".to_string(), TomlValue::String(name));
+        }
+        if !model.aliases.is_empty() {
+            mt.insert(
+                "aliases".to_string(),
+                TomlValue::Array(
+                    model
+                        .aliases
+                        .iter()
+                        .map(|a| TomlValue::String(a.clone()))
+                        .collect(),
+                ),
+            );
+        }
         mt.insert(
             "max_context_size".to_string(),
             TomlValue::Integer(model.max_context_size as i64),
@@ -417,6 +480,9 @@ pub fn config_to_kimi_code(config: &Config, existing: Option<&TomlValue>) -> Tom
         if let TomlValue::Table(mut extra) = json_to_toml(&model.raw_other).unwrap_or(TomlValue::Table(Table::new())) {
             extra.remove("provider");
             extra.remove("model");
+            extra.remove("provider_id");
+            extra.remove("name");
+            extra.remove("aliases");
             extra.remove("max_context_size");
             extra.remove("display_name");
             extra.remove("capabilities");
@@ -589,6 +655,192 @@ mod tests {
     use super::*;
 
     #[test]
+    fn kimi_code_v2_model_identity_and_overrides_roundtrip() {
+        let input: TomlValue = r#"
+default_model = "direct"
+[providers.aws]
+type = "bedrock"
+[models.direct]
+provider_id = "aws"
+name = "anthropic.claude-sonnet"
+aliases = ["fast"]
+max_context_size = 200000
+[models.direct.overrides]
+max_context_size = 100000
+display_name = "Effective name"
+"#
+        .parse()
+        .unwrap();
+
+        let config = kimi_code_to_config(&input);
+        let model = config.models.get("direct").unwrap();
+        assert_eq!(model.provider_id.as_deref(), Some("aws"));
+        assert_eq!(model.name.as_deref(), Some("anthropic.claude-sonnet"));
+        assert_eq!(model.aliases, vec!["fast"]);
+        assert_eq!(model.provider, "");
+        assert_eq!(model.model, "");
+        assert_eq!(config.providers.get("aws").unwrap().active, true);
+
+        let output = config_to_kimi_code(&config, Some(&input));
+        let saved = output.get("models").and_then(|v| v.get("direct")).unwrap();
+        assert_eq!(saved.get("provider_id").and_then(|v| v.as_str()), Some("aws"));
+        assert_eq!(
+            saved.get("name").and_then(|v| v.as_str()),
+            Some("anthropic.claude-sonnet")
+        );
+        assert!(saved.get("provider").is_none());
+        assert!(saved.get("model").is_none());
+        assert_eq!(
+            saved.get("overrides"),
+            input
+                .get("models")
+                .and_then(|v| v.get("direct"))
+                .and_then(|v| v.get("overrides"))
+        );
+    }
+
+    #[test]
+    fn kimi_code_v2_empty_identity_roundtrip() {
+        // A v2 model whose `provider_id`/`name` were cleared in the UI to an
+        // empty STRING (not removed) must round-trip as the empty string and
+        // must NOT fall back to writing legacy `provider`/`model` keys. Only a
+        // missing key (None) means the legacy fields own the identity.
+        let input: TomlValue = r#"
+default_model = "aws/sonnet"
+[models."aws/sonnet"]
+provider_id = ""
+name = ""
+max_context_size = 200000
+"#
+        .parse()
+        .unwrap();
+
+        let config = kimi_code_to_config(&input);
+        let model = config.models.get("aws/sonnet").unwrap();
+        // The empty-but-present v2 keys are preserved as Some("").
+        assert_eq!(model.provider_id.as_deref(), Some(""));
+        assert_eq!(model.name.as_deref(), Some(""));
+        // And the legacy fields were NOT implicitly populated from them —
+        // exporting as a full round-trip must not invent legacy keys.
+        assert_eq!(model.provider, "");
+        assert_eq!(model.model, "");
+
+        let output = config_to_kimi_code(&config, Some(&input));
+        let saved = output.get("models").and_then(|v| v.get("aws/sonnet")).unwrap();
+        assert_eq!(saved.get("provider_id").and_then(|v| v.as_str()), Some(""));
+        assert_eq!(saved.get("name").and_then(|v| v.as_str()), Some(""));
+        assert!(saved.get("provider").is_none(), "legacy provider must not be written for an empty v2 key");
+        assert!(saved.get("model").is_none(), "legacy model must not be written for an empty v2 key");
+
+        // A config whose v2 keys are None (absent) still writes the legacy
+        // fields as before — legacy identity is untouched by this fix.
+        let mut legacy_provider = IndexMap::new();
+        legacy_provider.insert(
+            "p".to_string(),
+            Provider {
+                name: "p".to_string(),
+                provider_type: ProviderType::Openai,
+                base_url: Some("https://a.example.com".to_string()),
+                api_key: Some("sk-a".to_string()),
+                api_key_env: None,
+                env: IndexMap::new(),
+                note: None,
+                official_url: None,
+                managed: false,
+                enabled: true,
+                active: true,
+                icon: None,
+                icon_color: None,
+                raw_other: Value::Null,
+                usage_kinds: None,
+                usage_config: None,
+            },
+        );
+        let mut legacy_models = IndexMap::new();
+        legacy_models.insert(
+            "p/m".to_string(),
+            Model {
+                alias: "p/m".to_string(),
+                provider: "p".to_string(),
+                model: "m".to_string(),
+                provider_id: None,
+                name: None,
+                aliases: vec![],
+                max_context_size: 128_000,
+                display_name: None,
+                supports_1m: false,
+                capabilities: vec![],
+                raw_other: Value::Null,
+            },
+        );
+        let legacy_config = Config {
+            default_model: None,
+            providers: legacy_provider,
+            models: legacy_models,
+            raw_other: Value::Null,
+            imported_section_keys: Vec::new(),
+            imported_provider_names: Vec::new(),
+            imported_model_aliases: Vec::new(),
+        };
+        let exported = config_to_kimi_code(&legacy_config, None);
+        let model_entry = exported
+            .as_table().unwrap()
+            .get("models").unwrap()
+            .as_table().unwrap()
+            .get("p/m").unwrap()
+            .as_table().unwrap();
+        assert_eq!(model_entry.get("provider").and_then(|v| v.as_str()), Some("p"));
+        assert_eq!(model_entry.get("model").and_then(|v| v.as_str()), Some("m"));
+        assert!(model_entry.get("provider_id").is_none());
+        assert!(model_entry.get("name").is_none());
+    }
+
+    #[test]
+    fn kimi_code_bedrock_provider_type_roundtrip() {
+        // `bedrock` is a first-class Kimi Code `type` the CLI accepts; it must
+        // map to a concrete ProviderType (not Unknown) and survive an
+        // import → export round-trip verbatim, with no default base URL.
+        let toml_str = r#"
+default_model = "direct"
+[providers.aws]
+type = "bedrock"
+[models.direct]
+provider_id = "aws"
+name = "anthropic.claude-sonnet"
+max_context_size = 200000
+"#;
+        let value: TomlValue = toml_str.parse().unwrap();
+        let config = kimi_code_to_config(&value);
+
+        assert_eq!(
+            config.providers.get("aws").unwrap().provider_type,
+            ProviderType::Bedrock
+        );
+        assert_eq!(
+            config.providers.get("aws").unwrap().provider_type.as_str(),
+            "bedrock"
+        );
+        assert_eq!(
+            ProviderType::from_kimi_type("bedrock"),
+            ProviderType::Bedrock
+        );
+        assert_eq!(
+            ProviderType::Bedrock.default_base_url(),
+            None,
+            "Bedrock must not fall into the OpenAI default base URL"
+        );
+
+        let exported = config_to_kimi_code(&config, Some(&value));
+        let pt = exported
+            .as_table().unwrap()
+            .get("providers").unwrap()
+            .as_table().unwrap()
+            .get("aws").unwrap()
+            .as_table().unwrap();
+        assert_eq!(pt.get("type").and_then(|v| v.as_str()), Some("bedrock"));
+    }
+
+    #[test]
     fn kimi_code_import_extracts_providers_and_models() {
         let toml_str = r#"
 default_model = "kimi-code/kimi-for-coding"
@@ -670,6 +922,9 @@ api_key = ""
                 alias: "glm-5.2".to_string(),
                 provider: "glmzhongzhuan".to_string(),
                 model: "glm-5.2".to_string(),
+                provider_id: None,
+                name: None,
+                aliases: vec![],
                 max_context_size: 900_000,
                 display_name: None,
                 supports_1m: true,
@@ -737,6 +992,9 @@ api_key = ""
             alias: "p/m".to_string(),
             provider: "p".to_string(),
             model: "m".to_string(),
+            provider_id: None,
+            name: None,
+            aliases: vec![],
             max_context_size: 128_000,
             display_name: None,
             supports_1m: false,
@@ -986,6 +1244,9 @@ default_effort = "low"
                 alias: "big-model".to_string(),
                 provider: "test-provider".to_string(),
                 model: "big-model".to_string(),
+                provider_id: None,
+                name: None,
+                aliases: vec![],
                 max_context_size: 2_000_000,
                 display_name: None,
                 supports_1m: true,

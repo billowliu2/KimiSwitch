@@ -4,6 +4,7 @@ import { useTranslation } from "../i18n";
 import type { TranslationKey } from "../i18n/zh";
 import { getAgentSettings, setAgentSettings } from "../lib/agent-settings";
 import { getModelRef, modelsDevReady } from "../lib/models-dev";
+import { modelWireName } from "../lib/model-effective";
 import {
   THINKING_EFFORTS,
   readSupportEfforts,
@@ -131,7 +132,7 @@ export function AgentSettingsPanel({ rawOther, onChange, models, defaultModel }:
   const defaultEntry = defaultModel ? models?.[defaultModel] : undefined;
   const effortSupport = resolveThinkingEffortSupport({
     supportEfforts: readSupportEfforts(defaultEntry),
-    reasoning: defaultEntry ? getModelRef(defaultEntry.model)?.reasoning : undefined,
+    reasoning: defaultEntry ? getModelRef(modelWireName(defaultEntry))?.reasoning : undefined,
   });
 
   const effortNote = (availability: EffortAvailability): string | undefined => {

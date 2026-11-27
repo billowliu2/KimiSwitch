@@ -366,6 +366,9 @@ pub async fn list_provider_models(provider: Provider) -> Result<Vec<DiscoveredMo
         ProviderType::Anthropic => fetch_anthropic_models(&base, &api_key).await,
         ProviderType::GoogleGenai => fetch_google_genai_models(&base, &api_key).await,
         ProviderType::Vertexai => Err("Vertex AI model discovery requires GCP project/location configuration and is not yet supported".to_string()),
+        // Bedrock endpoints (AWS) have no OpenAI-compatible /v1/models route;
+        // no AWS-specific discovery is attempted.
+        ProviderType::Bedrock => Err("Bedrock model discovery is not supported".to_string()),
         ProviderType::Unknown(s) => Err(format!(
             "unsupported provider type for model discovery: {s}"
         )),
@@ -493,6 +496,7 @@ fn expected_api_key_key(provider_type: &ProviderType) -> Option<&'static str> {
         ProviderType::Openai | ProviderType::OpenaiResponses => Some("OPENAI_API_KEY"),
         ProviderType::GoogleGenai => Some("GOOGLE_API_KEY"),
         ProviderType::Vertexai => Some("VERTEXAI_API_KEY"),
+        ProviderType::Bedrock => None,
         ProviderType::Unknown(_) => None,
     }
 }
@@ -2041,20 +2045,13 @@ fn semver_triple(version: &str) -> Option<(u32, u32, u32)> {
     Some((major, minor, patch))
 }
 
-/// Adaptation baseline against the kimi-code CLI. Verified through 2.5.2 —
-/// that is the version this build was last checked against, so the remarks
-/// below are what the UI's status badge actually promises.
-///
-///   >= 2.5.0  "current" — adapted to the 2.5.x layout. Three upstream changes
-///             sit at this boundary and are each handled on our side:
-///               1. the workspace registry moved from `workspaces.json` to
-///                  `projects.json` (schema v2, with a one-shot migrate +
-///                  `.pre-projects-migration-*` backup upstream);
-///               2. workspace ids are now `wm_<uuid>` instead of bare uuids;
-///               3. `[secondary_model] force` was removed and is ignored with
-///                  a warning (a lone `default_model` pins every subagent).
-///   >= 2.0.2  "current" — earlier baseline: the [mcp] default_deferred and
-///             [models] upgrade keys round-trip (see the kimi_code_io tests)
+/// Adaptation baseline against the kimi-code CLI:
+///   2.8.0–2.8.1 fully supported ("current"; session/projects.json/usage shape,
+///             model provider_id/name/aliases/overrides and Bedrock round-trip)
+///   2.5.x verified through 2.5.2 ("current"; projects.json schema v2,
+///             wm_<uuid> workspaces and secondary_model default_model)
+///   2.0.2–2.4.x supported ("current"; earlier config baseline)
+///   >= 2.8.2 unverified — default to "unknown", never auto-"current"
 ///   >= 0.43.1 quota parsing moved upstream — upgrade KimiSwitch ("outdated")
 ///   >= 0.43.0 the auto_session_title flag is gone ("partial")
 ///   <  0.43.0 untested ("unknown")
@@ -2066,7 +2063,7 @@ fn kimi_code_status(installed: Option<&str>) -> &'static str {
         return "not_installed";
     };
     match semver_triple(version) {
-        Some(t) if t >= (2, 5, 0) => "current",
+        Some(t) if t > (2, 8, 1) => "unknown",
         Some(t) if t >= (2, 0, 2) => "current",
         Some(t) if t >= (0, 43, 1) => "outdated",
         Some(t) if t >= (0, 43, 0) => "partial",
@@ -2249,14 +2246,15 @@ mod kimi_code_version_tests {
         assert_eq!(kimi_code_status(None), "not_installed");
         assert_eq!(kimi_code_status(Some("2.0.2")), "current");
         assert_eq!(kimi_code_status(Some("2.1.0")), "current");
-        // 2.5.x — the baseline this build was last verified against.
+        assert_eq!(kimi_code_status(Some("2.4.1")), "current");
         assert_eq!(kimi_code_status(Some("2.5.0")), "current");
         assert_eq!(kimi_code_status(Some("2.5.2")), "current");
-        // Earlier 2.x minors are still "current": both 2.0.2 and 2.5.0 gate
-        // the same status, and the badge only warns below those.
-        assert_eq!(kimi_code_status(Some("2.4.1")), "current");
+        assert_eq!(kimi_code_status(Some("2.7.0")), "current");
+        assert_eq!(kimi_code_status(Some("2.8.0")), "current");
+        assert_eq!(kimi_code_status(Some("2.8.1")), "current");
+        assert_eq!(kimi_code_status(Some("2.8.2")), "unknown");
+        assert_eq!(kimi_code_status(Some("3.0.0")), "unknown");
         assert_eq!(kimi_code_status(Some("0.43.1")), "outdated");
-        // 2.0.1 predates the fully-supported baseline.
         assert_eq!(kimi_code_status(Some("2.0.1")), "outdated");
         assert_eq!(kimi_code_status(Some("0.43.0")), "partial");
         assert_eq!(kimi_code_status(Some("0.42.9")), "unknown");
@@ -2450,13 +2448,12 @@ pub async fn kimi_oauth_poll(
 /// are probed too — the latter lets AgentSettingsPanel decide whether to
 /// dual-write the v1 engine's loop_control keys.
 ///
-/// As of kimi-code 2.5.2 the upstream registry still holds these same 5
-/// experimental flags (`auto_session_title` graduated back in 0.43.0 — titles
-/// are always on); `secondary-model`, `persistence_minidb_readmodel`,
-/// `remote-control` and `search_worker` were promoted or removed earlier and
-/// are no longer probed here. Note that 2.5.0 stopped offering an implicit
-/// `primary` subagent model and removed `[secondary_model] force`, but neither
-/// changes the flag set below.
+/// As of Kimi Code 2.8.1 the upstream registry holds 6 experimental flags
+/// (wait_for, worktree, auto_review, notify_user, tower, prompt_prediction);
+/// `auto_session_title` graduated in 0.43.0 (titles are always on) and
+/// `tool-select` / `subagent_fork` were removed by 2.8.x (no flag left);
+/// `secondary-model`, `persistence_minidb_readmodel`, `remote-control` and
+/// `search_worker` were promoted or removed earlier and are no longer probed.
 ///
 /// Non-flag probes: `KIMI_CODE_LEGACY_FLAG` (v1 engine switch) and
 /// `KIMI_CODE_WATCH` (kimi-code 2.0.1+ `[watch] enabled` override) are not
@@ -2469,14 +2466,25 @@ pub async fn kimi_oauth_poll(
 ///
 /// Truthy values per the CLI: `1` / `true` / `yes` / `on` (case-insensitive);
 /// the raw values are returned and the truthy check happens on the frontend.
+static EXPERIMENTAL_FLAG_ENV_VARS: [(&str, &str); 6] = [
+    ("wait_for", "KIMI_CODE_EXPERIMENTAL_WAIT_FOR"),
+    ("worktree", "KIMI_CODE_EXPERIMENTAL_WORKTREE"),
+    ("auto_review", "KIMI_CODE_EXPERIMENTAL_AUTO_REVIEW"),
+    ("notify_user", "KIMI_CODE_EXPERIMENTAL_NOTIFY_USER"),
+    ("tower", "KIMI_CODE_EXPERIMENTAL_TOWER"),
+    ("prompt_prediction", "KIMI_CODE_EXPERIMENTAL_PROMPT_PREDICTION"),
+];
+
 #[tauri::command]
 pub fn get_experimental_env_status() -> HashMap<String, String> {
-    const VARS: [(&str, &str); 8] = [
-        ("tool-select", "KIMI_CODE_EXPERIMENTAL_TOOL_SELECT"),
-        ("tower", "KIMI_CODE_EXPERIMENTAL_TOWER"),
-        ("subagent_fork", "KIMI_CODE_EXPERIMENTAL_SUBAGENT_FORK"),
-        ("wait_for", "KIMI_CODE_EXPERIMENTAL_WAIT_FOR"),
-        ("notify_user", "KIMI_CODE_EXPERIMENTAL_NOTIFY_USER"),
+    const VARS: [(&str, &str); 9] = [
+        // The six [experimental] feature flags.
+        EXPERIMENTAL_FLAG_ENV_VARS[0],
+        EXPERIMENTAL_FLAG_ENV_VARS[1],
+        EXPERIMENTAL_FLAG_ENV_VARS[2],
+        EXPERIMENTAL_FLAG_ENV_VARS[3],
+        EXPERIMENTAL_FLAG_ENV_VARS[4],
+        EXPERIMENTAL_FLAG_ENV_VARS[5],
         // Non-flag probes consumed by the frontend:
         ("master", "KIMI_CODE_EXPERIMENTAL_FLAG"),
         ("legacy", "KIMI_CODE_LEGACY_FLAG"),
@@ -2493,6 +2501,23 @@ pub fn get_experimental_env_status() -> HashMap<String, String> {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod experimental_env_probe_tests {
+    use super::*;
+
+    #[test]
+    fn experimental_env_probe_matches_kimi_code_2_8_1() {
+        assert_eq!(EXPERIMENTAL_FLAG_ENV_VARS.map(|(_, name)| name), [
+            "KIMI_CODE_EXPERIMENTAL_WAIT_FOR",
+            "KIMI_CODE_EXPERIMENTAL_WORKTREE",
+            "KIMI_CODE_EXPERIMENTAL_AUTO_REVIEW",
+            "KIMI_CODE_EXPERIMENTAL_NOTIFY_USER",
+            "KIMI_CODE_EXPERIMENTAL_TOWER",
+            "KIMI_CODE_EXPERIMENTAL_PROMPT_PREDICTION",
+        ]);
+    }
 }
 
 #[cfg(test)]
@@ -2760,6 +2785,9 @@ max_context_size = 1000000
                     alias: "opencode-go-copy/deepseek-v4-flash".to_string(),
                     provider: "opencode-go-copy".to_string(),
                     model: "deepseek-v4-flash".to_string(),
+                    provider_id: None,
+                    name: None,
+                    aliases: vec![],
                     max_context_size: 512_000,
                     display_name: None,
                     supports_1m: false,

@@ -28,6 +28,7 @@ pub enum ProviderType {
     OpenaiResponses,
     GoogleGenai,
     Vertexai,
+    Bedrock,
     /// Kept for compatibility; mapped to OpenAI-compatible in Pi.
     Kimi,
     /// A provider type string the CLI knows but Kimi Switch does not.
@@ -64,6 +65,7 @@ impl ProviderType {
             ProviderType::OpenaiResponses => Cow::Borrowed("openai_responses"),
             ProviderType::GoogleGenai => Cow::Borrowed("google-genai"),
             ProviderType::Vertexai => Cow::Borrowed("vertexai"),
+            ProviderType::Bedrock => Cow::Borrowed("bedrock"),
             ProviderType::Kimi => Cow::Borrowed("kimi"),
             ProviderType::Unknown(s) => Cow::Owned(s.clone()),
         }
@@ -78,6 +80,7 @@ impl ProviderType {
             "openai_responses" => ProviderType::OpenaiResponses,
             "google-genai" => ProviderType::GoogleGenai,
             "vertexai" => ProviderType::Vertexai,
+            "bedrock" => ProviderType::Bedrock,
             "kimi" => ProviderType::Kimi,
             other => ProviderType::Unknown(other.to_string()),
         }
@@ -89,7 +92,10 @@ impl ProviderType {
                 Some("https://api.openai.com/v1")
             }
             ProviderType::GoogleGenai => Some("https://generativelanguage.googleapis.com"),
-            ProviderType::Anthropic | ProviderType::Vertexai | ProviderType::Unknown(_) => None,
+            ProviderType::Anthropic
+            | ProviderType::Vertexai
+            | ProviderType::Bedrock
+            | ProviderType::Unknown(_) => None,
         }
     }
 
@@ -196,6 +202,19 @@ pub struct Model {
     pub alias: String,
     pub provider: String,
     pub model: String,
+    /// kimi-code 2.8 v2 identity: the provider this model belongs to,
+    /// separated from the legacy `provider` field. `None` when the legacy
+    /// `provider` key is used.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
+    /// kimi-code 2.8 v2 identity: the wire model name, separated from the
+    /// legacy `model` field. `None` when the legacy `model` key is used.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// kimi-code 2.8 v2 identity: alternate aliases by which the model can be
+    /// referenced in `/model` etc.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub aliases: Vec<String>,
     pub max_context_size: u64,
     pub display_name: Option<String>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -212,6 +231,9 @@ impl std::fmt::Debug for Model {
             .field("alias", &self.alias)
             .field("provider", &self.provider)
             .field("model", &self.model)
+            .field("provider_id", &self.provider_id)
+            .field("name", &self.name)
+            .field("aliases", &self.aliases)
             .field("max_context_size", &self.max_context_size)
             .field("display_name", &self.display_name)
             .field("supports_1m", &self.supports_1m)
@@ -226,6 +248,9 @@ impl PartialEq for Model {
         self.alias == other.alias
             && self.provider == other.provider
             && self.model == other.model
+            && self.provider_id == other.provider_id
+            && self.name == other.name
+            && self.aliases == other.aliases
             && self.max_context_size == other.max_context_size
             && self.display_name == other.display_name
             && self.supports_1m == other.supports_1m

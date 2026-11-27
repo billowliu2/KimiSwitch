@@ -25,6 +25,11 @@ import {
   rekeyModelsOnProviderRename,
 } from "./lib/providerRename";
 import {
+  modelProvider,
+  modelWireName,
+  setModelProvider,
+} from "./lib/model-effective";
+import {
   purgeSubagentPoolAliases,
   rekeySubagentPoolAliases,
 } from "./lib/referenceCleanup";
@@ -57,7 +62,7 @@ function setProviderDefaultModel(provider: Provider, alias: string | null): Prov
 
 function findFirstModelForProvider(models: Record<string, Model>, providerName: string): string | null {
   for (const [key, m] of Object.entries(models)) {
-    if (m.provider === providerName) {
+    if (modelProvider(m) === providerName) {
       return key;
     }
   }
@@ -459,7 +464,7 @@ export default function App() {
       const models = { ...cfg.models };
       const removedAliases: string[] = [];
       for (const key of Object.keys(models)) {
-        if (models[key].provider === name) {
+        if (modelProvider(models[key]) === name) {
           removedAliases.push(key);
           delete models[key];
         }
@@ -548,7 +553,10 @@ export default function App() {
     updateConfig((cfg) => {
       const model = cfg.models[alias];
       if (!model) return cfg;
-      const provider = cfg.providers[model.provider];
+      // A model's provider is resolved through its effective identity
+      // (`provider_id` for v2 models, legacy `provider` otherwise), so a v2
+      // model can be set as its provider's default instead of bailing out.
+      const provider = cfg.providers[modelProvider(model)];
       if (!provider) return cfg;
       const providers = {
         ...cfg.providers,
@@ -583,7 +591,8 @@ export default function App() {
       // choice.
       if (activeProviderName && activeProviderName !== name && cfg.default_model) {
         const oldActive = cfg.providers[activeProviderName];
-        if (oldActive && cfg.models[cfg.default_model]?.provider === activeProviderName) {
+        const defaultEntry = cfg.models[cfg.default_model];
+        if (oldActive && defaultEntry && modelProvider(defaultEntry) === activeProviderName) {
           providers[activeProviderName] = setProviderDefaultModel(
             { ...oldActive, active: false },
             cfg.default_model
@@ -601,7 +610,8 @@ export default function App() {
       // Prefer the target provider's remembered default model; fall back to
       // its first model when there is no saved preference or it is invalid.
       let default_model = getProviderDefaultModel(target);
-      if (!default_model || cfg.models[default_model]?.provider !== name) {
+      const defaultEntry = cfg.models[default_model ?? ""];
+      if (!default_model || !defaultEntry || modelProvider(defaultEntry) !== name) {
         default_model = findFirstModelForProvider(cfg.models, name);
       }
 
@@ -672,9 +682,9 @@ export default function App() {
       providers[provider.name] = provider;
 
       const updatedModels = { ...cfg.models };
-      // Remove existing models for this provider.
+      // Remove existing models for this provider (effective ownership).
       for (const key of Object.keys(updatedModels)) {
-        if (updatedModels[key].provider === oldName) {
+        if (modelProvider(updatedModels[key]) === oldName) {
           delete updatedModels[key];
         }
       }
@@ -687,13 +697,12 @@ export default function App() {
           n++;
         }
         updatedModels[alias] = {
-          ...m,
+          ...setModelProvider(m, provider.name),
           alias,
-          provider: provider.name,
           max_context_size:
             m.max_context_size ??
-            getModelRef(m.model)?.context ??
-            getDefaultMaxContextSize(m.model),
+            getModelRef(modelWireName(m))?.context ??
+            getDefaultMaxContextSize(modelWireName(m)),
         };
       }
 
@@ -706,7 +715,7 @@ export default function App() {
       // (provider renamed, models dropped) must not survive as zombies.
       const removedAliases = Object.keys(cfg.models).filter(
         (key) =>
-          cfg.models[key].provider === oldName &&
+          modelProvider(cfg.models[key]) === oldName &&
           !Object.hasOwn(updatedModels, key)
       );
       const raw_other = purgeSubagentPoolAliases(cfg.raw_other, removedAliases);
@@ -714,7 +723,7 @@ export default function App() {
       // Remember this provider's default model preference so it survives
       // provider switches.
       const updatedProvider = providers[provider.name];
-      if (updatedProvider && default_model && updatedModels[default_model]?.provider === provider.name) {
+      if (updatedProvider && default_model && modelProvider(updatedModels[default_model]) === provider.name) {
         providers[provider.name] = setProviderDefaultModel(updatedProvider, default_model);
       }
 
@@ -743,7 +752,7 @@ export default function App() {
     let count = 0;
     const models: Record<string, Model> = { ...config.models };
     for (const [alias, m] of Object.entries(config.models)) {
-      const next = seedModelFromReference(m, getModelRef(m.model));
+      const next = seedModelFromReference(m, getModelRef(modelWireName(m)));
       if (next !== m) {
         models[alias] = next;
         count += 1;
@@ -948,7 +957,7 @@ export default function App() {
             )}
             nameConflict={displacedRef.current.has(editingProvider)}
             models={Object.values(config.models).filter(
-              (m) => m.provider === currentProvider.name
+              (m) => modelProvider(m) === currentProvider.name
             )}
             defaultModel={config.default_model}
             onBack={handleEditBack}
@@ -963,9 +972,9 @@ export default function App() {
                 // "<provider>/<model-id>" so the CLI records usage under the
                 // real model name instead of the placeholder.
                 let effective = model;
-                const safeProvider = model.provider.replace(/\//g, "-");
+                const safeProvider = modelProvider(model).replace(/\//g, "-");
                 const prefix = `${safeProvider}/`;
-                const modelId = model.model.trim();
+                const modelId = modelWireName(model).trim();
                 const tail = model.alias.startsWith(prefix)
                   ? model.alias.slice(prefix.length)
                   : "";
@@ -982,7 +991,7 @@ export default function App() {
                   delete models[model.alias];
                 }
                 const existingKeys = Object.keys(models).filter(
-                  (k) => models[k].provider === currentProvider.name
+                  (k) => modelProvider(models[k]) === currentProvider.name
                 );
                 const oldKey = existingKeys.find((k) =>
                   effective.alias === k ? true : models[k].alias === effective.alias
@@ -1054,7 +1063,10 @@ export default function App() {
                 for (const m of models) {
                   // Skip if this model id already exists for the same provider
                   const dup = Object.values(updated).some(
-                    (mm) => mm.provider === m.provider && mm.model === m.model && m.model !== ""
+                    (mm) =>
+                      modelProvider(mm) === modelProvider(m) &&
+                      modelWireName(mm) === modelWireName(m) &&
+                      modelWireName(m) !== ""
                   );
                   if (dup) continue;
                   let alias = m.alias;

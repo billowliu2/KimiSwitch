@@ -483,20 +483,28 @@ describe("validateSubagentPool", () => {
 // ---------------------------------------------------------------------------
 
 describe("experimental flag registry", () => {
-  it("mirrors the 0.43.0 v2 registry (5 flags)", () => {
+  it("mirrors the 2.8.1 v2 registry (6 flags)", () => {
     expect(EXPERIMENTAL_FLAGS.map((f) => f.id)).toEqual([
       "wait_for",
-      "tool-select",
+      "worktree",
+      "auto_review",
       "notify_user",
       "tower",
-      "subagent_fork",
+      "prompt_prediction",
     ]);
+    // wait_for is on by default upstream; every other flag is opt-in.
+    const byId = (id: string) => EXPERIMENTAL_FLAGS.find((f) => f.id === id)!;
+    expect(byId("wait_for").defaultEnabled).toBe(true);
+    for (const id of ["worktree", "auto_review", "notify_user", "tower", "prompt_prediction"]) {
+      expect(byId(id).defaultEnabled).toBeUndefined();
+    }
     // Removed upstream: file_history (0.41.0, turn-level file history is
     // always on), auto_session_title (0.43.0, graduated — AI session titles
-    // are always on, #3749), plus secondary-model /
-    // persistence_minidb_readmodel / remote-control / search_worker
-    // (0.42.0 — promoted or moved to dedicated config, the minidb read-model
-    // now lives under [database]), so the adapter must not mirror them either.
+    // are always on, #3749), tool-select and subagent_fork (2.8.x — no flag
+    // left upstream), plus secondary-model / persistence_minidb_readmodel /
+    // remote-control / search_worker (0.42.0 — promoted or moved to dedicated
+    // config, the minidb read-model now lives under [database]), so the
+    // adapter must not mirror them either.
     for (const id of [
       "file_history",
       "auto_session_title",
@@ -504,6 +512,8 @@ describe("experimental flag registry", () => {
       "persistence_minidb_readmodel",
       "remote-control",
       "search_worker",
+      "tool-select",
+      "subagent_fork",
     ]) {
       expect(EXPERIMENTAL_FLAGS.some((f) => f.id === id)).toBe(false);
     }
@@ -532,11 +542,11 @@ describe("setExperimentalFlag", () => {
   });
 
   it("enabling writes true; disabling a default-off flag deletes the key", () => {
-    const on = setExperimentalFlag({}, "tool-select", true) as {
+    const on = setExperimentalFlag({}, "worktree", true) as {
       experimental: Record<string, unknown>;
     };
-    expect(on.experimental["tool-select"]).toBe(true);
-    const off = setExperimentalFlag(on, "tool-select", false) as Record<
+    expect(on.experimental["worktree"]).toBe(true);
+    const off = setExperimentalFlag(on, "worktree", false) as Record<
       string,
       unknown
     >;

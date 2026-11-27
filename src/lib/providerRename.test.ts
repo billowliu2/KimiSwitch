@@ -15,6 +15,19 @@ function model(alias: string, provider: string): Model {
   };
 }
 
+/** A v2-identity model: provider_id owns it, legacy provider/model stay empty. */
+function v2Model(alias: string, providerId: string, wire: string): Model {
+  return {
+    alias,
+    provider: "",
+    provider_id: providerId,
+    model: "",
+    name: wire,
+    max_context_size: 512000,
+    display_name: null,
+  };
+}
+
 describe("rekeyModelsOnProviderRename", () => {
   it("re-keys aliases and provider when a provider is renamed (opencode-go-copy scenario)", () => {
     const models = {
@@ -86,6 +99,33 @@ describe("rekeyModelsOnProviderRename", () => {
     // entry lands on a distinct target.
     expect(Object.values(aliasMap).sort()).toEqual(["x/k3", "x/k3-2"]);
   });
+
+  it("re-keys v2-identity models (provider_id) on provider rename", () => {
+    const models = {
+      "aws/sonnet": v2Model("aws/sonnet", "aws", "anthropic.claude-sonnet"),
+      "azure/gpt": v2Model("azure/gpt", "azure", "gpt-4o"),
+      "aws/haiku": v2Model("aws/haiku", "aws", "claude-haiku"),
+    };
+    const { models: next, aliasMap } = rekeyModelsOnProviderRename(models, "aws", "aws-next");
+
+    expect(Object.keys(next).sort()).toEqual([
+      "aws-next/haiku",
+      "aws-next/sonnet",
+      "azure/gpt",
+    ]);
+    const moved = next["aws-next/sonnet"];
+    expect(moved.alias).toBe("aws-next/sonnet");
+    // The v2 identity is updated through provider_id, not the legacy field.
+    expect(moved.provider_id).toBe("aws-next");
+    expect(moved.provider).toBe("");
+    expect(moved.name).toBe("anthropic.claude-sonnet");
+    expect(aliasMap).toEqual({
+      "aws/haiku": "aws-next/haiku",
+      "aws/sonnet": "aws-next/sonnet",
+    });
+    // Untouched provider stays identical.
+    expect(next["azure/gpt"]).toBe(models["azure/gpt"]);
+  });
 });
 
 describe("copyModelsOnProviderDuplicate", () => {
@@ -116,5 +156,29 @@ describe("copyModelsOnProviderDuplicate", () => {
       "dupe/legacy-k3-2",
       "legacy-k3",
     ]);
+  });
+
+  it("clones v2-identity (provider_id) models and updates the copy, keeping the source", () => {
+    const models = {
+      "aws/sonnet": v2Model("aws/sonnet", "aws", "anthropic.claude-sonnet"),
+      "other/m1": model("other/m1", "other"),
+    };
+    const next = copyModelsOnProviderDuplicate(models, "aws", "aws-copy");
+
+    expect(Object.keys(next).sort()).toEqual([
+      "aws-copy/sonnet",
+      "aws/sonnet",
+      "other/m1",
+    ]);
+    const src = next["aws/sonnet"];
+    expect(src.provider_id).toBe("aws");
+    expect(src.provider).toBe("");
+    const dup = next["aws-copy/sonnet"];
+    expect(dup.alias).toBe("aws-copy/sonnet");
+    // The v2 identity is written through provider_id, and no stale provider_id
+    // is left pointing at the old provider.
+    expect(dup.provider_id).toBe("aws-copy");
+    expect(dup.provider).toBe("");
+    expect(dup.name).toBe("anthropic.claude-sonnet");
   });
 });

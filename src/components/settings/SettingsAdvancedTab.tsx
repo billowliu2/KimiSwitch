@@ -62,10 +62,11 @@ const EFFORT_LABELS: Record<(typeof EFFORTS)[number], TranslationKey> = {
 
 const FLAG_LABELS: Record<string, { name: TranslationKey; desc: TranslationKey }> = {
   wait_for: { name: "flagWaitFor", desc: "flagWaitForDesc" },
-  "tool-select": { name: "flagToolSelect", desc: "flagToolSelectDesc" },
+  worktree: { name: "flagWorktree", desc: "flagWorktreeDesc" },
+  auto_review: { name: "flagAutoReview", desc: "flagAutoReviewDesc" },
   notify_user: { name: "flagNotifyUser", desc: "flagNotifyUserDesc" },
   tower: { name: "flagTower", desc: "flagTowerDesc" },
-  subagent_fork: { name: "flagSubagentFork", desc: "flagSubagentForkDesc" },
+  prompt_prediction: { name: "flagPromptPrediction", desc: "flagPromptPredictionDesc" },
 };
 
 /** Validation-error i18n key per engine rule, for the pre-write self-check. */
